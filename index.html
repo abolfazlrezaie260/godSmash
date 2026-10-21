@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>GodSmash v1.0 — شبیه‌ساز تخریب سیاره زمین</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #030712;
+      font-family: 'Vazirmatn', 'Inter', sans-serif;
+      color: #f8fafc;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6);
+    }
+    .hud-btn {
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .hud-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(249, 115, 22, 0.6);
+    }
+    .hud-btn:active {
+      transform: scale(0.96);
+    }
+    .pulse-ring {
+      animation: pulseGlow 2s infinite ease-in-out;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
+      50% { box-shadow: 0 0 18px 4px rgba(239, 68, 68, 0.25); }
+    }
+    .num-mono {
+      font-family: 'Inter', 'Vazirmatn', monospace;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body class="relative w-full h-full overflow-hidden select-none">
+
+  <!-- 3D WebGL Viewport -->
+  <div id="canvas-container" aria-label="فضای سه‌بعدی سیاره زمین"></div>
+
+  <!-- Subtle Reticle Crosshair in Center of Screen -->
+  <div id="center-reticle" class="pointer-events-none fixed inset-0 flex items-center justify-center z-10 opacity-40">
+    <div class="w-8 h-8 rounded-full border border-orange-400/60 flex items-center justify-center">
+      <div class="w-1.5 h-1.5 rounded-full bg-orange-400"></div>
+    </div>
+  </div>
+
+  <!-- Top HUD Bar: Earth Vital Stats & Quick Toggles (No Menus, Direct Gameplay) -->
+  <header class="fixed top-3 inset-x-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+    <!-- Planet Status Card -->
+    <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-4 pointer-events-auto">
+      <div class="flex items-center gap-2.5">
+        <div class="relative w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" id="planet-status-dot"></div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold tracking-wide text-sky-400">سیاره زمین (EARTH)</span>
+            <span id="status-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium">پایدار</span>
+          </div>
+          <div class="flex items-center gap-3 mt-1">
+            <div class="text-xs text-slate-300">
+              جمعیت: <span id="population-val" class="num-mono font-bold text-white">8,000,000,000</span>
+            </div>
+            <span class="text-slate-600">|</span>
+            <div class="text-xs text-slate-300">
+              برخوردها: <span id="impacts-val" class="num-mono font-bold text-orange-400">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Core Integrity Progress Bar -->
+      <div class="hidden sm:flex flex-col min-w-[130px] border-r border-slate-700/70 pr-3">
+        <div class="flex items-center justify-between text-[11px] mb-1">
+          <span class="text-slate-400">انسجام پوسته و هسته</span>
+          <span id="integrity-val" class="num-mono font-bold text-emerald-400">100%</span>
+        </div>
+        <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+          <div id="integrity-bar" class="h-full bg-gradient-to-l from-emerald-400 via-amber-400 to-rose-500 transition-all duration-300" style="width: 100%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Last Strike Toast / Telemetry & Utility Controls -->
+    <div class="flex items-center gap-2 pointer-events-auto">
+      <div id="impact-toast" class="glass-panel rounded-xl px-3 py-2 text-xs text-amber-300 hidden items-center gap-2 border-amber-500/40">
+        <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+        <span id="impact-toast-text">اصابت ثبت شد</span>
+      </div>
+
+      <button id="btn-autorotate" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-medium text-slate-200 flex items-center gap-1.5" title="چرخش خودکار زمین">
+        <span id="autorotate-icon">🔄</span>
+        <span class="hidden md:inline" id="autorotate-label">چرخش: روشن</span>
+      </button>
+
+      <button id="btn-audio" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-medium text-slate-200 flex items-center gap-1.5" title="صدا و افکت صوتی">
+        <span id="audio-icon">🔊</span>
+        <span class="hidden md:inline" id="audio-label">صدا: فعال</span>
+      </button>
+
+      <button id="btn-reset" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-semibold text-sky-300 hover:text-white border-sky-500/30 flex items-center gap-1.5" title="بازسازی کامل سیاره زمین">
+        <span>↺</span>
+        <span>بازسازی زمین</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Bottom HUD Bar: Single Missile Control & Instructions -->
+  <footer class="fixed bottom-3 inset-x-3 z-20 flex flex-col sm:flex-row items-center justify-between gap-2.5 pointer-events-none">
+    <!-- Active Weapon Indicator (v1: Single Missile Type) -->
+    <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-3 pointer-events-auto w-full sm:w-auto justify-between sm:justify-start">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/30 to-rose-600/30 border border-orange-500/50 flex items-center justify-center text-lg shadow-inner">
+          🚀
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-white">موشک هسته‌ای قاره‌پیما (ICBM-V1)</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 num-mono">50 MT</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-0.5">
+            روی هر نقطه از کره زمین کلیک/لمس کنید تا موشک به همان مختصات شلیک شود
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Direct Fire Controls for Touch / Keyboard / Rapid Testing -->
+    <div class="glass-panel rounded-2xl px-3 py-2 flex items-center gap-2 pointer-events-auto w-full sm:w-auto justify-center">
+      <button id="btn-mode-toggle" type="button" class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-200 border border-slate-600/60 flex items-center gap-1.5">
+        <span>🎯</span>
+        <span id="mode-label">حالت: تک‌موشک</span>
+      </button>
+
+      <button id="btn-fire-center" type="button" class="hud-btn pulse-ring rounded-xl px-4 py-2 text-xs font-bold bg-gradient-to-r from-orange-500 to-rose-600 text-white border border-orange-400/50 flex items-center gap-2 shadow-lg">
+        <span>🔥</span>
+        <span>شلیک موشک (Space)</span>
+      </button>
+
+      <button id="btn-zoom-in" type="button" class="hud-btn rounded-xl w-8 h-8 text-sm font-bold bg-slate-800/90 text-slate-200 border border-slate-700 flex items-center justify-center" title="نزدیک‌تر">+</button>
+      <button id="btn-zoom-out" type="button" class="hud-btn rounded-xl w-8 h-8 text-sm font-bold bg-slate-800/90 text-slate-200 border border-slate-700 flex items-center justify-center" title="دورتر">−</button>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ==========================================
+      // 1. SYNTHESIZED WEB AUDIO ENGINE (No External Files)
+      // ==========================================
+      const SoundEngine = {
+        ctx: null,
+        muted: false,
+
+        init() {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              this.ctx = new AudioCtx();
+            }
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+        },
+
+        playLaunch() {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+
+          const now = this.ctx.currentTime;
+          // Target lock beep
+          const osc = this.ctx.createOscillator();
+          const oscGain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.exponentialRampToValueAtTime(1320, now + 0.09);
+          oscGain.gain.setValueAtTime(0.08, now);
+          oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+          osc.connect(oscGain);
+          oscGain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+
+          // Rocket thruster whoosh (filtered white noise)
+          const bufferSize = this.ctx.sampleRate * 0.45;
+          const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const output = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+          }
+          const whiteNoise = this.ctx.createBufferSource();
+          whiteNoise.buffer = noiseBuffer;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(400, now);
+          filter.frequency.exponentialRampToValueAtTime(1200, now + 0.25);
+          filter.frequency.exponentialRampToValueAtTime(280, now + 0.45);
+          filter.Q.value = 1.8;
+
+          const noiseGain = this.ctx.createGain();
+          noiseGain.gain.setValueAtTime(0.01, now);
+          noiseGain.gain.linearRampToValueAtTime(0.16, now + 0.08);
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+          whiteNoise.connect(filter);
+          filter.connect(noiseGain);
+          noiseGain.connect(this.ctx.destination);
+          whiteNoise.start(now);
+          whiteNoise.stop(now + 0.45);
+        },
+
+        playExplosion(intensity = 1.0) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+
+          const now = this.ctx.currentTime;
+          const duration = 1.4 * intensity;
+
+          // Sub-bass shockwave boom
+          const subOsc = this.ctx.createOscillator();
+          const subGain = this.ctx.createGain();
+          subOsc.type = 'triangle';
+          subOsc.frequency.setValueAtTime(135, now);
+          subOsc.frequency.exponentialRampToValueAtTime(24, now + duration);
+          subGain.gain.setValueAtTime(0.38, now);
+          subGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+          subOsc.connect(subGain);
+          subGain.connect(this.ctx.destination);
+          subOsc.start(now);
+          subOsc.stop(now + duration);
+
+          // Broadband blast rumble
+          const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+          const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.45));
+          }
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = noiseBuffer;
+
+          const lowpass = this.ctx.createBiquadFilter();
+          lowpass.type = 'lowpass';
+          lowpass.frequency.setValueAtTime(950, now);
+          lowpass.frequency.exponentialRampToValueAtTime(90, now + duration);
+
+          const noiseGain = this.ctx.createGain();
+          noiseGain.gain.setValueAtTime(0.32, now);
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+          noise.connect(lowpass);
+          lowpass.connect(noiseGain);
+          noiseGain.connect(this.ctx.destination);
+          noise.start(now);
+          noise.stop(now + duration);
+        }
+      };
+
+      // ==========================================
+      // 2. GAME STATE & CONFIGURATION
+      // ==========================================
+      const EARTH_RADIUS = 10;
+      const INITIAL_POPULATION = 8000000000;
+
+      const state = {
+        population: INITIAL_POPULATION,
+        impacts: 0,
+        integrity: 100,
+        shattered: false,
+        autoRotate: true,
+        salvoMode: false, // false = 1 missile, true = 3 missiles of the same type
+        cameraTheta: 0.4,
+        cameraPhi: 1.25,
+        cameraDistance: 28,
+        targetCameraDistance: 28,
+        screenShake: 0
+      };
+
+      // DOM Elements
+      const container = document.getElementById('canvas-container');
+      const popEl = document.getElementById('population-val');
+      const impactsEl = document.getElementById('impacts-val');
+      const integrityValEl = document.getElementById('integrity-val');
+      const integrityBarEl = document.getElementById('integrity-bar');
+      const statusBadgeEl = document.getElementById('status-badge');
+      const statusDotEl = document.getElementById('planet-status-dot');
+      const toastEl = document.getElementById('impact-toast');
+      const toastTextEl = document.getElementById('impact-toast-text');
+      const btnAutoRotate = document.getElementById('btn-autorotate');
+      const autoRotateLabel = document.getElementById('autorotate-label');
+      const btnAudio = document.getElementById('btn-audio');
+      const audioIcon = document.getElementById('audio-icon');
+      const audioLabel = document.getElementById('audio-label');
+      const btnReset = document.getElementById('btn-reset');
+      const btnModeToggle = document.getElementById('btn-mode-toggle');
+      const modeLabel = document.getElementById('mode-label');
+      const btnFireCenter = document.getElementById('btn-fire-center');
+      const btnZoomIn = document.getElementById('btn-zoom-in');
+      const btnZoomOut = document.getElementById('btn-zoom-out');
+
+      let toastTimeout = null;
+      function showImpactToast(msg) {
+        toastTextEl.textContent = msg;
+        toastEl.classList.remove('hidden');
+        toastEl.classList.add('flex');
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+          toastEl.classList.add('hidden');
+          toastEl.classList.remove('flex');
+        }, 2800);
+      }
+
+      function updateHUD() {
+        popEl.textContent = Math.max(0, Math.round(state.population)).toLocaleString('en-US');
+        impactsEl.textContent = state.impacts.toString();
+        const intPct = Math.max(0, Math.round(state.integrity));
+        integrityValEl.textContent = intPct + '%';
+        integrityBarEl.style.width = intPct + '%';
+
+        if (state.shattered || intPct <= 0) {
+          statusBadgeEl.textContent = 'متلاشی‌شده';
+          statusBadgeEl.className = 'text-[11px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-medium';
+          statusDotEl.className = 'relative w-3.5 h-3.5 rounded-full bg-rose-500 shadow-[0_0_12px_#f43f5e]';
+          integrityValEl.className = 'num-mono font-bold text-rose-400';
+        } else if (intPct < 45) {
+          statusBadgeEl.textContent = 'بحرانی';
+          statusBadgeEl.className = 'text-[11px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-medium';
+          statusDotEl.className = 'relative w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_10px_#fbbf24]';
+          integrityValEl.className = 'num-mono font-bold text-amber-400';
+        } else {
+          statusBadgeEl.textContent = 'پایدار';
+          statusBadgeEl.className = 'text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium';
+          statusDotEl.className = 'relative w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]';
+          integrityValEl.className = 'num-mono font-bold text-emerald-400';
+        }
+      }
+
+      // ==========================================
+      // 3. THREE.JS SCENE, CAMERA & LIGHTING
+      // ==========================================
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      container.appendChild(renderer.domElement);
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0x28385e, 0.9);
+      scene.add(ambientLight);
+
+      const sunLight = new THREE.DirectionalLight(0xfff7ed, 2.2);
+      sunLight.position.set(45, 22, 35);
+      scene.add(sunLight);
+
+      const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.75);
+      rimLight.position.set(-35, -15, -25);
+      scene.add(rimLight);
+
+      // Starfield Background
+      function createStarfield() {
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 2600;
+        const positions = new Float32Array(starCount * 3);
+        const colors = new Float32Array(starCount * 3);
+
+        for (let i = 0; i < starCount; i++) {
+          const r = 140 + Math.random() * 240;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+          positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+          positions[i * 3 + 2] = r * Math.cos(phi);
+
+          const tint = Math.random();
+          if (tint > 0.85) {
+            colors[i * 3] = 0.75; colors[i * 3 + 1] = 0.88; colors[i * 3 + 2] = 1.0;
+          } else if (tint > 0.7) {
+            colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.92; colors[i * 3 + 2] = 0.75;
+          } else {
+            colors[i * 3] = 0.95; colors[i * 3 + 1] = 0.97; colors[i * 3 + 2] = 1.0;
+          }
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const starMat = new THREE.PointsMaterial({
+          size: 0.75,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.9
+        });
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+      }
+      createStarfield();
+
+      // ==========================================
+      // 4. PROCEDURAL PLANET EARTH & DYNAMIC CRATER TEXTURES
+      // ==========================================
+      const TEX_W = 1024;
+      const TEX_H = 512;
+
+      const surfaceCanvas = document.createElement('canvas');
+      surfaceCanvas.width = TEX_W;
+      surfaceCanvas.height = TEX_H;
+      const surfaceCtx = surfaceCanvas.getContext('2d');
+
+      const emissiveCanvas = document.createElement('canvas');
+      emissiveCanvas.width = TEX_W;
+      emissiveCanvas.height = TEX_H;
+      const emissiveCtx = emissiveCanvas.getContext('2d');
+
+      // Landmass polygons (normalized [u, v] approximations of Continents)
+      const continents = [
+        // North America
+        [[0.12,0.18],[0.24,0.16],[0.31,0.24],[0.27,0.36],[0.22,0.44],[0.17,0.38],[0.10,0.26]],
+        // South America
+        [[0.25,0.48],[0.33,0.52],[0.36,0.64],[0.31,0.81],[0.27,0.84],[0.24,0.66]],
+        // Greenland
+        [[0.33,0.10],[0.41,0.09],[0.39,0.18],[0.34,0.17]],
+        // Europe
+        [[0.46,0.18],[0.57,0.16],[0.59,0.28],[0.51,0.31],[0.45,0.27]],
+        // Africa
+        [[0.45,0.34],[0.56,0.34],[0.61,0.46],[0.58,0.68],[0.52,0.74],[0.47,0.56],[0.43,0.44]],
+        // Asia
+        [[0.57,0.16],[0.83,0.15],[0.88,0.28],[0.81,0.44],[0.71,0.47],[0.62,0.38],[0.58,0.27]],
+        // India & SE Asia
+        [[0.68,0.38],[0.77,0.40],[0.79,0.52],[0.71,0.50]],
+        // Australia
+        [[0.77,0.60],[0.88,0.60],[0.90,0.72],[0.81,0.75],[0.76,0.69]],
+        // Japan & Islands
+        [[0.85,0.27],[0.88,0.29],[0.86,0.34],[0.84,0.31]]
+      ];
+
+      function drawPoly(ctx, poly, fillStyle, blur = 0) {
+        ctx.save();
+        if (blur > 0) ctx.filter = `blur(${blur}px)`;
+        ctx.beginPath();
+        poly.forEach((pt, idx) => {
+          const x = pt[0] * TEX_W;
+          const y = pt[1] * TEX_H;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = fillStyle;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function paintPristineEarthTextures() {
+        // 1. Deep Ocean Gradient
+        const oceanGrad = surfaceCtx.createLinearGradient(0, 0, 0, TEX_H);
+        oceanGrad.addColorStop(0, '#0c2d48');
+        oceanGrad.addColorStop(0.2, '#07223b');
+        oceanGrad.addColorStop(0.5, '#0a365c');
+        oceanGrad.addColorStop(0.8, '#07223b');
+        oceanGrad.addColorStop(1, '#0c2d48');
+        surfaceCtx.fillStyle = oceanGrad;
+        surfaceCtx.fillRect(0, 0, TEX_W, TEX_H);
+
+        // Subtle ocean bathymetry ridges
+        for (let i = 0; i < 180; i++) {
+          surfaceCtx.fillStyle = i % 2 === 0 ? 'rgba(14, 116, 144, 0.08)' : 'rgba(2, 6, 23, 0.1)';
+          surfaceCtx.beginPath();
+          surfaceCtx.arc(
+            Math.random() * TEX_W,
+            Math.random() * TEX_H,
+            10 + Math.random() * 55,
+            0,
+            Math.PI * 2
+          );
+          surfaceCtx.fill();
+        }
+
+        // 2. Continental Shelf Glow
+        continents.forEach(poly => {
+          drawPoly(surfaceCtx, poly, 'rgba(14, 165, 233, 0.28)', 10);
+        });
+
+        // 3. Landmasses Base Green/Forest
+        continents.forEach(poly => {
+          drawPoly(surfaceCtx, poly, '#1f6f43', 3);
+        });
+
+        // 4. Biome Detailing (Deserts, Mountains, Steppes)
+        const desertZones = [
+          { x: 0.51, y: 0.40, rx: 0.06, ry: 0.045, color: '#b48a4e' }, // Sahara
+          { x: 0.60, y: 0.37, rx: 0.04, ry: 0.035, color: '#a87e43' }, // Arabian
+          { x: 0.83, y: 0.66, rx: 0.045, ry: 0.04, color: '#b06d3b' }, // Outback
+          { x: 0.19, y: 0.32, rx: 0.035, ry: 0.03, color: '#8c6d46' }, // Western US
+          { x: 0.72, y: 0.30, rx: 0.055, ry: 0.04, color: '#8b7355' }  // Gobi/Himalayas
+        ];
+        desertZones.forEach(z => {
+          surfaceCtx.save();
+          surfaceCtx.filter = 'blur(8px)';
+          surfaceCtx.fillStyle = z.color;
+          surfaceCtx.beginPath();
+          surfaceCtx.ellipse(z.x * TEX_W, z.y * TEX_H, z.rx * TEX_W, z.ry * TEX_H, 0.2, 0, Math.PI * 2);
+          surfaceCtx.fill();
+          surfaceCtx.restore();
+        });
+
+        // 5. Polar Ice Caps (Arctic & Antarctica)
+        surfaceCtx.fillStyle = '#e2e8f0';
+        surfaceCtx.fillRect(0, 0, TEX_W, 24);
+        surfaceCtx.fillRect(0, TEX_H - 36, TEX_W, 36);
+
+        // 6. Emissive Map (City Lights at Night + Zero Lava Initially)
+        emissiveCtx.fillStyle = '#000000';
+        emissiveCtx.fillRect(0, 0, TEX_W, TEX_H);
+
+        // City light clusters on continents
+        const cityHubs = [
+          [0.23, 0.29], [0.26, 0.31], [0.16, 0.31], [0.32, 0.62],
+          [0.49, 0.24], [0.53, 0.26], [0.55, 0.36], [0.71, 0.41],
+          [0.79, 0.34], [0.83, 0.31], [0.86, 0.31], [0.86, 0.69]
+        ];
+        cityHubs.forEach(hub => {
+          for (let j = 0; j < 28; j++) {
+            const cx = (hub[0] + (Math.random() - 0.5) * 0.05) * TEX_W;
+            const cy = (hub[1] + (Math.random() - 0.5) * 0.04) * TEX_H;
+            emissiveCtx.fillStyle = 'rgba(251, 191, 36, 0.55)';
+            emissiveCtx.fillRect(cx, cy, 1.8, 1.8);
+          }
+        });
+      }
+
+      paintPristineEarthTextures();
+
+      const surfaceTexture = new THREE.CanvasTexture(surfaceCanvas);
+      const emissiveTexture = new THREE.CanvasTexture(emissiveCanvas);
+
+      // Cloud Layer Texture
+      function createCloudTexture() {
+        const cCanvas = document.createElement('canvas');
+        cCanvas.width = 512;
+        cCanvas.height = 256;
+        const cCtx = cCanvas.getContext('2d');
+        cCtx.clearRect(0, 0, 512, 256);
+        for (let i = 0; i < 220; i++) {
+          const x = Math.random() * 512;
+          const y = 18 + Math.random() * 220;
+          const rx = 12 + Math.random() * 38;
+          const ry = 4 + Math.random() * 12;
+          const grad = cCtx.createRadialGradient(x, y, 1, x, y, rx);
+          grad.addColorStop(0, 'rgba(255, 255, 255, 0.38)');
+          grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          cCtx.fillStyle = grad;
+          cCtx.beginPath();
+          cCtx.ellipse(x, y, rx, ry, (Math.random() - 0.5) * 0.5, 0, Math.PI * 2);
+          cCtx.fill();
+        }
+        return new THREE.CanvasTexture(cCanvas);
+      }
+
+      // Earth Group
+      const earthGroup = new THREE.Group();
+      scene.add(earthGroup);
+
+      // High-density sphere geometry so vertices can be displaced into 3D craters
+      const SEGMENTS = 112;
+      let earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, SEGMENTS, SEGMENTS);
+      // Store original vertex positions for clean reset
+      const basePositions = new Float32Array(earthGeo.attributes.position.array);
+
+      const earthMat = new THREE.MeshStandardMaterial({
+        map: surfaceTexture,
+        emissiveMap: emissiveTexture,
+        emissive: new THREE.Color(0xffffff),
+        emissiveIntensity: 1.35,
+        roughness: 0.68,
+        metalness: 0.12
+      });
+
+      const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+      earthGroup.add(earthMesh);
+
+      // Clouds Mesh
+      const cloudGeo = new THREE.SphereGeometry(EARTH_RADIUS * 1.018, 64, 64);
+      const cloudMat = new THREE.MeshStandardMaterial({
+        map: createCloudTexture(),
+        transparent: true,
+        opacity: 0.65,
+        depthWrite: false,
+        roughness: 1.0
+      });
+      const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+      earthGroup.add(cloudMesh);
+
+      // Atmospheric Fresnel Rim Glow
+      const atmosGeo = new THREE.SphereGeometry(EARTH_RADIUS * 1.09, 64, 64);
+      const atmosMat = new THREE.ShaderMaterial({
+        vertexShader: `
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vNormal;
+          void main() {
+            float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.8);
+            gl_FragColor = vec4(0.22, 0.65, 1.0, 1.0) * intensity * 1.35;
+          }
+        `,
+        blending: THREE.AdditiveBlending,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false
+      });
+      const atmosMesh = new THREE.Mesh(atmosGeo, atmosMat);
+      scene.add(atmosMesh);
+
+      // ==========================================
+      // 5. CRATER DEFORMATION & MAGMA SCORCHING
+      // ==========================================
+      function carveCraterOnEarth(localPoint, blastRadiusWorld) {
+        // 1. Displace 3D Sphere Vertices around localPoint
+        const posAttr = earthGeo.attributes.position;
+        const v = new THREE.Vector3();
+        const dir = localPoint.clone().normalize();
+
+        for (let i = 0; i < posAttr.count; i++) {
+          v.fromBufferAttribute(posAttr, i);
+          const dist = v.distanceTo(localPoint);
+          if (dist < blastRadiusWorld * 1.45) {
+            const normDist = dist / blastRadiusWorld;
+            const currentLen = v.length();
+            let offset = 0;
+            if (normDist < 0.85) {
+              // Deep bowl indentation inside crater
+              const bowl = Math.cos((normDist / 0.85) * (Math.PI * 0.5));
+              offset = -bowl * 0.52;
+            } else if (normDist < 1.35) {
+              // Raised crater rim
+              const rimPhase = (normDist - 0.85) / 0.5;
+              offset = Math.sin(rimPhase * Math.PI) * 0.16;
+            }
+            const newLen = Math.max(EARTH_RADIUS * 0.72, currentLen + offset);
+            v.normalize().multiplyScalar(newLen);
+            posAttr.setXYZ(i, v.x, v.y, v.z);
+          }
+        }
+        posAttr.needsUpdate = true;
+        earthGeo.computeVertexNormals();
+
+        // 2. Convert 3D localPoint to Spherical UV to paint Scorched Crater & Glowing Magma
+        const u = 0.5 + Math.atan2(dir.z, -dir.x) / (2 * Math.PI);
+        const vCoord = 0.5 - Math.asin(Math.max(-1, Math.min(1, dir.y))) / Math.PI;
+
+        const cx = u * TEX_W;
+        const cy = vCoord * TEX_H;
+        const rPx = 22 + Math.random() * 10;
+
+        // Paint charred crust on surfaceCanvas
+        const charGrad = surfaceCtx.createRadialGradient(cx, cy, rPx * 0.1, cx, cy, rPx * 1.6);
+        charGrad.addColorStop(0, '#450a0a');
+        charGrad.addColorStop(0.45, '#1c1917');
+        charGrad.addColorStop(0.8, 'rgba(15, 23, 42, 0.75)');
+        charGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+        surfaceCtx.fillStyle = charGrad;
+        surfaceCtx.beginPath();
+        surfaceCtx.arc(cx, cy, rPx * 1.6, 0, Math.PI * 2);
+        surfaceCtx.fill();
+
+        // Paint glowing molten magma core & tectonic cracks on emissiveCanvas
+        const lavaGrad = emissiveCtx.createRadialGradient(cx, cy, 1, cx, cy, rPx * 1.25);
+        lavaGrad.addColorStop(0, '#fef08a');
+        lavaGrad.addColorStop(0.28, '#f97316');
+        lavaGrad.addColorStop(0.65, '#dc2626');
+        lavaGrad.addColorStop(1, 'rgba(185, 28, 28, 0)');
+        emissiveCtx.fillStyle = lavaGrad;
+        emissiveCtx.beginPath();
+        emissiveCtx.arc(cx, cy, rPx * 1.25, 0, Math.PI * 2);
+        emissiveCtx.fill();
+
+        // Radial magma fissures
+        const crackCount = 6 + Math.floor(Math.random() * 5);
+        emissiveCtx.strokeStyle = '#fb923c';
+        emissiveCtx.lineWidth = 1.8;
+        for (let c = 0; c < crackCount; c++) {
+          const angle = (c / crackCount) * Math.PI * 2 + Math.random() * 0.5;
+          const len = rPx * (1.1 + Math.random() * 0.9);
+          emissiveCtx.beginPath();
+          emissiveCtx.moveTo(cx, cy);
+          const midX = cx + Math.cos(angle + 0.15) * (len * 0.5);
+          const midY = cy + Math.sin(angle + 0.15) * (len * 0.5);
+          const endX = cx + Math.cos(angle) * len;
+          const endY = cy + Math.sin(angle) * len;
+          emissiveCtx.lineTo(midX, midY);
+          emissiveCtx.lineTo(endX, endY);
+          emissiveCtx.stroke();
+        }
+
+        surfaceTexture.needsUpdate = true;
+        emissiveTexture.needsUpdate = true;
+      }
+
+      // ==========================================
+      // 6. SINGLE WEAPON SYSTEM: ORBITAL THERMONUCLEAR MISSILE
+      // ==========================================
+      const activeMissiles = [];
+      const activeExplosions = [];
+      const activeDebris = [];
+      const smokeParticles = [];
+
+      function buildMissileMesh() {
+        const group = new THREE.Group();
+
+        // Missile fuselage (sleek metallic white/slate cylinder)
+        const bodyGeo = new THREE.CylinderGeometry(0.14, 0.18, 1.35, 12);
+        bodyGeo.rotateX(Math.PI / 2);
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: 0xe2e8f0,
+          metalness: 0.7,
+          roughness: 0.25
+        });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        group.add(body);
+
+        // Warhead nosecone (crimson/orange hazard cone)
+        const noseGeo = new THREE.ConeGeometry(0.14, 0.55, 12);
+        noseGeo.rotateX(Math.PI / 2);
+        noseGeo.translate(0, 0, 0.95);
+        const noseMat = new THREE.MeshStandardMaterial({
+          color: 0xef4444,
+          emissive: 0x991b1b,
+          emissiveIntensity: 0.4,
+          roughness: 0.3
+        });
+        const nose = new THREE.Mesh(noseGeo, noseMat);
+        group.add(nose);
+
+        // 4 Stabilizer Fins
+        const finGeo = new THREE.BoxGeometry(0.62, 0.04, 0.38);
+        finGeo.translate(0, 0, -0.5);
+        const finMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.6 });
+        const fin1 = new THREE.Mesh(finGeo, finMat);
+        const fin2 = fin1.clone();
+        fin2.rotation.z = Math.PI / 2;
+        group.add(fin1);
+        group.add(fin2);
+
+        // Glowing Rocket Plume at Tail
+        const plumeGeo = new THREE.ConeGeometry(0.16, 0.75, 10);
+        plumeGeo.rotateX(-Math.PI / 2);
+        plumeGeo.translate(0, 0, -1.0);
+        const plumeMat = new THREE.MeshBasicMaterial({
+          color: 0xfb923c,
+          transparent: true,
+          opacity: 0.92
+        });
+        const plume = new THREE.Mesh(plumeGeo, plumeMat);
+        group.add(plume);
+
+        return { group, plume };
+      }
+
+      function createTargetReticle(localPos, localNormal) {
+        const retGroup = new THREE.Group();
+        const ringGeo = new THREE.RingGeometry(0.28, 0.38, 28);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0xef4444,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.9
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        retGroup.add(ring);
+
+        const innerGeo = new THREE.CircleGeometry(0.1, 16);
+        const innerMat = new THREE.MeshBasicMaterial({
+          color: 0xfbbf24,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.85
+        });
+        retGroup.add(new THREE.Mesh(innerGeo, innerMat));
+
+        // Position slightly above surface in earthGroup's local space
+        const offsetPos = localPos.clone().add(localNormal.clone().multiplyScalar(0.12));
+        retGroup.position.copy(offsetPos);
+        const lookTarget = offsetPos.clone().add(localNormal);
+        retGroup.lookAt(lookTarget);
+
+        earthGroup.add(retGroup);
+        return retGroup;
+      }
+
+      function launchMissileAtWorldPoint(worldTargetPoint, delayMs = 0) {
+        if (state.shattered) return;
+
+        setTimeout(() => {
+          if (state.shattered) return;
+          SoundEngine.playLaunch();
+
+          // Convert world target point into Earth's local space so it tracks Earth's rotation!
+          const localTarget = earthGroup.worldToLocal(worldTargetPoint.clone());
+          const localNormal = localTarget.clone().normalize();
+          localTarget.copy(localNormal).multiplyScalar(EARTH_RADIUS);
+
+          const reticle = createTargetReticle(localTarget, localNormal);
+
+          // Spawn missile from an orbital flank relative to camera
+          const camRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+          const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+          const sideSign = Math.random() > 0.5 ? 1 : -1;
+
+          const startPos = camera.position.clone()
+            .add(camRight.multiplyScalar(sideSign * (8 + Math.random() * 5)))
+            .add(camUp.multiplyScalar(4 + Math.random() * 4));
+
+          // Control point for a high curved ballistic arc
+          const currentWorldTarget = earthGroup.localToWorld(localTarget.clone());
+          const midPoint = startPos.clone().lerp(currentWorldTarget, 0.5);
+          const outwardDir = midPoint.clone().normalize();
+          const controlPos = midPoint.add(outwardDir.multiplyScalar(7 + Math.random() * 3));
+
+          const { group, plume } = buildMissileMesh();
+          group.position.copy(startPos);
+          scene.add(group);
+
+          activeMissiles.push({
+            mesh: group,
+            plume,
+            startPos,
+            controlPos,
+            localTarget,
+            localNormal,
+            reticle,
+            progress: 0,
+            speed: 0.92 + Math.random() * 0.15
+          });
+        }, delayMs);
+      }
+
+      function spawnSmokeParticle(pos) {
+        const geo = new THREE.SphereGeometry(0.11 + Math.random() * 0.08, 6, 6);
+        const mat = new THREE.MeshBasicMaterial({
+          color: Math.random() > 0.35 ? 0xf97316 : 0x94a3b8,
+          transparent: true,
+          opacity: 0.75
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(pos);
+        scene.add(mesh);
+        smokeParticles.push({
+          mesh,
+          life: 1.0,
+          decay: 1.6 + Math.random() * 0.6
+        });
+      }
+
+      function triggerNuclearDetonation(localTarget, localNormal) {
+        SoundEngine.playExplosion(1.0);
+        state.screenShake = Math.min(1.2, state.screenShake + 0.55);
+
+        // 1. Deform 3D Earth Geometry & Scorch Magma Texture
+        const blastRadius = 1.65 + Math.random() * 0.45;
+        carveCraterOnEarth(localTarget, blastRadius);
+
+        // 2. Update Game Telemetry (Population & Core Integrity)
+        state.impacts += 1;
+        const dmg = 4.2 + Math.random() * 1.8;
+        state.integrity = Math.max(0, state.integrity - dmg);
+
+        // Calculate casualties (higher near continental latitudes)
+        const latFactor = 1.0 - Math.abs(localNormal.y) * 0.75;
+        const casualties = Math.min(
+          state.population,
+          Math.floor((180000000 + Math.random() * 290000000) * latFactor)
+        );
+        state.population = Math.max(0, state.population - casualties);
+
+        const casMillions = Math.max(1, Math.round(casualties / 1000000));
+        showImpactToast(`انفجار ۵۰ مگاتنی! تلفات: ${casMillions} میلیون نفر`);
+        updateHUD();
+
+        // 3. Create 3D Fireball Dome & Expanding Shockwave Ring attached to Earth
+        const expGroup = new THREE.Group();
+        expGroup.position.copy(localTarget);
+        const lookAtPos = localTarget.clone().add(localNormal);
+        expGroup.lookAt(lookAtPos);
+        earthGroup.add(expGroup);
+
+        // Core Fireball
+        const fireGeo = new THREE.SphereGeometry(0.45, 20, 20);
+        const fireMat = new THREE.MeshBasicMaterial({
+          color: 0xfef08a,
+          transparent: true,
+          opacity: 0.98
+        });
+        const fireball = new THREE.Mesh(fireGeo, fireMat);
+        expGroup.add(fireball);
+
+        // Outer Plasma Shell
+        const plasmaGeo = new THREE.SphereGeometry(0.6, 20, 20);
+        const plasmaMat = new THREE.MeshBasicMaterial({
+          color: 0xf97316,
+          transparent: true,
+          opacity: 0.8,
+          blending: THREE.AdditiveBlending
+        });
+        const plasma = new THREE.Mesh(plasmaGeo, plasmaMat);
+        expGroup.add(plasma);
+
+        // Supersonic Shockwave Ring
+        const waveGeo = new THREE.RingGeometry(0.35, 0.55, 36);
+        const waveMat = new THREE.MeshBasicMaterial({
+          color: 0xfdba74,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.95,
+          blending: THREE.AdditiveBlending
+        });
+        const shockwave = new THREE.Mesh(waveGeo, waveMat);
+        shockwave.position.z = 0.08;
+        expGroup.add(shockwave);
+
+        activeExplosions.push({
+          group: expGroup,
+          fireball,
+          plasma,
+          shockwave,
+          age: 0,
+          maxAge: 1.5
+        });
+
+        // 4. Eject Molten Rock Debris into Low Orbit
+        const worldImpactPos = earthGroup.localToWorld(localTarget.clone());
+        const worldNormal = localNormal.clone().applyQuaternion(earthGroup.quaternion).normalize();
+
+        for (let i = 0; i < 24; i++) {
+          const debGeo = new THREE.DodecahedronGeometry(0.08 + Math.random() * 0.12, 0);
+          const debMat = new THREE.MeshBasicMaterial({
+            color: i % 2 === 0 ? 0xf97316 : 0xfacc15,
+            transparent: true,
+            opacity: 1.0
+          });
+          const debMesh = new THREE.Mesh(debGeo, debMat);
+          debMesh.position.copy(worldImpactPos);
+
+          const randVec = new THREE.Vector3(
+            Math.random() - 0.5,
+            Math.random() - 0.5,
+            Math.random() - 0.5
+          ).normalize();
+          const vel = worldNormal.clone().multiplyScalar(4.5 + Math.random() * 6.5)
+            .add(randVec.multiplyScalar(3.5));
+
+          scene.add(debMesh);
+          activeDebris.push({
+            mesh: debMesh,
+            vel,
+            life: 1.0,
+            decay: 0.45 + Math.random() * 0.35
+          });
+        }
+
+        // 5. Check for Planetary Core Rupture (0% Integrity)
+        if (state.integrity <= 0 && !state.shattered) {
+          triggerPlanetaryShatter();
+        }
+      }
+
+      function triggerPlanetaryShatter() {
+        state.shattered = true;
+        state.population = 0;
+        SoundEngine.playExplosion(1.6);
+        state.screenShake = 1.8;
+        updateHUD();
+        showImpactToast('💥 هسته سیاره زمین متلاشی شد! برای شروع مجدد «بازسازی زمین» را بزنید.');
+
+        // Hide intact Earth & clouds, spawn glowing asteroid fragments
+        earthMesh.visible = false;
+        cloudMesh.visible = false;
+        atmosMesh.visible = false;
+
+        for (let i = 0; i < 95; i++) {
+          const size = 0.35 + Math.random() * 1.15;
+          const fragGeo = new THREE.DodecahedronGeometry(size, 1);
+          const isCore = Math.random() > 0.45;
+          const fragMat = new THREE.MeshStandardMaterial({
+            color: isCore ? 0xdc2626 : 0x334155,
+            emissive: isCore ? 0xf97316 : 0x7c2d12,
+            emissiveIntensity: isCore ? 1.2 : 0.35,
+            roughness: 0.75
+          });
+          const frag = new THREE.Mesh(fragGeo, fragMat);
+          const dir = new THREE.Vector3(
+            Math.random() - 0.5,
+            Math.random() - 0.5,
+            Math.random() - 0.5
+          ).normalize();
+          frag.position.copy(dir.clone().multiplyScalar(Math.random() * EARTH_RADIUS * 0.7));
+          const vel = dir.multiplyScalar(2.5 + Math.random() * 9.0);
+
+          scene.add(frag);
+          activeDebris.push({
+            mesh: frag,
+            vel,
+            life: 1.0,
+            decay: 0.08 // linger in space until reset
+          });
+        }
+      }
+
+      function resetEarth() {
+        // Restore geometry vertices
+        const posAttr = earthGeo.attributes.position;
+        posAttr.array.set(basePositions);
+        posAttr.needsUpdate = true;
+        earthGeo.computeVertexNormals();
+
+        // Restore pristine textures
+        paintPristineEarthTextures();
+        surfaceTexture.needsUpdate = true;
+        emissiveTexture.needsUpdate = true;
+
+        // Clean up active missiles, explosions, debris
+        while (activeMissiles.length > 0) {
+          const m = activeMissiles.pop();
+          scene.remove(m.mesh);
+          earthGroup.remove(m.reticle);
+        }
+        while (activeExplosions.length > 0) {
+          const e = activeExplosions.pop();
+          earthGroup.remove(e.group);
+        }
+        while (activeDebris.length > 0) {
+          const d = activeDebris.pop();
+          scene.remove(d.mesh);
+        }
+
+        earthMesh.visible = true;
+        cloudMesh.visible = true;
+        atmosMesh.visible = true;
+
+        state.population = INITIAL_POPULATION;
+        state.impacts = 0;
+        state.integrity = 100;
+        state.shattered = false;
+        updateHUD();
+        showImpactToast('سیاره زمین به حالت اولیه بازسازی شد.');
+      }
+
+      // ==========================================
+      // 7. INPUT HANDLING: ORBIT CAMERA & CLICK-TO-FIRE
+      // ==========================================
+      const raycaster = new THREE.Raycaster();
+      const pointerNDC = new THREE.Vector2();
+
+      let isDragging = false;
+      let downX = 0;
+      let downY = 0;
+      let prevX = 0;
+      let prevY = 0;
+      let downTime = 0;
+
+      function fireMissileAtRay(clientX, clientY) {
+        if (state.shattered) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(pointerNDC, camera);
+        const hits = raycaster.intersectObject(earthMesh, false);
+
+        if (hits.length > 0) {
+          const hitPoint = hits[0].point;
+          if (state.salvoMode) {
+            // Fire 3 missiles of the exact same ICBM type in a tight cluster
+            for (let s = 0; s < 3; s++) {
+              const jitter = new THREE.Vector3(
+                (Math.random() - 0.5) * 2.2,
+                (Math.random() - 0.5) * 2.2,
+                (Math.random() - 0.5) * 2.2
+              );
+              const targetPt = hitPoint.clone().add(jitter).normalize().multiplyScalar(EARTH_RADIUS);
+              launchMissileAtWorldPoint(targetPt, s * 130);
+            }
+          } else {
+            launchMissileAtWorldPoint(hitPoint, 0);
+          }
+        }
+      }
+
+      function fireAtScreenCenter() {
+        const rect = renderer.domElement.getBoundingClientRect();
+        fireMissileAtRay(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
+
+      renderer.domElement.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        downX = prevX = e.clientX;
+        downY = prevY = e.clientY;
+        downTime = performance.now();
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - prevX;
+        const dy = e.clientY - prevY;
+        prevX = e.clientX;
+        prevY = e.clientY;
+
+        state.cameraTheta -= dx * 0.0065;
+        state.cameraPhi = Math.max(0.2, Math.min(Math.PI - 0.2, state.cameraPhi - dy * 0.0065));
+      });
+
+      window.addEventListener('pointerup', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        const moveDist = Math.hypot(e.clientX - downX, e.clientY - downY);
+        const elapsed = performance.now() - downTime;
+
+        // If user clicked/tapped without dragging, fire missile at that point on Earth
+        if (moveDist < 7 && elapsed < 450 && e.target === renderer.domElement) {
+          fireMissileAtRay(e.clientX, e.clientY);
+        }
+      });
+
+      renderer.domElement.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        state.targetCameraDistance = Math.max(16, Math.min(52, state.targetCameraDistance + e.deltaY * 0.018));
+      }, { passive: false });
+
+      // UI Buttons & Keyboard Shortcuts
+      btnAutoRotate.addEventListener('click', () => {
+        state.autoRotate = !state.autoRotate;
+        autoRotateLabel.textContent = state.autoRotate ? 'چرخش: روشن' : 'چرخش: خاموش';
+      });
+
+      btnAudio.addEventListener('click', () => {
+        SoundEngine.muted = !SoundEngine.muted;
+        audioIcon.textContent = SoundEngine.muted ? '🔇' : '🔊';
+        audioLabel.textContent = SoundEngine.muted ? 'صدا: بی‌صدا' : 'صدا: فعال';
+      });
+
+      btnReset.addEventListener('click', () => {
+        resetEarth();
+      });
+
+      btnModeToggle.addEventListener('click', () => {
+        state.salvoMode = !state.salvoMode;
+        modeLabel.textContent = state.salvoMode ? 'حالت: رگبار ۳تایی' : 'حالت: تک‌موشک';
+      });
+
+      btnFireCenter.addEventListener('click', () => {
+        fireAtScreenCenter();
+      });
+
+      btnZoomIn.addEventListener('click', () => {
+        state.targetCameraDistance = Math.max(16, state.targetCameraDistance - 3.5);
+      });
+
+      btnZoomOut.addEventListener('click', () => {
+        state.targetCameraDistance = Math.min(52, state.targetCameraDistance + 3.5);
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          fireAtScreenCenter();
+        } else if (e.code === 'KeyR') {
+          resetEarth();
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // ==========================================
+      // 8. MAIN ANIMATION & PHYSICS LOOP
+      // ==========================================
+      let lastTime = performance.now();
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+        const dt = Math.min(0.05, (now - lastTime) / 1000);
+        lastTime = now;
+
+        // 1. Rotate Earth & Clouds
+        if (state.autoRotate && !state.shattered) {
+          earthGroup.rotation.y += 0.12 * dt;
+        }
+        cloudMesh.rotation.y += 0.05 * dt;
+
+        // 2. Smooth Orbit Camera Position + Screen Shake
+        state.cameraDistance += (state.targetCameraDistance - state.cameraDistance) * 0.12;
+        const cx = state.cameraDistance * Math.sin(state.cameraPhi) * Math.sin(state.cameraTheta);
+        const cy = state.cameraDistance * Math.cos(state.cameraPhi);
+        const cz = state.cameraDistance * Math.sin(state.cameraPhi) * Math.cos(state.cameraTheta);
+
+        camera.position.set(cx, cy, cz);
+        if (state.screenShake > 0.005) {
+          camera.position.x += (Math.random() - 0.5) * state.screenShake;
+          camera.position.y += (Math.random() - 0.5) * state.screenShake;
+          camera.position.z += (Math.random() - 0.5) * state.screenShake;
+          state.screenShake *= Math.pow(0.04, dt);
+        } else {
+          state.screenShake = 0;
+        }
+        camera.lookAt(0, 0, 0);
+
+        // 3. Update Active Ballistic Missiles
+        for (let i = activeMissiles.length - 1; i >= 0; i--) {
+          const m = activeMissiles[i];
+          m.progress += m.speed * dt;
+
+          // Pulse target reticle
+          const s = 1.0 + 0.25 * Math.sin(now * 0.018);
+          m.reticle.scale.set(s, s, s);
+
+          // Quadratic Bézier interpolation toward moving point on rotating Earth
+          const t = Math.min(1.0, m.progress);
+          const worldTarget = earthGroup.localToWorld(m.localTarget.clone());
+
+          const p0 = m.startPos;
+          const p1 = m.controlPos;
+          const p2 = worldTarget;
+
+          const oneMinusT = 1 - t;
+          const pos = new THREE.Vector3()
+            .addScaledVector(p0, oneMinusT * oneMinusT)
+            .addScaledVector(p1, 2 * oneMinusT * t)
+            .addScaledVector(p2, t * t);
+
+          // Tangent for missile orientation
+          const nextT = Math.min(1.0, t + 0.02);
+          const nextOneMinusT = 1 - nextT;
+          const nextPos = new THREE.Vector3()
+            .addScaledVector(p0, nextOneMinusT * nextOneMinusT)
+            .addScaledVector(p1, 2 * nextOneMinusT * nextT)
+            .addScaledVector(p2, nextT * nextT);
+
+          m.mesh.position.copy(pos);
+          m.mesh.lookAt(nextPos);
+          m.plume.scale.setScalar(0.85 + Math.random() * 0.35);
+
+          // Spawn exhaust trail
+          if (Math.random() < 0.75) {
+            spawnSmokeParticle(pos);
+          }
+
+          if (m.progress >= 1.0) {
+            scene.remove(m.mesh);
+            earthGroup.remove(m.reticle);
+            activeMissiles.splice(i, 1);
+            triggerNuclearDetonation(m.localTarget, m.localNormal);
+          }
+        }
+
+        // 4. Update Smoke Trail Particles
+        for (let i = smokeParticles.length - 1; i >= 0; i--) {
+          const p = smokeParticles[i];
+          p.life -= p.decay * dt;
+          if (p.life <= 0) {
+            scene.remove(p.mesh);
+            smokeParticles.splice(i, 1);
+          } else {
+            p.mesh.material.opacity = p.life * 0.65;
+            p.mesh.scale.addScalar(dt * 1.4);
+          }
+        }
+
+        // 5. Update Surface Explosions & Shockwaves
+        for (let i = activeExplosions.length - 1; i >= 0; i--) {
+          const exp = activeExplosions[i];
+          exp.age += dt;
+          const prog = exp.age / exp.maxAge;
+
+          if (prog >= 1.0) {
+            earthGroup.remove(exp.group);
+            activeExplosions.splice(i, 1);
+          } else {
+            const fireScale = 1.0 + Math.sin(prog * Math.PI) * 3.8;
+            exp.fireball.scale.setScalar(fireScale);
+            exp.fireball.material.opacity = Math.max(0, 1.0 - prog * 1.25);
+
+            const plasmaScale = 1.0 + Math.pow(prog, 0.55) * 5.2;
+            exp.plasma.scale.setScalar(plasmaScale);
+            exp.plasma.material.opacity = Math.max(0, 0.85 * (1.0 - prog));
+
+            const waveScale = 1.0 + prog * 8.5;
+            exp.shockwave.scale.set(waveScale, waveScale, 1);
+            exp.shockwave.material.opacity = Math.max(0, 1.0 - prog);
+          }
+        }
+
+        // 6. Update Orbital Debris
+        for (let i = activeDebris.length - 1; i >= 0; i--) {
+          const d = activeDebris[i];
+          d.life -= d.decay * dt;
+          if (d.life <= 0) {
+            scene.remove(d.mesh);
+            activeDebris.splice(i, 1);
+          } else {
+            d.mesh.position.addScaledVector(d.vel, dt);
+            d.mesh.rotation.x += 2.5 * dt;
+            d.mesh.rotation.y += 3.1 * dt;
+            // Subtle gravitational pull toward origin if Earth is intact
+            if (!state.shattered) {
+              const pullDir = d.mesh.position.clone().normalize().multiplyScalar(-3.2 * dt);
+              d.vel.add(pullDir);
+            }
+            if (d.mesh.material.transparent) {
+              d.mesh.material.opacity = Math.min(1, d.life);
+            }
+          }
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      window.onload = () => {
+        updateHUD();
+        requestAnimationFrame(animate);
+      };
+    })();
+  </script>
+</body>
+</html>
