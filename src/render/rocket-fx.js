@@ -95,7 +95,10 @@
     function trail(position, direction, profile = 'strategic') {
       if (disposed) return;
       trailCount++;
-      const scale = profile === 'strategic' ? 1.18 : profile === 'cruise' ? 0.84 : 0.68;
+      const scale = ({
+        strategic: 1.18, cruise: 0.84, interceptor: 0.68,
+        siege: 1.42, hypersonic: 0.48, plasma: 0.92, asteroid: 0.86
+      })[profile] || 0.68;
       emit(position, 'smoke', direction, scale, 0x89919a);
       if (trailCount % (lowQuality ? 4 : 2) === 0) {
         emit(position, 'ember', direction, scale * 0.82, 0xffa04a);
