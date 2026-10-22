@@ -18,7 +18,8 @@ node --test tests/*.test.cjs
 | `index.html` | Existing Three.js scene, HUD, camera, raycast, impact engine and loop |
 | `src/content/catalog.js` | Planets and weapons registries, data validation and default presets |
 | `src/render/planet-textures.js` | Deterministic, procedural surface painter for new planets |
-| `src/render/real-earth.js` | Required same-origin photographic Earth asset loader with retry UI |\n| `assets/textures/earth/` | Five bundled day/night/cloud/normal/specular maps |
+| `src/render/real-earth.js` | Required same-origin photographic Earth asset loader with retry UI |
+| `assets/textures/earth/` | Five bundled day/night/cloud/normal/specular maps |
 | `src/render/projectile-models.js` | Detailed fictional missile silhouettes, decals, fins, nozzles and plume effects |
 | `src/ui/weapon-dock.js` | Accessible fixed weapon inventory, catalog-driven tiles and keyboard navigation |
 | `tests/catalog.test.cjs` | Registry and texture-painting smoke tests |
