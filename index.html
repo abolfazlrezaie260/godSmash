@@ -329,8 +329,14 @@
     </div>
 
     <!-- Dynamic selectors -->
-    <div class="glass-panel rounded-2xl px-3 py-2 flex items-center gap-2 pointer-events-auto w-full sm:w-auto justify-center">
-      <label for="planet-select" class="text-xs">سیاره</label><select id="planet-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="انتخاب سیاره"></select>
+    <div class="glass-panel rounded-2xl px-3 py-2 flex flex-wrap items-center gap-2 pointer-events-auto w-full sm:w-auto justify-center">
+      <label for="planet-select" class="text-xs whitespace-nowrap">سیاره</label><select id="planet-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="انتخاب سیاره"></select>
+      <label for="game-speed-select" class="text-xs whitespace-nowrap">سرعت</label>
+      <select id="game-speed-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="سرعت بازی" title="تنظیم سرعت اجرای بازی">
+        <option value="0.5">۰٫۵× اسلوموشن</option>
+        <option value="1" selected>۱× عادی</option>
+        <option value="2">۲× سریع</option>
+      </select>
       <button id="btn-mode-toggle" type="button" class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-200 border border-slate-600/60 flex items-center gap-1.5">
         <span>🎯</span>
         <span id="mode-label">حالت: تک‌موشک</span>
@@ -481,6 +487,7 @@
         integrity: 100,
         shattered: false,
         autoRotate: true,
+        timeScale: 1,
         salvoMode: false, // false = 1 missile, true = 3 missiles of the same type
         cameraTheta: 0.4,
         cameraPhi: 1.25,
@@ -511,6 +518,7 @@
       const btnFireCenter = document.getElementById('btn-fire-center');
       const btnZoomIn = document.getElementById('btn-zoom-in');
       const btnZoomOut = document.getElementById('btn-zoom-out');
+      const gameSpeedSelect = document.getElementById('game-speed-select');
 
       let toastTimeout = null;
       function showImpactToast(msg) {
@@ -917,7 +925,7 @@
             progress: 0,
             speed: selected.speed * (0.92 + Math.random() * 0.15)
           });
-        }, delayMs);
+        }, delayMs / state.timeScale);
       }
 
 
@@ -1317,6 +1325,12 @@
         modeLabel.textContent = state.salvoMode ? 'حالت: رگبار ۳تایی' : 'حالت: تک‌موشک';
       });
 
+      gameSpeedSelect.addEventListener('change', () => {
+        const requestedSpeed = Number(gameSpeedSelect.value);
+        state.timeScale = [0.5, 1, 2].includes(requestedSpeed) ? requestedSpeed : 1;
+        gameSpeedSelect.value = String(state.timeScale);
+      });
+
       btnFireCenter.addEventListener('click', () => {
         fireAtScreenCenter();
       });
@@ -1355,11 +1369,14 @@
       // 8. MAIN ANIMATION & PHYSICS LOOP
       // ==========================================
       let lastTime = performance.now();
+      let gameTime = 0;
 
       function animate(now) {
         requestAnimationFrame(animate);
-        const dt = Math.min(0.05, (now - lastTime) / 1000);
+        const frameDt = Math.min(0.05, (now - lastTime) / 1000);
         lastTime = now;
+        const dt = frameDt * state.timeScale;
+        gameTime += dt;
 
         // 1. Rotate Earth & Clouds
         if (state.autoRotate && !state.shattered) {
@@ -1368,7 +1385,8 @@
         cloudMesh.rotation.y += 0.05 * dt;
 
         // 2. Smooth Orbit Camera Position + Screen Shake
-        state.cameraDistance += (state.targetCameraDistance - state.cameraDistance) * 0.12;
+        const cameraEase = 1 - Math.pow(0.88, dt * 60);
+        state.cameraDistance += (state.targetCameraDistance - state.cameraDistance) * cameraEase;
         const cx = state.cameraDistance * Math.sin(state.cameraPhi) * Math.sin(state.cameraTheta);
         const cy = state.cameraDistance * Math.cos(state.cameraPhi);
         const cz = state.cameraDistance * Math.sin(state.cameraPhi) * Math.cos(state.cameraTheta);
@@ -1390,7 +1408,7 @@
           m.progress += m.speed * dt;
 
           // Pulse target reticle
-          const s = 1.0 + 0.25 * Math.sin(now * 0.018);
+          const s = 1.0 + 0.25 * Math.sin(gameTime * 18);
           m.reticle.scale.set(s, s, s);
 
           // Quadratic Bézier interpolation toward moving point on rotating Earth
