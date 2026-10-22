@@ -1194,6 +1194,7 @@
         atmosMesh.visible = false;
         if (nightMesh) nightMesh.visible = false;
         planetDamage.setShattered(true);
+        defenseVisuals.sync([]);
 
         // One larger rupture bloom plus a bounded radial cloud of incandescent debris.
         const rupture = impactEffects.createEffect(THREE, {
@@ -1270,6 +1271,7 @@
         rocketFx.clear();
         orbitalDefense.reset();
         defenseVisuals.clear();
+        defenseVisuals.sync(orbitalDefense.getUnits());
         refreshDefenseHUD();
         while (activeDebris.length > 0) {
           const d = activeDebris.pop();
@@ -1303,6 +1305,9 @@
       }
       function configureDefense(options) {
         orbitalDefense.configure(options);
+        if (!orbitalDefense.getState().enabled || orbitalDefense.getState().count === 0) {
+          defenseVisuals.clear();
+        }
         defenseVisuals.sync(orbitalDefense.getUnits());
         refreshDefenseHUD();
       }
