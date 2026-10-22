@@ -182,7 +182,8 @@
       }
 
       const overlaps = nearest && nearestAngle < nearest.radius + footprintRadius * 0.55;
-      if (overlaps || impactSites.length >= maxImpactSites) {
+      const merged = !!overlaps || impactSites.length >= maxImpactSites;
+      if (merged) {
         if (!nearest) return {hits: 1, radius: footprintRadius};
         nearest.normal = nearest.normal.clone().multiplyScalar(nearest.hits)
           .add(normal).normalize();
@@ -210,8 +211,8 @@
       }
       damagePercent = clamp((1 - remaining) * 100, 0, 100);
       return {
-        hits: overlaps && nearest ? nearest.hits : 1,
-        radius: overlaps && nearest ? nearest.radius : footprintRadius
+        hits: merged && nearest ? nearest.hits : 1,
+        radius: merged && nearest ? nearest.radius : footprintRadius
       };
     }
 
