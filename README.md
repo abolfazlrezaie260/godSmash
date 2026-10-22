@@ -4,7 +4,7 @@ Browser-based 3D planet destruction game, built with Three.js. The game uses mod
 
 ## Run
 
-Serve the repository root through a static server or GitHub Pages. Open `index.html`. The default choice is **Earth + ICBM**. The planet and game-speed selectors are dropdowns; choose 0.5× slow motion, 1× normal speed or 2× fast mode without reloading. The time scale applies to missile flight, planet/cloud rotation, smoke and impact effects, debris, camera transitions and salvo spacing. Weapons are selected from a fixed bottom-left icon dock supporting mouse, touch and keyboard. No compilation step is needed. The Three.js runtime, Tailwind and fonts CDNs still require network access; **Earth imagery itself is served locally by the same site**.
+Serve the repository root through a static server or GitHub Pages. Open `index.html`. The default choice is **Earth + ICBM**. Planet selection now opens an accessible preview modal with the same local Earth image and canvas-generated Mars, Venus and Moon surfaces; the planet dropdown is removed. The single speed button cycles **1× → 2× → 0.5× → 1×** per tap without reloading. The time scale applies to missile flight, planet/cloud rotation, smoke and impact effects, debris, camera transitions and salvo spacing. Weapons are selected from a fixed bottom-left icon dock supporting mouse, touch and keyboard. No compilation step is needed. The Three.js runtime, Tailwind and fonts CDNs still require network access; **Earth imagery itself is served locally by the same site**.
 
 ```sh
 npx serve .
@@ -107,7 +107,7 @@ This is a **visually richer arcade destruction model**, not a scientifically acc
 
 ## Fixed weapon dock (responsive)
 
-Weapon selection is now **not a dropdown**. It appears in a floating panel at the **bottom-left** of the gameplay area, above the existing firing/planet controls:
+Weapon selection is now **not a dropdown**. On mobile/tablet screens it becomes a **horizontal swipeable touch strip** above the main controls; on larger viewports the original vertical dock remains:
 
 - **Desktop:** one vertical column with icon, Persian name, short weapon description and shortcut number.
 - **Mobile:** compact two-column button grid with individual icons and short Persian labels. The currently selected weapon has an orange highlight.
@@ -171,3 +171,16 @@ Satellites orbit the planet as visible, low-poly 3D objects with solar panels. T
 This is an arcade defence system, not a real-world satellite targeting or laser propagation simulation. Satellites track automatically; there is no manual aim, ammunition, power grid or satellite health yet. Laser beams have a short visual lifetime; a finite cooldown, range and line-of-sight check prevent every satellite from shooting every missile indiscriminately. Defence does not guarantee interception of all incoming projectiles, especially during a salvo. Unit meshes, beam geometries and materials are reused and the maximum simultaneously visible satellite/beam counts are fixed for mobile FPS.
 
 Run `node --test tests/*.test.cjs` and visually verify both the intercept and no-intercept paths before release. In particular, confirm time scaling at **0.5×, 1× and 2×**, and reset/switch to another planet after a defence intercept.
+
+
+## Mobile-first impact and controls refresh
+
+The old giant red emissive impact disks and long bright orange radial spokes are removed. Damage now paints **localized charcoal/ash patches** and subtle dark hairline cracks on the daytime texture, while the deformation/breach engine continues to create actual craters and broken rock. A full breach now exposes dark, rough interior rock, not a bright fluorescent-red inner sphere. Rocket flames and transient explosion animations remain visible.
+
+Planet selection uses `src/ui/planet-picker.js`. The bottom bar has a single `سیاره` button that opens a centered modal on larger viewports and a bottom sheet on phones and tablets. Four planet cards use the local Earth photographic texture or the same seeded procedural textures as the actual non-Earth planets. Each card has the Persian/English name and a short description, and the current selection is highlighted. Tap a card to switch planet and close the sheet. Keyboard focus and Escape close are supported.
+
+Speed selection no longer uses an HTML select: a single stopwatch-style button cycles `1× → 2× → 0.5× → 1×`. It updates the existing time scale for all game simulation systems. No duplicate speed icons or dropdowns are rendered.
+
+For viewports up to **1024px**, the weapon dock is a horizontally scrollable, touch-friendly strip; the bottom controls are compact and wrap when necessary. Touch targets are at least 44px, safe-area insets are respected, and redundant desktop-specific active-weapon cards are hidden. The primary target is mobile/tablet, with desktop UI retained as a fallback.
+
+After deployment, test landscape/portrait phones and tablets with the defence modal, planet modal, changing the active planet, 0.5×/1×/2× time scale and repeated heavy impacts. Automated JS/DOM tests do not replace visual WebGL checks on a physical phone.

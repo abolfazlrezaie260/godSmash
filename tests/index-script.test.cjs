@@ -26,12 +26,19 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /projectileModels\.createMissile/);
   assert.match(match[1], /projectileModels\.createAsteroid/);
   assert.match(match[1], /m\.dispose\(\)/);
-  assert.ok(html.includes('id="game-speed-select"'));
-  assert.match(html, /<option value="0\.5">۰٫۵× اسلوموشن<\/option>/);
-  assert.match(html, /<option value="1" selected>۱× عادی<\/option>/);
-  assert.match(html, /<option value="2">۲× سریع<\/option>/);
+  assert.ok(html.includes('src="./src/ui/planet-picker.js"'));
+  assert.ok(html.includes('id="planet-modal"'));
+  assert.ok(html.includes('id="planet-options"'));
+  assert.ok(html.includes('id="btn-planet-picker"'));
+  assert.ok(html.includes('id="btn-speed-toggle"'));
+  assert.ok(html.includes('id="speed-indicator"'));
+  assert.doesNotMatch(html, /id="planet-select"/);
+  assert.doesNotMatch(html, /id="game-speed-select"/);
+  assert.match(match[1], /GodSmashPlanetPicker\.mount/);
+  assert.match(match[1], /planetPicker\.setSelected/);
+  assert.match(match[1], /btnSpeedToggle\.addEventListener\('click'/);
+  assert.match(match[1], /const speedModes = Object\.freeze/);
   assert.match(match[1], /timeScale:\s*1/);
-  assert.match(match[1], /gameSpeedSelect\.addEventListener\('change'/);
   assert.match(match[1], /const dt = frameDt \* state\.timeScale/);
   assert.match(match[1], /gameTime \+= dt/);
   assert.ok(html.includes('id="weapon-dock-items"'));
@@ -65,4 +72,16 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /rocketFx\.burst/);
   assert.match(match[1], /createNightLightLayer/);
   assert.match(match[1], /hotIntensity/);
+});
+
+test('impact scorch is dark and non-emissive rather than giant red magma discs', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const begin = html.indexOf('function carveCraterOnEarth(');
+  const end = html.indexOf('function createTargetReticle(', begin);
+  assert.ok(begin > 0 && end > begin);
+  const body = html.slice(begin, end);
+  assert.match(body, /rgba\(16,17,20,0\.89\)/);
+  assert.match(body, /surfaceCtx\.strokeStyle = 'rgba\(24,23,23,0\.34\)'/);
+  assert.doesNotMatch(body, /lavaGrad|emissiveCtx\.fill|emissiveCtx\.stroke/);
+  assert.doesNotMatch(body, /#dc2626|#f97316|#fb923c/);
 });

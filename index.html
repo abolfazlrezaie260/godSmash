@@ -2,7 +2,7 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>GodSmash v1.0 — شبیه‌ساز تخریب سیاره زمین</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -16,6 +16,7 @@
 <script src="./src/render/rocket-fx.js"></script>
 <script src="./src/performance/quality-controller.js"></script>
   <script src="./src/ui/weapon-dock.js"></script>
+  <script src="./src/ui/planet-picker.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -258,6 +259,127 @@
     .defense-type:focus-visible, .defense-count:focus-visible {
       outline: 2px solid #67e8f9;outline-offset: 2px;
     }
+    /* Mobile and tablet are primary targets: large tap controls and safe-area padding. */
+    button, select { touch-action: manipulation; }
+    #planet-modal[hidden] { display: none; }
+    .planet-modal {
+      position: fixed; inset: 0; z-index: 70; padding: 16px;
+      background: rgba(2, 6, 23, 0.86); backdrop-filter: blur(7px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .planet-sheet {
+      background: #0b1428; color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, 0.30); border-radius: 22px;
+      width: min(660px, 100%); max-height: min(88dvh, 750px);
+      overflow: auto; overscroll-behavior: contain;
+      padding: 20px; box-shadow: 0 28px 75px rgba(0, 0, 0, .72);
+    }
+    .planet-grid {
+      display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px;
+    }
+    .planet-choice {
+      display: flex; align-items: center; flex-direction: column; gap: 9px;
+      position: relative; padding: 14px 10px; min-height: 172px;
+      color: #e2e8f0; background: rgba(30,41,59,.7);
+      border: 1px solid #334155; border-radius: 18px;
+      text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .planet-choice.is-selected { border-color: #38bdf8; background: rgba(8,47,73,.72); }
+    .planet-choice:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+    .planet-preview {
+      display: block; width: 86px; height: 86px; border-radius: 50%; flex-shrink: 0;
+      background-position: center center; background-size: 180% 100%;
+      box-shadow: inset -17px -7px 24px rgba(0,0,0,.82),
+        inset 8px 6px 16px rgba(255,255,255,.13), 0 0 12px rgba(56,189,248,.15);
+    }
+    .planet-choice-copy { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+    .planet-choice-copy strong { font-size: 14px; }
+    .planet-english { font: 10px Inter,sans-serif; letter-spacing: .06em; color: #94a3b8; }
+    .planet-choice-copy small { font-size: 10px; color: #94a3b8; line-height: 1.65; }
+    .planet-choice-check {
+      position: absolute; inset-inline-start: 10px; top: 9px;
+      color: #7dd3fc; opacity: 0; font-size: 17px; font-weight: bold;
+    }
+    .planet-choice.is-selected .planet-choice-check { opacity: 1; }
+    #btn-speed-toggle {
+      min-width: 56px; min-height: 44px; display: flex;
+      align-items: center; justify-content: center; gap: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    #btn-planet-picker { min-height: 44px; min-width: 90px; }
+    .speed-glyph { display: inline-flex; width: 19px; height: 19px; }
+    .speed-glyph svg { width: 100%; height: 100%; }
+    @media (max-width: 1024px) {
+      #game-controls {
+        left: max(7px, env(safe-area-inset-left));
+        right: max(7px, env(safe-area-inset-right));
+        bottom: max(7px, env(safe-area-inset-bottom));
+        display: flex; flex-direction: column; gap: 0;
+      }
+      .active-weapon-card { display: none !important; }
+      .game-control-bar {
+        width: 100%; display: flex; flex-wrap: wrap; justify-content: center;
+        align-items: center; gap: 6px; padding: 7px; border-radius: 16px;
+      }
+      .game-control-bar button { min-height: 44px; }
+      #btn-fire-center { flex: 1 1 110px; min-width: 104px; }
+      #btn-mode-toggle { width: 50px; justify-content: center; }
+      #mode-label { display: none; }
+      #btn-zoom-in, #btn-zoom-out { min-width: 44px; min-height: 44px; }
+      #weapon-dock {
+        bottom: var(--footer-clearance, 100px);
+        left: max(7px, env(safe-area-inset-left));
+        right: max(7px, env(safe-area-inset-right));
+        width: auto; max-width: none; padding: 6px; max-height: 108px;
+        border-radius: 15px; gap: 0;
+      }
+      .weapon-dock-heading { display: none; }
+      #weapon-dock-items {
+        display: flex; grid-template-columns: none; overflow-x: auto;
+        overflow-y: hidden; gap: 6px; padding: 2px;
+        -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+      }
+      .weapon-dock-button {
+        flex: 0 0 76px; min-width: 76px; max-width: 76px;
+        min-height: 76px; padding: 6px 4px; flex-direction: column;
+        justify-content: center; gap: 4px; text-align: center;
+      }
+      .weapon-dock-copy, .weapon-dock-key { display: none; }
+      .weapon-dock-short {
+        display: block; width: 100%; font-size: 10px; font-weight: 700;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .weapon-dock-icon { flex: 0 0 28px; width: 28px; height: 28px; }
+      #game-header {
+        top: max(6px, env(safe-area-inset-top));
+        left: max(7px, env(safe-area-inset-left));
+        right: max(7px, env(safe-area-inset-right));
+        gap: 5px;
+      }
+      #planet-status-card { padding: 7px 10px; max-width: 100%; gap: 7px; }
+      #planet-status-card .planet-stats { gap: 7px; }
+      #game-header .quick-controls { gap: 5px; }
+      #game-header .quick-controls button { min-height: 42px; }
+      #btn-reset span:last-child { display: none; }
+      #btn-defenses { min-height: 42px; }
+      .planet-sheet {
+        width: 100%; max-height: 86dvh; border-radius: 23px 23px 0 0;
+        padding: 18px 14px max(18px,env(safe-area-inset-bottom));
+      }
+      .planet-modal { align-items: flex-end; padding: 0; }
+    }
+    @media (max-width: 390px) {
+      .game-control-bar { gap: 5px; padding: 6px; }
+      #btn-fire-center { min-width: 88px; padding-inline: 8px; }
+      .planet-preview { width: 70px; height: 70px; }
+      .planet-choice { min-height: 157px; padding: 10px 6px; }
+      #game-header { flex-wrap: wrap; }
+      #planet-status-card { width: 100%; }
+      #game-header .quick-controls { margin-inline-start: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .planet-choice, #btn-speed-toggle { transition: none; }
+    }
   </style>
 </head>
 <body class="relative w-full h-full overflow-hidden select-none">
@@ -286,9 +408,9 @@
     class="fixed top-24 right-3 z-30 pointer-events-none rounded-xl border border-slate-600/70 bg-slate-950/90 p-3 text-[11px] text-slate-200 font-mono whitespace-pre leading-relaxed"></div>
 
   <!-- Top HUD Bar: Earth Vital Stats & Quick Toggles (No Menus, Direct Gameplay) -->
-  <header class="fixed top-3 inset-x-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+  <header id="game-header" class="fixed top-3 inset-x-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
     <!-- Planet Status Card -->
-    <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-4 pointer-events-auto">
+    <div id="planet-status-card" class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-4 pointer-events-auto">
       <div class="flex items-center gap-2.5">
         <div class="relative w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" id="planet-status-dot"></div>
         <div>
@@ -296,7 +418,7 @@
             <span class="text-xs font-bold tracking-wide text-sky-400"><span id="planet-name">سیاره زمین (EARTH)</span></span>
             <span id="status-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium">پایدار</span>
           </div>
-          <div class="flex items-center gap-3 mt-1">
+          <div class="planet-stats flex items-center gap-3 mt-1">
             <div class="text-xs text-slate-300">
               جمعیت: <span id="population-val" class="num-mono font-bold text-white">8,000,000,000</span>
             </div>
@@ -321,7 +443,7 @@
     </div>
 
     <!-- Last Strike Toast / Telemetry & Utility Controls -->
-    <div class="flex items-center gap-2 pointer-events-auto">
+    <div class="quick-controls flex items-center gap-2 pointer-events-auto">
       <div id="impact-toast" class="glass-panel rounded-xl px-3 py-2 text-xs text-amber-300 hidden items-center gap-2 border-amber-500/40">
         <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
         <span id="impact-toast-text">اصابت ثبت شد</span>
@@ -370,7 +492,23 @@
     </section>
   </div>
 
-  <!-- Fixed left-corner weapon inventory. The planet selector stays in the HUD. -->
+  <div id="planet-modal" class="planet-modal" hidden>
+    <section class="planet-sheet" role="dialog" aria-modal="true"
+      aria-labelledby="planet-modal-title" dir="rtl" tabindex="-1">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <h2 id="planet-modal-title" class="font-bold text-lg">انتخاب سیاره</h2>
+          <p class="text-xs text-slate-400 mt-1">روی سیاره دلخواه بزنید تا پیش‌نمایش آن انتخاب شود.</p>
+        </div>
+        <button id="planet-modal-close" type="button"
+          class="hud-btn border border-slate-600 rounded-xl px-3 py-2 min-w-[44px] min-h-[44px]"
+          aria-label="بستن انتخاب سیاره">✕</button>
+      </div>
+      <div id="planet-options" class="planet-grid" role="group" aria-label="سیارات قابل انتخاب"></div>
+    </section>
+  </div>
+
+  <!-- Weapon inventory, laid out horizontally on phones/tablets. -->
   <aside id="weapon-dock" class="weapon-dock glass-panel" aria-label="انتخاب سلاح">
     <div class="weapon-dock-heading"><span>سلاح‌ها</span><small id="weapon-shortcuts">کلیدهای ۱ تا ۵</small></div>
     <div id="weapon-dock-items" class="weapon-dock-items" role="group" aria-label="فهرست سلاح‌ها"></div>
@@ -379,7 +517,7 @@
   <!-- Bottom HUD Bar: Planet and firing controls -->
   <footer id="game-controls" class="fixed bottom-3 inset-x-3 z-20 flex flex-col sm:flex-row items-center justify-between gap-2.5 pointer-events-none">
     <!-- Active Weapon Indicator (v1: Single Missile Type) -->
-    <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-3 pointer-events-auto w-full sm:w-auto justify-between sm:justify-start">
+    <div class="active-weapon-card glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-3 pointer-events-auto w-full sm:w-auto justify-between sm:justify-start">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/30 to-rose-600/30 border border-orange-500/50 flex items-center justify-center text-lg shadow-inner">
           <span id="active-weapon-icon">🚀</span>
@@ -402,14 +540,23 @@
     </div>
 
     <!-- Dynamic selectors -->
-    <div class="glass-panel rounded-2xl px-3 py-2 flex flex-wrap items-center gap-2 pointer-events-auto w-full sm:w-auto justify-center">
-      <label for="planet-select" class="text-xs whitespace-nowrap">سیاره</label><select id="planet-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="انتخاب سیاره"></select>
-      <label for="game-speed-select" class="text-xs whitespace-nowrap">سرعت</label>
-      <select id="game-speed-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="سرعت بازی" title="تنظیم سرعت اجرای بازی">
-        <option value="0.5">۰٫۵× اسلوموشن</option>
-        <option value="1" selected>۱× عادی</option>
-        <option value="2">۲× سریع</option>
-      </select>
+    <div class="game-control-bar glass-panel rounded-2xl px-3 py-2 flex flex-wrap items-center gap-2 pointer-events-auto w-full sm:w-auto justify-center">
+      <button id="btn-planet-picker" type="button"
+        class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-100 border border-slate-600/60"
+        aria-haspopup="dialog" aria-expanded="false" aria-controls="planet-modal" aria-label="انتخاب سیاره">
+        <span aria-hidden="true">◉</span> <span id="selected-planet-name">زمین</span>
+      </button>
+      <button id="btn-speed-toggle" type="button"
+        class="hud-btn rounded-xl px-2 py-2 text-xs font-bold bg-slate-800/90 text-slate-100 border border-slate-600/60"
+        aria-label="سرعت بازی: عادی، لمس کنید برای سرعت بعدی" title="تغییر سرعت بازی">
+        <span class="speed-glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="13" r="8"></circle><path d="M12 13l3-4M9 2h6M12 5V2"></path>
+          </svg>
+        </span>
+        <span id="speed-indicator" dir="ltr">۱×</span>
+      </button>
       <button id="btn-mode-toggle" type="button" class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-200 border border-slate-600/60 flex items-center gap-1.5">
         <span>🎯</span>
         <span id="mode-label">حالت: تک‌موشک</span>
@@ -417,7 +564,7 @@
 
       <button id="btn-fire-center" type="button" class="hud-btn pulse-ring rounded-xl px-4 py-2 text-xs font-bold bg-gradient-to-r from-orange-500 to-rose-600 text-white border border-orange-400/50 flex items-center gap-2 shadow-lg">
         <span>🔥</span>
-        <span>شلیک موشک (Space)</span>
+        <span class="hidden sm:inline">شلیک موشک</span><span class="sm:hidden">شلیک</span>
       </button>
 
       <button id="btn-zoom-in" type="button" class="hud-btn rounded-xl w-8 h-8 text-sm font-bold bg-slate-800/90 text-slate-200 border border-slate-700 flex items-center justify-center" title="نزدیک‌تر">+</button>
@@ -595,7 +742,8 @@
       const btnFireCenter = document.getElementById('btn-fire-center');
       const btnZoomIn = document.getElementById('btn-zoom-in');
       const btnZoomOut = document.getElementById('btn-zoom-out');
-      const gameSpeedSelect = document.getElementById('game-speed-select');
+      const btnSpeedToggle = document.getElementById('btn-speed-toggle');
+      const speedIndicator = document.getElementById('speed-indicator');
       const defenceModal = document.getElementById('defense-modal');
       const defenceButton = document.getElementById('btn-defenses');
       const defenceClose = document.getElementById('defense-close');
@@ -883,73 +1031,59 @@
           incidence, impactDirection
         });
 
-        // 2. Convert 3D localPoint to Spherical UV to paint Scorched Crater & Glowing Magma
+        // Paint localized ash and scorched rock on the daylight texture only.
+        // No emissive magma disks or neon spokes: they obscured entire continents.
         const u = 0.5 + Math.atan2(normal.z, -normal.x) / (2 * Math.PI);
         const vCoord = 0.5 - Math.asin(Math.max(-1, Math.min(1, normal.y))) / Math.PI;
-
         const cx = u * TEX_W;
         const cy = vCoord * TEX_H;
         const elongation = 1 + (1 - incidence) * 0.45;
-        const rPx = Math.max(8, blastRadiusWorld / EARTH_RADIUS * TEX_W / (2 * Math.PI) * 1.10);
+        const rPx = Math.max(6, blastRadiusWorld / EARTH_RADIUS *
+          TEX_W / (2 * Math.PI) * 0.72);
         const markAngle = impactDirection
           ? Math.atan2(impactDirection.z, impactDirection.x) : 0;
-        const markRadius = rPx * 1.6 * elongation;
-
-        // Equirectangular UVs repeat at the antimeridian; draw wrapped copies
-        // so neither the scorch mark nor magma cracks are cut in half.
-        const crackCount = 6 + Math.floor(Math.random() * 5);
-        const cracks = Array.from({length: crackCount}, (_, i) => ({
-          angle: markAngle + (i / crackCount) * Math.PI * 2 + Math.random() * 0.5,
-          length: rPx * (1.1 + Math.random() * 0.9) * (1 + (1 - incidence) * 0.35)
+        const outerRadius = rPx * 1.24 * elongation;
+        const crackCount = impactOptions.weapon.damage > 4 ? 5 : 3;
+        const cracks = Array.from({length:crackCount},(_,i)=>({
+          angle:markAngle + i * Math.PI * 2 / crackCount + (Math.random()-0.5)*0.18,
+          length:rPx * (0.65 + Math.random()*0.38)
         }));
+
+        // Draw matching wrapped copies at the texture seam.
         for (const dx of [-TEX_W, 0, TEX_W]) {
           const x = cx + dx;
-          if (x + markRadius < 0 || x - markRadius > TEX_W) continue;
-          const charGrad = surfaceCtx.createRadialGradient(
-            x, cy, rPx * 0.1, x, cy, rPx * 1.6
-          );
-          charGrad.addColorStop(0, '#450a0a');
-          charGrad.addColorStop(0.45, '#1c1917');
-          charGrad.addColorStop(0.8, 'rgba(15, 23, 42, 0.75)');
-          charGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
-          surfaceCtx.fillStyle = charGrad;
+          if (x + outerRadius < 0 || x - outerRadius > TEX_W) continue;
+          surfaceCtx.save();
+          surfaceCtx.translate(x,cy);
+          surfaceCtx.rotate(markAngle);
+          surfaceCtx.scale(elongation,1);
+          const ash = surfaceCtx.createRadialGradient(0,0,rPx*0.06,0,0,rPx*1.24);
+          ash.addColorStop(0,'rgba(16,17,20,0.89)');
+          ash.addColorStop(0.33,'rgba(34,33,33,0.78)');
+          ash.addColorStop(0.70,'rgba(46,42,39,0.36)');
+          ash.addColorStop(1,'rgba(43,42,39,0)');
+          surfaceCtx.fillStyle = ash;
           surfaceCtx.beginPath();
-          surfaceCtx.ellipse(x, cy, rPx * 1.6 * elongation, rPx * 1.6,
-            markAngle, 0, Math.PI * 2);
+          surfaceCtx.arc(0,0,rPx*1.24,0,Math.PI*2);
           surfaceCtx.fill();
+          surfaceCtx.restore();
 
-          const lavaGrad = emissiveCtx.createRadialGradient(
-            x, cy, 1, x, cy, rPx * 1.25 * elongation
-          );
-          lavaGrad.addColorStop(0, '#fef08a');
-          lavaGrad.addColorStop(0.28, '#f97316');
-          lavaGrad.addColorStop(0.65, '#dc2626');
-          lavaGrad.addColorStop(1, 'rgba(185, 28, 28, 0)');
-          emissiveCtx.fillStyle = lavaGrad;
-          emissiveCtx.beginPath();
-          emissiveCtx.ellipse(x, cy, rPx * 1.25 * elongation, rPx * 1.25,
-            markAngle, 0, Math.PI * 2);
-          emissiveCtx.fill();
-
-          emissiveCtx.strokeStyle = '#fb923c';
-          emissiveCtx.lineWidth = 1.8 * (TEX_W / 1024);
-          cracks.forEach(({angle, length}) => {
-            emissiveCtx.beginPath();
-            emissiveCtx.moveTo(x, cy);
-            emissiveCtx.lineTo(
-              x + Math.cos(angle + 0.15) * length * 0.5,
-              cy + Math.sin(angle + 0.15) * length * 0.5
-            );
-            emissiveCtx.lineTo(
-              x + Math.cos(angle) * length,
-              cy + Math.sin(angle) * length
-            );
-            emissiveCtx.stroke();
+          // Hairline dark fractures, not incandescent orange radial strokes.
+          surfaceCtx.strokeStyle = 'rgba(24,23,23,0.34)';
+          surfaceCtx.lineWidth = Math.max(0.7,TEX_W/2048);
+          cracks.forEach(({angle,length})=>{
+            surfaceCtx.beginPath();
+            surfaceCtx.moveTo(x + Math.cos(angle)*rPx*0.35,
+              cy + Math.sin(angle)*rPx*0.35);
+            surfaceCtx.lineTo(x + Math.cos(angle+0.08)*length*0.72,
+              cy + Math.sin(angle+0.08)*length*0.72);
+            surfaceCtx.lineTo(x + Math.cos(angle)*length,
+              cy + Math.sin(angle)*length);
+            surfaceCtx.stroke();
           });
         }
 
         surfaceTexture.needsUpdate = true;
-        emissiveTexture.needsUpdate = true;
         return result;
       }
 
@@ -1377,8 +1511,16 @@
         });
       }
 
-      const planetSelect = document.getElementById("planet-select");
-      catalog.listPlanets().forEach(p => planetSelect.add(new Option(p.nameFa, p.id)));
+      const planetPicker = window.GodSmashPlanetPicker.mount({
+        modal: document.getElementById('planet-modal'),
+        container: document.getElementById('planet-options'),
+        trigger: document.getElementById('btn-planet-picker'),
+        closeButton: document.getElementById('planet-modal-close'),
+        planets: catalog.listPlanets(),
+        selectedId: planet.id,
+        textures: window.GodSmashTextures,
+        onSelect: id => selectPlanet(id)
+      });
       document.getElementById('weapon-shortcuts').textContent =
         'کلیدهای ۱ تا ' + Math.min(9, catalog.listWeapons().length);
       function selectWeapon(id) {
@@ -1431,9 +1573,10 @@
         if (nightMesh) nightMesh.visible = p.id === "earth";
         document.getElementById("planet-name").textContent = "سیاره " + p.nameFa + " (" + p.nameEn + ")";
         document.querySelector("#btn-reset span:last-child").textContent = "بازسازی " + p.nameFa;
-        planetSelect.value = p.id;
+        document.getElementById("selected-planet-name").textContent = p.nameFa;
+        planetPicker.setSelected(p.id);
       }
-      planetSelect.addEventListener("change", () => selectPlanet(planetSelect.value));
+
 
       function fireWeaponAtWorldPoint(point, delay = 0) {
         const selected = weapon;
@@ -1559,11 +1702,24 @@
         modeLabel.textContent = state.salvoMode ? 'حالت: رگبار ۳تایی' : 'حالت: تک‌موشک';
       });
 
-      gameSpeedSelect.addEventListener('change', () => {
-        const requestedSpeed = Number(gameSpeedSelect.value);
-        state.timeScale = [0.5, 1, 2].includes(requestedSpeed) ? requestedSpeed : 1;
-        gameSpeedSelect.value = String(state.timeScale);
+      const speedModes = Object.freeze([
+        {value: 0.5, label: '۰٫۵×', description: 'اسلوموشن'},
+        {value: 1, label: '۱×', description: 'عادی'},
+        {value: 2, label: '۲×', description: 'سریع'}
+      ]);
+      function syncSpeedButton() {
+        const mode = speedModes.find(item => item.value === state.timeScale) || speedModes[1];
+        speedIndicator.textContent = mode.label;
+        btnSpeedToggle.setAttribute('aria-label',
+          'سرعت بازی: ' + mode.description + '، لمس کنید برای سرعت بعدی');
+        btnSpeedToggle.title = 'سرعت بازی: ' + mode.description;
+      }
+      btnSpeedToggle.addEventListener('click', () => {
+        const current = speedModes.findIndex(item => item.value === state.timeScale);
+        state.timeScale = speedModes[(current + 1) % speedModes.length].value;
+        syncSpeedButton();
       });
+      syncSpeedButton();
 
       btnFireCenter.addEventListener('click', () => {
         fireAtScreenCenter();
