@@ -955,8 +955,11 @@
         updateHUD();
 
         const blast = impactEffects.createEffect(THREE, selected, blastRadius, lowImpactQuality);
+        const blastWorldPosition = earthGroup.localToWorld(localTarget.clone());
+        const blastWorldNormal = localNormal.clone().applyQuaternion(earthGroup.quaternion).normalize();
         blast.group.position.copy(localTarget);
-        blast.group.lookAt(localTarget.clone().add(localNormal));
+        // Object3D.lookAt takes a world-space target even when the object has a parent.
+        blast.group.lookAt(blastWorldPosition.clone().add(blastWorldNormal));
         earthGroup.add(blast.group);
         const maxEffects = lowImpactQuality ? 4 : 8;
         if (activeExplosions.length >= maxEffects) {
@@ -967,8 +970,8 @@
         activeExplosions.push({ ...blast, age: 0, maxAge: blast.duration });
 
         // 4. Eject Molten Rock Debris into Low Orbit
-        const worldImpactPos = earthGroup.localToWorld(localTarget.clone());
-        const worldNormal = localNormal.clone().applyQuaternion(earthGroup.quaternion).normalize();
+        const worldImpactPos = blastWorldPosition;
+        const worldNormal = blastWorldNormal;
         rocketFx.burst(worldImpactPos, worldNormal,
           damageResult.breached ? (lowImpactQuality ? 14 : 30) : (lowImpactQuality ? 8 : 16),
           selected.plasmaColor || 0xff9b45);
