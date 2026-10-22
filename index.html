@@ -958,9 +958,9 @@
         const blastWorldPosition = earthGroup.localToWorld(localTarget.clone());
         const blastWorldNormal = localNormal.clone().applyQuaternion(earthGroup.quaternion).normalize();
         blast.group.position.copy(localTarget);
-        // Object3D.lookAt takes a world-space target even when the object has a parent.
-        blast.group.lookAt(blastWorldPosition.clone().add(blastWorldNormal));
         earthGroup.add(blast.group);
+        // Object3D.lookAt takes a world-space target and accounts for the parent transform.
+        blast.group.lookAt(blastWorldPosition.clone().add(blastWorldNormal));
         const maxEffects = lowImpactQuality ? 4 : 8;
         if (activeExplosions.length >= maxEffects) {
           const expired = activeExplosions.shift();
@@ -1044,13 +1044,13 @@
           fireColor: "#fff0ba", plasmaColor: "#f04420", waveColor: "#fb923c"
         }, EARTH_RADIUS * 0.72, lowImpactQuality);
         rupture.group.position.set(0, 0, 0);
-        rupture.group.lookAt(camera.position);
         if (activeExplosions.length >= (lowImpactQuality ? 4 : 8)) {
           const expired = activeExplosions.shift();
           earthGroup.remove(expired.group);
           expired.dispose();
         }
         earthGroup.add(rupture.group);
+        rupture.group.lookAt(camera.position);
         activeExplosions.push({...rupture, age: 0, maxAge: rupture.duration});
         rocketFx.burst(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0),
           lowImpactQuality ? 18 : 42, 0xff5428);
