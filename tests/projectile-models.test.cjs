@@ -9,7 +9,7 @@ function fakeTHREE() {
       this.geometry = geometry;
       this.material = material;
       this.children = [];
-      this.position = { x: 0, y: 0, z: 0 };
+      this.position = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } };
       this.rotation = { z: 0 };
       this.scale = { setScalar(value) { this.value = value; } };
       this.userData = {};
@@ -54,7 +54,7 @@ function fakeTHREE() {
 
 test('missile model exposes three fictional silhouette presets', () => {
   assert.deepEqual(Object.keys(projectiles.profiles),
-    ['strategic', 'interceptor', 'cruise']);
+    ['strategic', 'interceptor', 'cruise', 'siege', 'hypersonic', 'plasma']);
   assert.equal(projectiles.getProfile('unknown').id, 'strategic');
 });
 
@@ -97,4 +97,38 @@ test('asteroid has no rocket exhaust and owns its geometry', () => {
   rock.dispose();
   assert.equal(allocated.geometries[0].disposals, 1);
   assert.equal(allocated.materials[0].disposals, 1);
+});
+
+test('new missile profiles have distinct booster, speed and plasma details', () => {
+  const originalDocument = global.document;
+  global.document = {
+    createElement: () => ({
+      width: 0, height: 0,
+      getContext: () => ({
+        createLinearGradient: () => ({addColorStop(){}}),
+        fillRect(){}, strokeRect(){}, fillText(){}
+      })
+    })
+  };
+  try {
+    const {mock, allocated} = fakeTHREE();
+    const titan = projectiles.createMissile(mock, 'siege', 'low');
+    const viper = projectiles.createMissile(mock, 'hypersonic', 'low');
+    const nova = projectiles.createMissile(mock, 'plasma', 'low');
+    assert.equal(titan.group.userData.visualProfile, 'siege');
+    assert.equal(viper.group.userData.visualProfile, 'hypersonic');
+    assert.equal(nova.group.userData.visualProfile, 'plasma');
+    assert.ok(titan.group.children.length > viper.group.children.length,
+      'Titan includes two external booster bodies, noses and nozzles');
+    assert.equal(titan.plume.children[0].material.color, 0xffbd7a);
+    assert.equal(viper.plume.children[0].material.color, 0x60a5fa);
+    assert.equal(nova.plume.children[0].material.color, 0x8b5cf6);
+    assert.ok(nova.group.children.some(node => node.material &&
+      node.material.color === 0x8b5cf6 && node.geometry instanceof mock.TorusGeometry),
+      'Nova has luminous plasma bands');
+    titan.dispose(); viper.dispose(); nova.dispose();
+    for (const resource of [...allocated.textures, ...allocated.materials, ...allocated.geometries]) {
+      assert.equal(resource.disposals, 1, 'new profile resources are disposed exactly once');
+    }
+  } finally { global.document = originalDocument; }
 });
