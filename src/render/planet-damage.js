@@ -51,12 +51,13 @@
       const ax = new THREE.Vector3();
       const bx = new THREE.Vector3();
       const cx = new THREE.Vector3();
+      const centroid = new THREE.Vector3();
       for (let i = 0; i < initialIndex.length; i += 3) {
         const ia = initialIndex[i], ib = initialIndex[i + 1], ic = initialIndex[i + 2];
         ax.fromBufferAttribute(pos, ia);
         bx.fromBufferAttribute(pos, ib);
         cx.fromBufferAttribute(pos, ic);
-        const centroid = ax.clone().add(bx).add(cx).normalize();
+        centroid.copy(ax).add(bx).add(cx).normalize();
         const removed = holes.some(h => centroid.dot(h.normal) > h.cosThreshold);
         if (!removed) selected.push(ia, ib, ic);
       }
@@ -127,6 +128,7 @@
     function deform(normal, blastRadius, power, incidence, impactDirection) {
       const positions = geometry.attributes.position;
       const vertex = new THREE.Vector3();
+      const direction = new THREE.Vector3();
       let tangent = null;
       if (impactDirection && typeof impactDirection.clone === 'function') {
         tangent = impactDirection.clone()
@@ -145,7 +147,7 @@
       for (let i = 0; i < positions.count; i++) {
         vertex.fromBufferAttribute(positions, i);
         const currentLength = vertex.length() || 1;
-        const direction = vertex.clone().normalize();
+        direction.copy(vertex).multiplyScalar(1 / currentLength);
         const cosTheta = clamp(direction.dot(normal), -1, 1);
         // Use local tangent coordinates: grazing impacts create an elongated, shallower crater.
         const along = Math.atan2(direction.dot(tangent), cosTheta) * radius;
