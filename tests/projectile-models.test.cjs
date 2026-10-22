@@ -75,7 +75,8 @@ test('high detail models include fins, engraved panels, nozzle and layered exhau
     const winged = projectiles.createMissile(mock, 'cruise', 'high');
     assert.ok(strategic.group.children.length >= 12);
     assert.ok(winged.group.children.length > strategic.group.children.length);
-    assert.equal(strategic.plume.children.length, 2);
+    assert.equal(strategic.plume.children.length, 8, 'five thermal flame layers plus three shock diamonds');
+    assert.ok(strategic.plume.children[0].userData.baseOpacity > 0);
     assert.ok(strategic.group.userData.trailOffsetZ < 0);
     assert.equal(strategic.group.userData.visualProfile, 'strategic');
     assert.equal(allocated.textures.length, 2);
