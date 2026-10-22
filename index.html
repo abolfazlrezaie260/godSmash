@@ -1065,7 +1065,8 @@
             color: isCore ? 0x7f3b2b : (Math.random() > 0.5 ? 0x424b58 : 0x676b70),
             emissive: isCore ? 0xff4b16 : 0x23130f,
             emissiveIntensity: isCore ? 1.4 : 0.12,
-            roughness: 0.94, metalness: 0.03, flatShading: true
+            roughness: 0.94, metalness: 0.03, flatShading: true,
+            transparent: true, opacity: 1, depthWrite: false
           });
           const frag = new THREE.Mesh(fragGeo, fragMat);
           const dir = new THREE.Vector3(
