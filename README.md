@@ -24,6 +24,10 @@ node --test tests/*.test.cjs
 | `src/render/impact-effects.js` | Turbulent procedural fireball shader and expanding surface shockwave rings |
 | `src/render/rocket-fx.js` | Reusable soft smoke sprites, incandescent trail fragments and impact bursts |
 | `src/ui/weapon-dock.js` | Accessible fixed weapon inventory, catalog-driven tiles and keyboard navigation |
+| `src/defense/catalog.js` | Extensible registry for planetary defence categories and unit types |
+| `src/defense/orbital-defense.js` | Pure satellite orbit, hostile projectile detection, line-of-sight and laser combat logic |
+| `src/defense/orbital-defense-renderer.js` | Low-poly satellite models and pooled laser beam visuals |
+| `tests/orbital-defense.test.cjs` | Defence configuration, targeting, interception and time-step tests |
 | `tests/catalog.test.cjs` | Registry and texture-painting smoke tests |
 | `tests/missile-physics.test.cjs` | Flight acceleration, fuel use, ballistic impacts and frame-rate consistency |
 
@@ -147,3 +151,23 @@ For a repeatable manual performance check, use the same browser and viewport, se
 - CPU frame allocations were reduced by reusing `THREE.Vector3` scratch instances for flight interpolation and crater vertex updates.
 - Open the game with `?perf=1` to display a small diagnostic panel with estimated FPS, active particle budgets, draw calls, geometries, textures and optional JS heap.
 - Follow the [repeatable Mac and Android benchmark checklist](docs/performance-benchmark.md). Do not mark Issue #14 fully complete until measurements from both real device classes are posted. Automated unit tests establish resource correctness but are not a substitute for GPU profiling.
+
+
+## Planetary defense — orbital laser satellites
+
+The top HUD has a **دفاع** button that opens a responsive and keyboard-accessible defence configuration dialog. The first usable category is **ماهواره لیزری** (Orbital Laser). Toggle the system on/off and choose **0, 2, 4, or 6 satellites**. By default four defence satellites orbit the selected planet. The defence counters show shots fired and successfully intercepted projectiles; rebuilding or switching planets clears counts and ongoing beams while retaining the chosen mode and count.
+
+Satellites orbit the planet as visible, low-poly 3D objects with solar panels. The simulation checks incoming **physical projectiles** (missiles and asteroids), prioritizes nearby threats, checks that the line of sight does not go through the planet, and fires cyan laser beams within a limited range and cooldown. Each projectile has a small, configurable game-space interception durability. If its durability reaches zero before surface contact, it is removed along with its targeting reticle, creates a small burst, and **does not call the planetary impact/damage handler**. The instant-hit orbital offensive laser is not intercepted because it does not enter the physical projectile pool.
+
+### Add another category or defence system
+
+1. Register a new unique `id` and `category` in `src/defense/catalog.js`, supplying `nameFa`, `orbitRadius`, `range`, `damage`, `cooldown`, `angularSpeed` and allowed unit counts.
+2. Provide the corresponding simulator and visual implementation for that type (e.g., an energy shield or interceptors). The pure `src/defense/orbital-defense.js` module currently implements **only orbital-laser** mechanics; additional registry entries must not be exposed as functional until the runtime is implemented.
+3. Add UI selection and tests for the additional type. The UI list is generated from the current defence type catalog.
+4. Respect the existing low-end quality budget, simulation time scale and reset/planet-switch cleanup.
+
+### Boundaries and balancing
+
+This is an arcade defence system, not a real-world satellite targeting or laser propagation simulation. Satellites track automatically; there is no manual aim, ammunition, power grid or satellite health yet. Laser beams have a short visual lifetime; a finite cooldown, range and line-of-sight check prevent every satellite from shooting every missile indiscriminately. Defence does not guarantee interception of all incoming projectiles, especially during a salvo. Unit meshes, beam geometries and materials are reused and the maximum simultaneously visible satellite/beam counts are fixed for mobile FPS.
+
+Run `node --test tests/*.test.cjs` and visually verify both the intercept and no-intercept paths before release. In particular, confirm time scaling at **0.5×, 1× and 2×**, and reset/switch to another planet after a defence intercept.
