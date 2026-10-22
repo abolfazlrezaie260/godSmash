@@ -74,3 +74,22 @@ Each launch has layered semi-transparent exhaust, a game-fiction serial marking,
 To introduce a new silhouette, add a compatible entry to `profiles` in `src/render/projectile-models.js` and set the weapon's `visualProfile` field in `src/content/catalog.js`. To introduce a new effect/behavior, extend the runtime dispatch separately. The model builder exposes `dispose()` to release per-projectile GPU resources after impact/reset. A smaller geometry profile and smoke emission budget are used on narrower devices. Test with `node --test tests/*.test.cjs`.
 
 **Known limitation:** The models are generated meshes, not scanned real-world missile assets; browser visual inspection and mobile GPU benchmarking should be completed prior to release.
+
+## Localized crust destruction and blast effects
+
+The damage engine is now split into `src/render/planet-damage.js` and `src/render/impact-effects.js`:
+
+- **Every hit** deforms the planet surface into a depth-scaled bowl and raised rim, plus permanent charred/lava texture painting. Damage depth and color vary with weapon and surface resistance.
+- **Large asteroid impacts** remove triangles from the planet's *indexed mesh* around the hit. The missing crust exposes a recessed rocky interior and a jagged, layered rim. These openings persist after the explosion ends. Later missiles can also breach a heavily damaged world.
+- **Blast animation** has bright inner fire, glowing plasma, a growing shock sphere and an expanding smoke/dust plume. Light flashes on higher-quality devices; transient visuals are disposed after each impact.
+- **Debris** has differentiated rocky/hot colors, larger pieces on crust ruptures and a per-scene cap.
+- **Planet reset or selection** restores the original vertex/index buffers, destroys persistent rim meshes and clears transient effects. Full shattering hides intact crust and breach walls.
+- **Adaptive budgets** allow up to 6 breaches and 4 simultaneous blast effects on small/low-data devices; on larger devices, up to 12 breaches and 8 effects.
+
+### How to try it
+
+Select **شهاب‌سنگ** (asteroid) and strike an intact planet. Rotate the camera to see the permanent hole and exposed interior. Fire ordinary missiles to add dents, then continue damaging the world to produce further breaches. Use **بازسازی** to recover a pristine sphere. Try Earth, Mars, Venus and the Moon; the Moon has a colder, unlit interior.
+
+### Limitations
+
+This is a **visually richer arcade destruction model**, not a scientifically accurate planet fracture or fluid/thermodynamic simulation. The crater and interior are produced using CPU-side vertex displacement and indexed triangle removal; there is no voxel engine, free-form CSG or physically correct continent-scale destruction. Hole boundaries are simplified to protect browser/mobile FPS. Overlapping breaches are coalesced visually by skipping nearby new openings; their impact damage still registers. Automated geometry and effects tests pass, but full browser/WebGL visuals and mobile benchmark results are not yet confirmed. A future iteration can introduce fracture chunks/LOD and GPU-based volumetric particles.

@@ -10,6 +10,8 @@
 <script src="./src/render/planet-textures.js"></script>
 <script src="./src/render/real-earth.js"></script>
 <script src="./src/render/projectile-models.js"></script>
+<script src="./src/render/planet-damage.js"></script>
+<script src="./src/render/impact-effects.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -96,7 +98,7 @@
             </div>
             <span class="text-slate-600">|</span>
             <div class="text-xs text-slate-300">
-              برخوردها: <span id="impacts-val" class="num-mono font-bold text-orange-400">0</span>
+              برخوردها: <span id="impacts-val" class="num-mono font-bold text-orange-400">0</span> <span class="text-slate-600">|</span> حفره‌ها: <span id="breaches-val" class="num-mono font-bold text-rose-400">0</span>
             </div>
           </div>
         </div>
@@ -324,6 +326,7 @@
       const container = document.getElementById('canvas-container');
       const popEl = document.getElementById('population-val');
       const impactsEl = document.getElementById('impacts-val');
+      const breachesEl = document.getElementById('breaches-val');
       const integrityValEl = document.getElementById('integrity-val');
       const integrityBarEl = document.getElementById('integrity-bar');
       const statusBadgeEl = document.getElementById('status-badge');
@@ -357,6 +360,7 @@
       function updateHUD() {
         popEl.textContent = Math.max(0, Math.round(state.population)).toLocaleString('en-US');
         impactsEl.textContent = state.impacts.toString();
+        breachesEl.textContent = planetDamage.getBreachCount().toString();
         const intPct = Math.max(0, Math.round(state.integrity));
         integrityValEl.textContent = intPct + '%';
         integrityBarEl.style.width = intPct + '%';
@@ -621,8 +625,7 @@
       // High-density sphere geometry so vertices can be displaced into 3D craters
       const SEGMENTS = 112;
       let earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, SEGMENTS, SEGMENTS);
-      // Store original vertex positions for clean reset
-      const basePositions = new Float32Array(earthGeo.attributes.position.array);
+      // Original vertices and triangle indices are cached by planet-damage.js.
 
       const earthMat = new THREE.MeshStandardMaterial({
         map: surfaceTexture,
@@ -675,90 +678,86 @@
       });
       const atmosMesh = new THREE.Mesh(atmosGeo, atmosMat);
       scene.add(atmosMesh);
+      const lowImpactQuality = Math.min(window.innerWidth, window.innerHeight) < 750 ||
+        !!(navigator.connection && navigator.connection.saveData);
+      const planetDamage = window.GodSmashPlanetDamage.createSystem(THREE, {
+        geometry: earthGeo, group: earthGroup, radius: EARTH_RADIUS,
+        lowQuality: lowImpactQuality
+      });
+      const impactEffects = window.GodSmashImpactEffects;
 
       // ==========================================
       // 5. CRATER DEFORMATION & MAGMA SCORCHING
       // ==========================================
-      function carveCraterOnEarth(localPoint, blastRadiusWorld) {
-        // 1. Displace 3D Sphere Vertices around localPoint
-        const posAttr = earthGeo.attributes.position;
-        const v = new THREE.Vector3();
-        const dir = localPoint.clone().normalize();
-
-        for (let i = 0; i < posAttr.count; i++) {
-          v.fromBufferAttribute(posAttr, i);
-          const dist = v.distanceTo(localPoint);
-          if (dist < blastRadiusWorld * 1.45) {
-            const normDist = dist / blastRadiusWorld;
-            const currentLen = v.length();
-            let offset = 0;
-            if (normDist < 0.85) {
-              // Deep bowl indentation inside crater
-              const bowl = Math.cos((normDist / 0.85) * (Math.PI * 0.5));
-              offset = -bowl * 0.52;
-            } else if (normDist < 1.35) {
-              // Raised crater rim
-              const rimPhase = (normDist - 0.85) / 0.5;
-              offset = Math.sin(rimPhase * Math.PI) * 0.16;
-            }
-            const newLen = Math.max(EARTH_RADIUS * 0.72, currentLen + offset);
-            v.normalize().multiplyScalar(newLen);
-            posAttr.setXYZ(i, v.x, v.y, v.z);
-          }
-        }
-        posAttr.needsUpdate = true;
-        earthGeo.computeVertexNormals();
+      function carveCraterOnEarth(localPoint, blastRadiusWorld, impactOptions) {
+        // Deform indexed vertices and remove triangles where the crust breaks.
+        const normal = localPoint.clone().normalize();
+        const result = planetDamage.impact(localPoint, blastRadiusWorld, {
+          planet, weapon: impactOptions.weapon, breach: impactOptions.breach
+        });
 
         // 2. Convert 3D localPoint to Spherical UV to paint Scorched Crater & Glowing Magma
-        const u = 0.5 + Math.atan2(dir.z, -dir.x) / (2 * Math.PI);
-        const vCoord = 0.5 - Math.asin(Math.max(-1, Math.min(1, dir.y))) / Math.PI;
+        const u = 0.5 + Math.atan2(normal.z, -normal.x) / (2 * Math.PI);
+        const vCoord = 0.5 - Math.asin(Math.max(-1, Math.min(1, normal.y))) / Math.PI;
 
         const cx = u * TEX_W;
         const cy = vCoord * TEX_H;
-        const rPx = (22 + Math.random() * 10) * (TEX_W / 1024);
+        const rPx = Math.max(8, blastRadiusWorld / EARTH_RADIUS * TEX_W / (2 * Math.PI) * 1.10);
 
-        // Paint charred crust on surfaceCanvas
-        const charGrad = surfaceCtx.createRadialGradient(cx, cy, rPx * 0.1, cx, cy, rPx * 1.6);
-        charGrad.addColorStop(0, '#450a0a');
-        charGrad.addColorStop(0.45, '#1c1917');
-        charGrad.addColorStop(0.8, 'rgba(15, 23, 42, 0.75)');
-        charGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
-        surfaceCtx.fillStyle = charGrad;
-        surfaceCtx.beginPath();
-        surfaceCtx.arc(cx, cy, rPx * 1.6, 0, Math.PI * 2);
-        surfaceCtx.fill();
-
-        // Paint glowing molten magma core & tectonic cracks on emissiveCanvas
-        const lavaGrad = emissiveCtx.createRadialGradient(cx, cy, 1, cx, cy, rPx * 1.25);
-        lavaGrad.addColorStop(0, '#fef08a');
-        lavaGrad.addColorStop(0.28, '#f97316');
-        lavaGrad.addColorStop(0.65, '#dc2626');
-        lavaGrad.addColorStop(1, 'rgba(185, 28, 28, 0)');
-        emissiveCtx.fillStyle = lavaGrad;
-        emissiveCtx.beginPath();
-        emissiveCtx.arc(cx, cy, rPx * 1.25, 0, Math.PI * 2);
-        emissiveCtx.fill();
-
-        // Radial magma fissures
+        // Equirectangular UVs repeat at the antimeridian; draw wrapped copies
+        // so neither the scorch mark nor magma cracks are cut in half.
         const crackCount = 6 + Math.floor(Math.random() * 5);
-        emissiveCtx.strokeStyle = '#fb923c';
-        emissiveCtx.lineWidth = 1.8;
-        for (let c = 0; c < crackCount; c++) {
-          const angle = (c / crackCount) * Math.PI * 2 + Math.random() * 0.5;
-          const len = rPx * (1.1 + Math.random() * 0.9);
+        const cracks = Array.from({length: crackCount}, (_, i) => ({
+          angle: (i / crackCount) * Math.PI * 2 + Math.random() * 0.5,
+          length: rPx * (1.1 + Math.random() * 0.9)
+        }));
+        for (const dx of [-TEX_W, 0, TEX_W]) {
+          const x = cx + dx;
+          if (x + rPx * 2 < 0 || x - rPx * 2 > TEX_W) continue;
+          const charGrad = surfaceCtx.createRadialGradient(
+            x, cy, rPx * 0.1, x, cy, rPx * 1.6
+          );
+          charGrad.addColorStop(0, '#450a0a');
+          charGrad.addColorStop(0.45, '#1c1917');
+          charGrad.addColorStop(0.8, 'rgba(15, 23, 42, 0.75)');
+          charGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+          surfaceCtx.fillStyle = charGrad;
+          surfaceCtx.beginPath();
+          surfaceCtx.arc(x, cy, rPx * 1.6, 0, Math.PI * 2);
+          surfaceCtx.fill();
+
+          const lavaGrad = emissiveCtx.createRadialGradient(
+            x, cy, 1, x, cy, rPx * 1.25
+          );
+          lavaGrad.addColorStop(0, '#fef08a');
+          lavaGrad.addColorStop(0.28, '#f97316');
+          lavaGrad.addColorStop(0.65, '#dc2626');
+          lavaGrad.addColorStop(1, 'rgba(185, 28, 28, 0)');
+          emissiveCtx.fillStyle = lavaGrad;
           emissiveCtx.beginPath();
-          emissiveCtx.moveTo(cx, cy);
-          const midX = cx + Math.cos(angle + 0.15) * (len * 0.5);
-          const midY = cy + Math.sin(angle + 0.15) * (len * 0.5);
-          const endX = cx + Math.cos(angle) * len;
-          const endY = cy + Math.sin(angle) * len;
-          emissiveCtx.lineTo(midX, midY);
-          emissiveCtx.lineTo(endX, endY);
-          emissiveCtx.stroke();
+          emissiveCtx.arc(x, cy, rPx * 1.25, 0, Math.PI * 2);
+          emissiveCtx.fill();
+
+          emissiveCtx.strokeStyle = '#fb923c';
+          emissiveCtx.lineWidth = 1.8 * (TEX_W / 1024);
+          cracks.forEach(({angle, length}) => {
+            emissiveCtx.beginPath();
+            emissiveCtx.moveTo(x, cy);
+            emissiveCtx.lineTo(
+              x + Math.cos(angle + 0.15) * length * 0.5,
+              cy + Math.sin(angle + 0.15) * length * 0.5
+            );
+            emissiveCtx.lineTo(
+              x + Math.cos(angle) * length,
+              cy + Math.sin(angle) * length
+            );
+            emissiveCtx.stroke();
+          });
         }
 
         surfaceTexture.needsUpdate = true;
         emissiveTexture.needsUpdate = true;
+        return result;
       }
 
       // ==========================================
@@ -882,7 +881,13 @@
 
         // 1. Deform 3D Earth Geometry & Scorch Magma Texture
         const blastRadius = selected.blastRadius * (0.9 + Math.random() * 0.2);
-        carveCraterOnEarth(localTarget, blastRadius);
+        const projectedIntegrity = state.integrity - selected.damage / planet.resistance;
+        const breach = selected.kind === 'asteroid' ||
+          (projectedIntegrity < 67 && selected.kind !== 'beam') ||
+          projectedIntegrity < 35;
+        const damageResult = carveCraterOnEarth(localTarget, blastRadius, {
+          weapon: selected, breach
+        });
 
         // 2. Update Game Telemetry (Population & Core Integrity)
         state.impacts += 1;
@@ -898,67 +903,35 @@
         state.population = Math.max(0, state.population - casualties);
 
         const casMillions = Math.max(1, Math.round(casualties / 1000000));
-        showImpactToast(`${selected.nameFa}؛ تلفات: ${casMillions} میلیون نفر`);
+        showImpactToast(damageResult.breached
+          ? `${selected.nameFa}: بخشی از پوسته ${planet.nameFa} جدا شد!`
+          : `${selected.nameFa}؛ تلفات: ${casMillions} میلیون نفر`);
         updateHUD();
 
-        // 3. Create 3D Fireball Dome & Expanding Shockwave Ring attached to Earth
-        const expGroup = new THREE.Group();
-        expGroup.position.copy(localTarget);
-        const lookAtPos = localTarget.clone().add(localNormal);
-        expGroup.lookAt(lookAtPos);
-        earthGroup.add(expGroup);
-
-        // Core Fireball
-        const fireGeo = new THREE.SphereGeometry(0.45, 20, 20);
-        const fireMat = new THREE.MeshBasicMaterial({
-          color: selected.fireColor,
-          transparent: true,
-          opacity: 0.98
-        });
-        const fireball = new THREE.Mesh(fireGeo, fireMat);
-        expGroup.add(fireball);
-
-        // Outer Plasma Shell
-        const plasmaGeo = new THREE.SphereGeometry(0.6, 20, 20);
-        const plasmaMat = new THREE.MeshBasicMaterial({
-          color: selected.plasmaColor,
-          transparent: true,
-          opacity: 0.8,
-          blending: THREE.AdditiveBlending
-        });
-        const plasma = new THREE.Mesh(plasmaGeo, plasmaMat);
-        expGroup.add(plasma);
-
-        // Supersonic Shockwave Ring
-        const waveGeo = new THREE.RingGeometry(0.35, 0.55, 36);
-        const waveMat = new THREE.MeshBasicMaterial({
-          color: selected.waveColor,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.95,
-          blending: THREE.AdditiveBlending
-        });
-        const shockwave = new THREE.Mesh(waveGeo, waveMat);
-        shockwave.position.z = 0.08;
-        expGroup.add(shockwave);
-
-        activeExplosions.push({
-          group: expGroup,
-          fireball,
-          plasma,
-          shockwave,
-          age: 0,
-          maxAge: 1.5
-        });
+        const blast = impactEffects.createEffect(THREE, selected, blastRadius, lowImpactQuality);
+        blast.group.position.copy(localTarget);
+        blast.group.lookAt(localTarget.clone().add(localNormal));
+        earthGroup.add(blast.group);
+        const maxEffects = lowImpactQuality ? 4 : 8;
+        if (activeExplosions.length >= maxEffects) {
+          const expired = activeExplosions.shift();
+          earthGroup.remove(expired.group);
+          expired.dispose();
+        }
+        activeExplosions.push({ ...blast, age: 0, maxAge: blast.duration });
 
         // 4. Eject Molten Rock Debris into Low Orbit
         const worldImpactPos = earthGroup.localToWorld(localTarget.clone());
         const worldNormal = localNormal.clone().applyQuaternion(earthGroup.quaternion).normalize();
 
-        for (let i = 0; i < selected.debrisCount; i++) {
-          const debGeo = new THREE.DodecahedronGeometry(0.08 + Math.random() * 0.12, 0);
+        const debrisBudget = Math.max(0, 210 - activeDebris.length);
+        const debrisCount = Math.min(debrisBudget,
+          Math.ceil(selected.debrisCount * (lowImpactQuality ? 0.5 : 1.2)));
+        for (let i = 0; i < debrisCount; i++) {
+          const size = (0.09 + Math.random() * 0.22) * (damageResult.breached ? 1.65 : 1);
+          const debGeo = new THREE.DodecahedronGeometry(size, 0);
           const debMat = new THREE.MeshBasicMaterial({
-            color: i % 2 === 0 ? 0xf97316 : 0xfacc15,
+            color: i % 5 === 0 ? 0xffab57 : (planet.id === 'moon' ? 0x6b7280 : 0x63514a),
             transparent: true,
             opacity: 1.0
           });
@@ -978,7 +951,7 @@
             mesh: debMesh,
             vel,
             life: 1.0,
-            decay: 0.45 + Math.random() * 0.35
+            decay: (damageResult.breached ? 0.18 : 0.32) + Math.random() * 0.16
           });
         }
 
@@ -1000,8 +973,10 @@
         earthMesh.visible = false;
         cloudMesh.visible = false;
         atmosMesh.visible = false;
+        planetDamage.setShattered(true);
 
-        for (let i = 0; i < 95; i++) {
+        const shatterFragments = lowImpactQuality ? 42 : 95;
+        for (let i = 0; i < shatterFragments; i++) {
           const size = 0.35 + Math.random() * 1.15;
           const fragGeo = new THREE.DodecahedronGeometry(size, 1);
           const isCore = Math.random() > 0.45;
@@ -1032,11 +1007,8 @@
 
       function resetEarth() {
         generation++;
-        // Restore geometry vertices
-        const posAttr = earthGeo.attributes.position;
-        posAttr.array.set(basePositions);
-        posAttr.needsUpdate = true;
-        earthGeo.computeVertexNormals();
+        // Restore surface vertices, index topology and persistent scars.
+        planetDamage.reset();
 
         // Restore pristine textures
         paintPlanet();
@@ -1057,6 +1029,7 @@
         while (activeExplosions.length > 0) {
           const e = activeExplosions.pop();
           earthGroup.remove(e.group);
+          e.dispose();
         }
         while (smokeParticles.length > 0) {
           const particle = smokeParticles.pop();
@@ -1067,6 +1040,8 @@
         while (activeDebris.length > 0) {
           const d = activeDebris.pop();
           scene.remove(d.mesh);
+          d.mesh.geometry.dispose();
+          d.mesh.material.dispose();
         }
 
         earthMesh.visible = true;
@@ -1090,6 +1065,7 @@
         if (!p) return;
         planet = p;
         resetEarth();
+        planetDamage.setPlanet(p);
         earthGroup.rotation.y = 0;
         cloudMesh.visible = p.cloudOpacity > 0;
         cloudMat.opacity = p.cloudOpacity;
@@ -1380,27 +1356,16 @@
           }
         }
 
-        // 5. Update Surface Explosions & Shockwaves
+        // 5. Fireball, dust cloud and blast shockwave animation
         for (let i = activeExplosions.length - 1; i >= 0; i--) {
-          const exp = activeExplosions[i];
-          exp.age += dt;
-          const prog = exp.age / exp.maxAge;
-
-          if (prog >= 1.0) {
-            earthGroup.remove(exp.group);
+          const effect = activeExplosions[i];
+          effect.age += dt;
+          if (effect.age >= effect.maxAge) {
+            earthGroup.remove(effect.group);
+            effect.dispose();
             activeExplosions.splice(i, 1);
           } else {
-            const fireScale = 1.0 + Math.sin(prog * Math.PI) * 3.8;
-            exp.fireball.scale.setScalar(fireScale);
-            exp.fireball.material.opacity = Math.max(0, 1.0 - prog * 1.25);
-
-            const plasmaScale = 1.0 + Math.pow(prog, 0.55) * 5.2;
-            exp.plasma.scale.setScalar(plasmaScale);
-            exp.plasma.material.opacity = Math.max(0, 0.85 * (1.0 - prog));
-
-            const waveScale = 1.0 + prog * 8.5;
-            exp.shockwave.scale.set(waveScale, waveScale, 1);
-            exp.shockwave.material.opacity = Math.max(0, 1.0 - prog);
+            effect.update(effect.age / effect.maxAge);
           }
         }
 
@@ -1410,6 +1375,8 @@
           d.life -= d.decay * dt;
           if (d.life <= 0) {
             scene.remove(d.mesh);
+            d.mesh.geometry.dispose();
+            d.mesh.material.dispose();
             activeDebris.splice(i, 1);
           } else {
             d.mesh.position.addScaledVector(d.vel, dt);
