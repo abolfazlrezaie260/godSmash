@@ -28,6 +28,18 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /weaponDock\.setSelected/);
   assert.match(match[1], /weaponDock\.selectAt/);
   assert.ok(html.includes('src="./src/render/rocket-fx.js"'));
+  assert.ok(html.includes('src="./src/simulation/missile-physics.js"'));
+  assert.ok(html.includes('id="surface-damage-val"'));
+  assert.ok(html.includes('id="weapon-damage-stat"'));
+  assert.ok(html.includes('id="weapon-speed-stat"'));
+  assert.ok(html.includes('id="weapon-radius-stat"'));
+  assert.match(match[1], /missilePhysics\.createFlight/);
+  assert.match(match[1], /missilePhysics\.stepFlight/);
+  assert.match(match[1], /impactDamageMultiplier/);
+  assert.match(match[1], /impactDirection: impactDirectionLocal/);
+  assert.match(match[1], /maxActiveMissiles/);
+  assert.match(match[1], /maxActiveDebris/);
+  assert.match(match[1], /planetDamage\.getDamagePercent\(\)/);
   assert.match(match[1], /GodSmashRocketFX\.createSystem/);
   assert.match(match[1], /rocketFx\.trail/);
   assert.match(match[1], /rocketFx\.burst/);
