@@ -23,6 +23,33 @@
       length: 1.68, radius: 0.17, nose: 0.54,
       fins: 4, finSpan: 0.20, finChord: 0.39,
       stripes: '#475569', base: '#c2cdd3', tip: '#a4b0bd', wings: true
+    }),
+    siege: Object.freeze({
+      id: 'siege', serial: 'GS-04', caption: 'TITAN SIEGE',
+      length: 2.30, radius: 0.29, nose: 0.76,
+      fins: 6, finSpan: 0.40, finChord: 0.63,
+      stripes: '#b91c1c', base: '#303743', tip: '#fca5a5',
+      hardwareColor: '#252b35', finColor: '#7f3b3b', sideBoosters: 2,
+      plumeColors: Object.freeze([0xffbd7a, 0xff3b24, 0xff7a2f, 0xffd166, 0xfff5d6]),
+      shockColor: 0xff7043, wings: false
+    }),
+    hypersonic: Object.freeze({
+      id: 'hypersonic', serial: 'GS-05', caption: 'VIPER HYPERSONIC',
+      length: 2.08, radius: 0.115, nose: 0.78,
+      fins: 4, finSpan: 0.16, finChord: 0.32,
+      stripes: '#0891b2', base: '#293f50', tip: '#b7f7ff',
+      hardwareColor: '#152b3a', finColor: '#3b6475',
+      plumeColors: Object.freeze([0x60a5fa, 0x0ea5e9, 0x38bdf8, 0x7dd3fc, 0xf0fdff]),
+      shockColor: 0x67e8f9, wings: false
+    }),
+    plasma: Object.freeze({
+      id: 'plasma', serial: 'GS-06', caption: 'NOVA PLASMA',
+      length: 1.78, radius: 0.19, nose: 0.74,
+      fins: 3, finSpan: 0.29, finChord: 0.46,
+      stripes: '#7c3aed', base: '#c4d4e7', tip: '#d8b4fe',
+      hardwareColor: '#263248', finColor: '#6d5ca8', glowRings: true, wings: true,
+      plumeColors: Object.freeze([0x8b5cf6, 0x6d28d9, 0x22d3ee, 0x67e8f9, 0xffffff]),
+      shockColor: 0x8b5cf6
     })
   });
 
@@ -119,13 +146,13 @@
       map: decals, roughness: 0.46, metalness: 0.42
     });
     const darkSteel = new THREE.MeshStandardMaterial({
-      color: '#333e4c', metalness: 0.75, roughness: 0.33
+      color: p.hardwareColor || '#333e4c', metalness: 0.75, roughness: 0.33
     });
     const metal = new THREE.MeshStandardMaterial({
       color: p.tip, metalness: 0.52, roughness: 0.41
     });
     const finMaterial = new THREE.MeshStandardMaterial({
-      color: '#677686', metalness: 0.62, roughness: 0.36,
+      color: p.finColor || '#677686', metalness: 0.62, roughness: 0.36,
       side: THREE.DoubleSide
     });
 
@@ -168,13 +195,55 @@
       group.add(fin);
     }
     if (p.wings) {
-      const wingGeo = createFinShape(THREE, p.radius, 0.77, 0.78, 0.043);
+      const wingGeo = createFinShape(THREE, p.radius, p.id === 'plasma' ? 0.62 : 0.77,
+        p.id === 'plasma' ? 0.64 : 0.78, 0.043);
       for (let i = 0; i < 2; i++) {
         const wing = new THREE.Mesh(wingGeo, finMaterial);
         wing.position.z = 0.1;
         wing.rotation.z = Math.PI * i;
         group.add(wing);
       }
+    }
+
+    // The Titan silhouette uses two side boosters; shared materials keep draw cost modest.
+    if (p.sideBoosters) {
+      const boosterLength = p.length * 0.62;
+      const boosterRadius = p.radius * 0.25;
+      for (let i = 0; i < p.sideBoosters; i++) {
+        const x = (i === 0 ? -1 : 1) * p.radius * 1.34;
+        const boosterBody = axialCylinder(
+          THREE, boosterRadius * 0.94, boosterRadius, boosterLength,
+          segmentCount, -p.length * 0.10, body, group
+        );
+        boosterBody.position.x = x;
+        const boosterNose = new THREE.Mesh(
+          new THREE.ConeGeometry(boosterRadius, p.nose * 0.40, segmentCount), metal
+        );
+        boosterNose.geometry.rotateX(Math.PI / 2);
+        boosterNose.position.set(x, 0, -p.length * 0.10 + boosterLength / 2 + p.nose * 0.20);
+        group.add(boosterNose);
+        const boosterNozzle = new THREE.Mesh(
+          new THREE.TorusGeometry(boosterRadius * 0.70, 0.012, 5, segmentCount), darkSteel
+        );
+        boosterNozzle.position.set(x, 0, -p.length * 0.10 - boosterLength / 2);
+        group.add(boosterNozzle);
+      }
+    }
+
+    // The Nova's two restrained luminous bands identify its plasma-powered profile.
+    if (p.glowRings) {
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: p.shockColor || 0x22d3ee, transparent: true, opacity: 0.72,
+        depthWrite: false, blending: THREE.AdditiveBlending
+      });
+      [-0.12, 0.19].forEach(fraction => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(p.radius * 1.045, 0.009, 5, segmentCount),
+          glowMaterial
+        );
+        ring.position.z = p.length * fraction;
+        group.add(ring);
+      });
     }
 
     // Multi-temperature exhaust: translucent outer envelope, orange combustion,
@@ -198,16 +267,19 @@
       return flame;
     }
 
-    addFlameLayer(p.radius * 0.98, 1.72, 0x8fc9ff, 0.16, -0.60);
-    addFlameLayer(p.radius * 0.78, 1.28, 0xff5424, 0.58, -0.37);
-    addFlameLayer(p.radius * 0.57, 1.03, 0xff9d35, 0.72, -0.29);
-    addFlameLayer(p.radius * 0.37, 0.78, 0xffe0a0, 0.88, -0.22);
-    addFlameLayer(p.radius * 0.20, 0.52, 0xf8fdff, 0.98, -0.16);
+    const plumeColors = p.plumeColors || [
+      0x8fc9ff, 0xff5424, 0xff9d35, 0xffe0a0, 0xf8fdff
+    ];
+    addFlameLayer(p.radius * 0.98, 1.72, plumeColors[0], 0.16, -0.60);
+    addFlameLayer(p.radius * 0.78, 1.28, plumeColors[1], 0.58, -0.37);
+    addFlameLayer(p.radius * 0.57, 1.03, plumeColors[2], 0.72, -0.29);
+    addFlameLayer(p.radius * 0.37, 0.78, plumeColors[3], 0.88, -0.22);
+    addFlameLayer(p.radius * 0.20, 0.52, plumeColors[4], 0.98, -0.16);
 
     // Faint exhaust shock diamonds, spaced along the plume axis.
     [ -0.42, -0.78, -1.12 ].forEach((z, i) => {
       const material = new THREE.MeshBasicMaterial({
-        color: i === 0 ? 0xffd6a1 : 0xb6e4ff,
+        color: p.shockColor || (i === 0 ? 0xffd6a1 : 0xb6e4ff),
         transparent: true, opacity: 0.22 - i * 0.035,
         depthWrite: false, blending: THREE.AdditiveBlending
       });
