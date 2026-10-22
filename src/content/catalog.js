@@ -72,7 +72,7 @@
   });
 
   registerWeapon({
-    id: 'icbm', nameFa: 'موشک هسته‌ای', subtitle: 'ICBM · 50 MT',
+    id: 'icbm', nameFa: 'موشک هسته‌ای', subtitle: 'ICBM · 50 MT', shortLabel: 'سنگین',
     kind: 'missile', icon: '🚀', visualProfile: 'strategic', blastRadius: 1.9,
     damage: 4.2, damageVariance: 1.8,
     casualties: 180000000, casualtiesVariance: 290000000,
@@ -80,7 +80,7 @@
     fireColor: '#fef08a', plasmaColor: '#f97316', waveColor: '#fdba74'
   });
   registerWeapon({
-    id: 'swift', nameFa: 'موشک سبک', subtitle: 'GS-02 · SWIFT',
+    id: 'swift', nameFa: 'موشک سبک', subtitle: 'GS-02 · SWIFT', shortLabel: 'سبک',
     kind: 'missile', icon: '🚀', visualProfile: 'interceptor', blastRadius: 1.05,
     damage: 1.8, damageVariance: 0.9,
     casualties: 55000000, casualtiesVariance: 110000000,
@@ -88,7 +88,7 @@
     fireColor: '#fef9c3', plasmaColor: '#fb923c', waveColor: '#fcd34d'
   });
   registerWeapon({
-    id: 'winged', nameFa: 'موشک بالدار', subtitle: 'GS-03 · WINGED',
+    id: 'winged', nameFa: 'موشک بالدار', subtitle: 'GS-03 · WINGED', shortLabel: 'بالدار',
     kind: 'missile', icon: '🚀', visualProfile: 'cruise', blastRadius: 1.35,
     damage: 2.7, damageVariance: 1.1,
     casualties: 80000000, casualtiesVariance: 130000000,
@@ -96,7 +96,7 @@
     fireColor: '#fff7ed', plasmaColor: '#fb923c', waveColor: '#fda4af'
   });
   registerWeapon({
-    id: 'asteroid', nameFa: 'شهاب‌سنگ', subtitle: 'KINETIC IMPACT',
+    id: 'asteroid', nameFa: 'شهاب‌سنگ', subtitle: 'KINETIC IMPACT', shortLabel: 'شهاب',
     kind: 'asteroid', icon: '☄️', blastRadius: 2.8,
     damage: 7, damageVariance: 2,
     casualties: 230000000, casualtiesVariance: 390000000,
@@ -104,7 +104,7 @@
     fireColor: '#ffcb6b', plasmaColor: '#ff4d2d', waveColor: '#ff8855'
   });
   registerWeapon({
-    id: 'laser', nameFa: 'لیزر مداری', subtitle: 'ORBITAL BEAM',
+    id: 'laser', nameFa: 'لیزر مداری', subtitle: 'ORBITAL BEAM', shortLabel: 'لیزر',
     kind: 'beam', icon: '⚡', blastRadius: 0.95,
     damage: 1.7, damageVariance: 0.7,
     casualties: 15000000, casualtiesVariance: 40000000,

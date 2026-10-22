@@ -12,6 +12,7 @@
 <script src="./src/render/projectile-models.js"></script>
 <script src="./src/render/planet-damage.js"></script>
 <script src="./src/render/impact-effects.js"></script>
+  <script src="./src/ui/weapon-dock.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -62,6 +63,125 @@
     @keyframes pulseGlow {
       0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
       50% { box-shadow: 0 0 18px 4px rgba(239, 68, 68, 0.25); }
+    }
+    /* Fixed weapon inventory above the bottom HUD; footer height is observed in JS. */
+    .weapon-dock {
+      position: fixed;
+      z-index: 21;
+      left: max(12px, env(safe-area-inset-left));
+      bottom: var(--footer-clearance, 110px);
+      width: 212px;
+      max-height: calc(100dvh - var(--footer-clearance, 110px) - 100px);
+      padding: 10px;
+      border-radius: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      pointer-events: auto;
+    }
+    .weapon-dock-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 0 3px;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .weapon-dock-heading small {
+      color: #94a3b8;
+      font-size: 10px;
+      font-weight: 500;
+    }
+    .weapon-dock-items {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: #475569 transparent;
+      padding: 2px;
+    }
+    .weapon-dock-button {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      direction: rtl;
+      text-align: right;
+      width: 100%;
+      min-height: 50px;
+      padding: 7px 8px;
+      border: 1px solid rgba(148,163,184,.22);
+      border-radius: 12px;
+      background: rgba(15,23,42,.72);
+      color: #e2e8f0;
+      cursor: pointer;
+      transition: background .16s ease, border-color .16s ease, transform .16s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .weapon-dock-button:hover { background: rgba(51,65,85,.92); }
+    .weapon-dock-button:active { transform: scale(.97); }
+    .weapon-dock-button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+    .weapon-dock-button.is-active {
+      border-color: #fb923c;
+      background: linear-gradient(110deg, rgba(124,45,18,.9), rgba(67,30,27,.85));
+      box-shadow: inset 0 0 0 1px rgba(251,146,60,.38), 0 0 12px rgba(249,115,22,.16);
+      color: #fff7ed;
+    }
+    .weapon-dock-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 32px;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: rgba(148,163,184,.13);
+      font-size: 19px;
+      line-height: 1;
+    }
+    .weapon-dock-button.is-active .weapon-dock-icon { background: rgba(251,146,60,.18); }
+    .weapon-dock-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+    .weapon-dock-name { font-size: 11px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .weapon-dock-detail { font-size: 9px; color: #94a3b8; direction: ltr; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .weapon-dock-key { color: #94a3b8; font-size: 10px; align-self: flex-start; font-family: monospace; }
+    .weapon-dock-short { display: none; }
+    @media (max-width: 640px) {
+      .weapon-dock {
+        width: 154px;
+        padding: 8px;
+        gap: 7px;
+        border-radius: 15px;
+        max-height: calc(100dvh - var(--footer-clearance, 155px) - 86px);
+      }
+      .weapon-dock-heading { font-size: 11px; }
+      .weapon-dock-heading small { display: none; }
+      .weapon-dock-items { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+      .weapon-dock-button {
+        min-width: 0;
+        min-height: 60px;
+        padding: 6px 3px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 3px;
+        text-align: center;
+      }
+      .weapon-dock-icon { flex-basis: 27px; width: 27px; height: 27px; font-size: 16px; }
+      .weapon-dock-copy, .weapon-dock-key { display: none; }
+      .weapon-dock-short {
+        display: block;
+        width: 100%;
+        font-size: 9px;
+        font-weight: 700;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .weapon-dock-button { transition: none; }
     }
     .num-mono {
       font-family: 'Inter', 'Vazirmatn', monospace;
@@ -140,8 +260,14 @@
     </div>
   </header>
 
-  <!-- Bottom HUD Bar: Single Missile Control & Instructions -->
-  <footer class="fixed bottom-3 inset-x-3 z-20 flex flex-col sm:flex-row items-center justify-between gap-2.5 pointer-events-none">
+  <!-- Fixed left-corner weapon inventory. The planet selector stays in the HUD. -->
+  <aside id="weapon-dock" class="weapon-dock glass-panel" aria-label="انتخاب سلاح">
+    <div class="weapon-dock-heading"><span>سلاح‌ها</span><small id="weapon-shortcuts">کلیدهای ۱ تا ۵</small></div>
+    <div id="weapon-dock-items" class="weapon-dock-items" role="group" aria-label="فهرست سلاح‌ها"></div>
+  </aside>
+
+  <!-- Bottom HUD Bar: Planet and firing controls -->
+  <footer id="game-controls" class="fixed bottom-3 inset-x-3 z-20 flex flex-col sm:flex-row items-center justify-between gap-2.5 pointer-events-none">
     <!-- Active Weapon Indicator (v1: Single Missile Type) -->
     <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-3 pointer-events-auto w-full sm:w-auto justify-between sm:justify-start">
       <div class="flex items-center gap-3">
@@ -163,7 +289,6 @@
     <!-- Dynamic selectors -->
     <div class="glass-panel rounded-2xl px-3 py-2 flex items-center gap-2 pointer-events-auto w-full sm:w-auto justify-center">
       <label for="planet-select" class="text-xs">سیاره</label><select id="planet-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="انتخاب سیاره"></select>
-      <label for="weapon-select" class="text-xs">سلاح</label><select id="weapon-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="انتخاب سلاح"></select>
       <button id="btn-mode-toggle" type="button" class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-200 border border-slate-600/60 flex items-center gap-1.5">
         <span>🎯</span>
         <span id="mode-label">حالت: تک‌موشک</span>
@@ -1057,9 +1182,37 @@
       }
 
       const planetSelect = document.getElementById("planet-select");
-      const weaponSelect = document.getElementById("weapon-select");
       catalog.listPlanets().forEach(p => planetSelect.add(new Option(p.nameFa, p.id)));
-      catalog.listWeapons().forEach(w => weaponSelect.add(new Option(w.nameFa, w.id)));
+      document.getElementById('weapon-shortcuts').textContent =
+        'کلیدهای ۱ تا ' + Math.min(9, catalog.listWeapons().length);
+      function selectWeapon(id) {
+        const next = catalog.getWeapon(id);
+        if (!next) return;
+        weapon = next;
+        document.getElementById("weapon-title").textContent = next.nameFa;
+        document.getElementById("active-weapon-icon").textContent = next.icon || '●';
+        document.getElementById("active-weapon-subtitle").textContent = next.subtitle || '';
+        weaponDock.setSelected(next.id);
+      }
+      const weaponDock = window.GodSmashWeaponDock.mount({
+        container: document.getElementById('weapon-dock-items'),
+        weapons: catalog.listWeapons(),
+        selectedId: weapon.id,
+        onChange: selectWeapon
+      });
+      selectWeapon(weapon.id);
+
+      // Prevent the dock from covering the fixed footer across viewport sizes.
+      const footerControls = document.getElementById('game-controls');
+      function positionWeaponDock() {
+        const height = Math.ceil(footerControls.getBoundingClientRect().height);
+        document.documentElement.style.setProperty('--footer-clearance', (height + 24) + 'px');
+      }
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(positionWeaponDock).observe(footerControls);
+      }
+      window.addEventListener('resize', positionWeaponDock);
+      positionWeaponDock();
       function selectPlanet(id) {
         const p = catalog.getPlanet(id);
         if (!p) return;
@@ -1080,17 +1233,6 @@
         planetSelect.value = p.id;
       }
       planetSelect.addEventListener("change", () => selectPlanet(planetSelect.value));
-      weaponSelect.addEventListener("change", () => {
-        const next = catalog.getWeapon(weaponSelect.value);
-        if (!next) return;
-        weapon = next;
-        document.getElementById("weapon-title").textContent = next.nameFa;
-        document.getElementById("active-weapon-icon").textContent = next.icon || '🚀';
-        document.getElementById("active-weapon-subtitle").textContent = next.subtitle || '';
-      });
-      weaponSelect.value = weapon.id;
-      document.getElementById("weapon-title").textContent = weapon.nameFa;
-      document.getElementById("active-weapon-subtitle").textContent = weapon.subtitle || '';
 
       function fireWeaponAtWorldPoint(point, delay = 0) {
         const selected = weapon;
@@ -1229,6 +1371,13 @@
       });
 
       window.addEventListener('keydown', (e) => {
+        if (e.target && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) return;
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        const digit = /^Digit([1-9])$/.exec(e.code);
+        if (digit && weaponDock.selectAt(Number(digit[1]) - 1)) {
+          e.preventDefault();
+          return;
+        }
         if (e.code === 'Space') {
           e.preventDefault();
           fireAtScreenCenter();

@@ -4,7 +4,7 @@ Browser-based 3D planet destruction game, built with Three.js. The game uses mod
 
 ## Run
 
-Serve the repository root through a static server or GitHub Pages. Open `index.html`. The default choice is **Earth + ICBM**. The planet and weapon dropdowns support mouse and touch. No compilation step is needed. The Three.js, Tailwind and fonts CDNs still require a network connection.
+Serve the repository root through a static server or GitHub Pages. Open `index.html`. The default choice is **Earth + ICBM**. The planet selector remains a dropdown; weapons are selected from a fixed bottom-left icon dock supporting mouse, touch and keyboard. No compilation step is needed. The Three.js, Tailwind and fonts CDNs still require a network connection.
 
 ```sh
 npx serve .
@@ -20,6 +20,7 @@ node --test tests/*.test.cjs
 | `src/render/planet-textures.js` | Deterministic, procedural surface painter for new planets |
 | `src/render/real-earth.js` | Photographic Earth imagery loader with offline fallback |
 | `src/render/projectile-models.js` | Detailed fictional missile silhouettes, decals, fins, nozzles and plume effects |
+| `src/ui/weapon-dock.js` | Accessible fixed weapon inventory, catalog-driven tiles and keyboard navigation |
 | `tests/catalog.test.cjs` | Registry and texture-painting smoke tests |
 
 ## Add a planet
@@ -93,3 +94,16 @@ Select **شهاب‌سنگ** (asteroid) and strike an intact planet. Rotate the 
 ### Limitations
 
 This is a **visually richer arcade destruction model**, not a scientifically accurate planet fracture or fluid/thermodynamic simulation. The crater and interior are produced using CPU-side vertex displacement and indexed triangle removal; there is no voxel engine, free-form CSG or physically correct continent-scale destruction. Hole boundaries are simplified to protect browser/mobile FPS. Overlapping breaches are coalesced visually by skipping nearby new openings; their impact damage still registers. Automated geometry and effects tests pass, but full browser/WebGL visuals and mobile benchmark results are not yet confirmed. A future iteration can introduce fracture chunks/LOD and GPU-based volumetric particles.
+
+
+## Fixed weapon dock (responsive)
+
+Weapon selection is now **not a dropdown**. It appears in a floating panel at the **bottom-left** of the gameplay area, above the existing firing/planet controls:
+
+- **Desktop:** one vertical column with icon, Persian name, short weapon description and shortcut number.
+- **Mobile:** compact two-column button grid with individual icons and short Persian labels. The currently selected weapon has an orange highlight.
+- **Interaction:** touch/click to select; `1`–`9` (up to the currently registered weapon count) select directly while the game is focused. Arrow keys or Home/End navigate between weapon buttons when the dock itself has keyboard focus. Each button uses `aria-pressed` and descriptive labels.
+- The active-weapon title/subtitle in the existing HUD follows dock selection; launch mechanics are unchanged.
+- The dock measures the footer height using `ResizeObserver` (with a resize fallback), leaving clearance for the firing controls even on narrow screens.
+
+To add another weapon button, register it in `src/content/catalog.js`; the dock automatically builds from `catalog.listWeapons()`. Add an optional `shortLabel` to keep the mobile label concise. No changes to the HUD markup are necessary. Check `tests/weapon-dock.test.cjs` for interaction tests. Real-device visual layout testing remains recommended.
