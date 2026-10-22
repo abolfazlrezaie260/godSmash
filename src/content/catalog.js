@@ -112,6 +112,31 @@
     fireColor: '#a5f3fc', plasmaColor: '#22d3ee', waveColor: '#67e8f9'
   });
 
+  registerWeapon({
+    id: 'titan', nameFa: 'موشک تایتان', subtitle: 'GS-04 · HEAVY SIEGE', shortLabel: 'تایتان',
+    kind: 'missile', icon: '🚀', visualProfile: 'siege', blastRadius: 2.45,
+    damage: 5.7, damageVariance: 1.25,
+    casualties: 210000000, casualtiesVariance: 205000000,
+    speed: 0.72, shake: 0.68, debrisCount: 32,
+    fireColor: '#fff0c2', plasmaColor: '#ef4444', waveColor: '#fb923c'
+  });
+  registerWeapon({
+    id: 'viper', nameFa: 'موشک وایپر', subtitle: 'GS-05 · HYPERSONIC', shortLabel: 'وایپر',
+    kind: 'missile', icon: '🚀', visualProfile: 'hypersonic', blastRadius: 1.15,
+    damage: 2.35, damageVariance: 0.65,
+    casualties: 42000000, casualtiesVariance: 65000000,
+    speed: 1.75, shake: 0.24, debrisCount: 10,
+    fireColor: '#ecfeff', plasmaColor: '#0ea5e9', waveColor: '#67e8f9'
+  });
+  registerWeapon({
+    id: 'nova', nameFa: 'موشک نُوا', subtitle: 'GS-06 · PLASMA', shortLabel: 'نُوا',
+    kind: 'missile', icon: '🚀', visualProfile: 'plasma', blastRadius: 1.72,
+    damage: 3.6, damageVariance: 1.0,
+    casualties: 95000000, casualtiesVariance: 145000000,
+    speed: 1.08, shake: 0.42, debrisCount: 20,
+    fireColor: '#cffafe', plasmaColor: '#7c3aed', waveColor: '#22d3ee'
+  });
+
   const api = Object.freeze({
     registerPlanet, registerWeapon,
     getPlanet: (id) => planets.get(id) || null,
