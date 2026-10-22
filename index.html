@@ -676,6 +676,8 @@
       // Earth Group
       const earthGroup = new THREE.Group();
       scene.add(earthGroup);
+      let nightLayer = null;
+      let nightMesh = null;
 
       // High-density sphere geometry so vertices can be displaced into 3D craters
       const SEGMENTS = 112;
@@ -692,6 +694,7 @@
       });
 
       const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+      earthMesh.renderOrder = 0;
       earthGroup.add(earthMesh);
 
       // Clouds Mesh
@@ -705,6 +708,7 @@
         roughness: 1.0
       });
       const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+      cloudMesh.renderOrder = 2;
       earthGroup.add(cloudMesh);
 
       // Atmospheric Fresnel Rim Glow
@@ -1159,6 +1163,7 @@
         );
         atmosMesh.visible = !!p.atmosphereColor;
         atmosMat.uniforms.rimColor.value.set(p.atmosphereColor || "#000000");
+        if (nightMesh) nightMesh.visible = p.id === "earth";
         document.getElementById("planet-name").textContent = "سیاره " + p.nameFa + " (" + p.nameEn + ")";
         document.querySelector("#btn-reset span:last-child").textContent = "بازسازی " + p.nameFa;
         planetSelect.value = p.id;
@@ -1484,6 +1489,17 @@
         let started = false;
         function startGameWithRealEarth() {
           if (started) return;
+          // The night-light overlay is built only after the photographic maps finish loading.
+          nightLayer = window.GodSmashRealEarth.createNightLightLayer(THREE);
+          nightLayer.updateSunDirection(sunLight.position);
+          nightMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(EARTH_RADIUS * 1.002, 96, 96),
+            nightLayer.material
+          );
+          nightMesh.name = 'Earth city lights (night side only)';
+          nightMesh.renderOrder = 1;
+          earthGroup.add(nightMesh);
+          nightMesh.visible = true;
           // No artificial globe is rendered during the initial asset loading.
           selectPlanet("earth");
           updateHUD();
