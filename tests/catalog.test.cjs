@@ -18,6 +18,12 @@ test('new missiles have distinct balanced stats and visual profiles', () => {
   assert.ok(titan.blastRadius > nova.blastRadius && nova.blastRadius > viper.blastRadius);
   assert.ok(viper.speed > nova.speed && nova.speed > titan.speed);
   assert.ok([titan, viper, nova].every(w => w.kind === 'missile'));
+  assert.ok(viper.acceleration > titan.acceleration);
+  assert.ok(viper.maxSpeed > nova.maxSpeed && nova.maxSpeed > titan.maxSpeed);
+  assert.ok([titan, viper, nova].every(w =>
+    w.launchSpeed > 0 && w.fuelDuration > 0 && w.drag >= 0
+  ));
+  assert.equal(catalog.getWeapon('asteroid').fuelDuration, 0);
 });
 
 test('unique IDs and required configuration are enforced', () => {

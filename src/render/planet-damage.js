@@ -26,6 +26,9 @@
 
     const holes = [];
     const scars = [];
+    const maxImpactSites = options.lowQuality ? 72 : 160;
+    const impactSites = [];
+    let damagePercent = 0;
     const inner = new THREE.Mesh(
       new THREE.SphereGeometry(radius * 0.805, options.lowQuality ? 24 : 40, 20),
       new THREE.MeshStandardMaterial({
@@ -121,22 +124,42 @@
       return rim;
     }
 
-    function deform(normal, blastRadius, power) {
+    function deform(normal, blastRadius, power, incidence, impactDirection) {
       const positions = geometry.attributes.position;
       const vertex = new THREE.Vector3();
-      const depth = clamp(0.3 + 0.11 * power, 0.32, 1.85);
-      const rimHeight = clamp(0.1 + 0.025 * power, 0.13, 0.38);
+      let tangent = null;
+      if (impactDirection && typeof impactDirection.clone === 'function') {
+        tangent = impactDirection.clone()
+          .addScaledVector(normal, -impactDirection.dot(normal)).normalize();
+      }
+      if (!tangent || tangent.length() < 1e-5) {
+        const up = Math.abs(normal.y) > 0.89
+          ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        tangent = up.cross(normal).normalize();
+      }
+      const bitangent = normal.clone().cross(tangent).normalize();
+      const depth = clamp((0.3 + 0.11 * power) * (0.62 + 0.38 * incidence), 0.24, 1.85);
+      const rimHeight = clamp((0.1 + 0.025 * power) * (0.65 + 0.35 * incidence), 0.08, 0.38);
+      const elongation = 1 + (1 - incidence) * 0.72;
+
       for (let i = 0; i < positions.count; i++) {
         vertex.fromBufferAttribute(positions, i);
+        const currentLength = vertex.length() || 1;
         const direction = vertex.clone().normalize();
-        const surfaceDistance = radius * Math.acos(clamp(direction.dot(normal), -1, 1));
-        const t = surfaceDistance / blastRadius;
+        const cosTheta = clamp(direction.dot(normal), -1, 1);
+        // Use local tangent coordinates: grazing impacts create an elongated, shallower crater.
+        const along = Math.atan2(direction.dot(tangent), cosTheta) * radius;
+        const across = Math.atan2(direction.dot(bitangent), cosTheta) * radius;
+        const t = Math.sqrt(
+          Math.pow(along / (blastRadius * elongation), 2) +
+          Math.pow(across / blastRadius, 2)
+        );
         if (t < 0.86) {
           const bowl = Math.pow(Math.max(0, 1 - t * t / (0.86 * 0.86)), 1.5);
-          vertex.multiplyScalar(Math.max(radius * 0.66, vertex.length() - depth * bowl) / vertex.length());
+          vertex.multiplyScalar(Math.max(radius * 0.66, currentLength - depth * bowl) / currentLength);
         } else if (t < 1.38) {
           const ridge = Math.sin((t - 0.86) * Math.PI / 0.52);
-          vertex.multiplyScalar((vertex.length() + rimHeight * Math.max(0, ridge)) / vertex.length());
+          vertex.multiplyScalar((currentLength + rimHeight * Math.max(0, ridge)) / currentLength);
         } else {
           continue;
         }
@@ -146,17 +169,67 @@
       return depth;
     }
 
+    function recordImpact(normal, effectiveRadius, power) {
+      const footprintRadius = clamp((effectiveRadius / radius) * 1.25, 0.015, 0.88);
+      let nearest = null;
+      let nearestAngle = Infinity;
+      for (const site of impactSites) {
+        const angle = Math.acos(clamp(site.normal.dot(normal), -1, 1));
+        if (angle < nearestAngle) {
+          nearest = site;
+          nearestAngle = angle;
+        }
+      }
+
+      const overlaps = nearest && nearestAngle < nearest.radius + footprintRadius * 0.55;
+      const merged = !!overlaps || impactSites.length >= maxImpactSites;
+      if (merged) {
+        if (!nearest) return {hits: 1, radius: footprintRadius};
+        nearest.normal = nearest.normal.clone().multiplyScalar(nearest.hits)
+          .add(normal).normalize();
+        nearest.radius = Math.min(0.92, Math.max(
+          nearest.radius,
+          nearestAngle + footprintRadius * 0.68,
+          (nearest.radius + footprintRadius) * 0.66
+        ));
+        nearest.severity = Math.min(32, nearest.severity + power * 0.16);
+        nearest.hits += 1;
+      } else {
+        impactSites.push({
+          normal: normal.clone(),
+          radius: footprintRadius,
+          severity: power,
+          hits: 1
+        });
+      }
+
+      // Spherical-cap coverage estimate; nearby hits are merged into one site.
+      let remaining = 1;
+      for (const site of impactSites) {
+        const capFraction = (1 - Math.cos(site.radius)) * 0.5;
+        remaining *= 1 - capFraction;
+      }
+      damagePercent = clamp((1 - remaining) * 100, 0, 100);
+      return {
+        hits: merged && nearest ? nearest.hits : 1,
+        radius: merged && nearest ? nearest.radius : footprintRadius
+      };
+    }
+
     function impact(localPoint, blastRadius, config) {
       const normal = localPoint.clone().normalize();
       const p = config.planet;
       const weapon = config.weapon;
       const power = severity(weapon, p);
-      const depth = deform(normal, blastRadius, power);
+      const incidence = clamp(Number.isFinite(config.incidence) ? config.incidence : 1, 0, 1);
+      const effectiveRadius = blastRadius * (1 + (1 - incidence) * 0.72);
+      const depth = deform(normal, blastRadius, power, incidence, config.impactDirection);
+      const site = recordImpact(normal, effectiveRadius, power);
 
       let breached = false;
       let aperture = 0;
       if (config.breach && holes.length < maxBreaches) {
-        aperture = clamp((blastRadius / radius) * (0.65 + power * 0.065), 0.085, 0.39);
+        aperture = clamp((effectiveRadius / radius) * (0.65 + power * 0.065), 0.085, 0.39);
         const overlaps = holes.some(h => Math.acos(clamp(h.normal.dot(normal), -1, 1)) < (h.aperture + aperture) * 0.78);
         if (!overlaps) {
           holes.push({
@@ -172,7 +245,10 @@
       if (breached) rebuildIndex();
       geometry.computeVertexNormals();
       geometry.computeBoundingSphere();
-      return {breached, depth, aperture, power};
+      return {
+        breached, depth, aperture, power, incidence, effectiveRadius,
+        damagePercent, impactSiteCount: impactSites.length, siteHits: site.hits
+      };
     }
 
     function setPlanet(planet) {
@@ -201,6 +277,8 @@
       geometry.attributes.position.array.set(originalPositions);
       geometry.attributes.position.needsUpdate = true;
       holes.length = 0;
+      impactSites.length = 0;
+      damagePercent = 0;
       rebuildIndex();
       geometry.computeVertexNormals();
       geometry.computeBoundingSphere();
@@ -217,7 +295,10 @@
     return Object.freeze({
       impact, reset, setPlanet, setShattered,
       getBreachCount: () => holes.length,
-      getMaxBreaches: () => maxBreaches
+      getMaxBreaches: () => maxBreaches,
+      getDamagePercent: () => damagePercent,
+      getImpactSiteCount: () => impactSites.length,
+      getMaxImpactSites: () => maxImpactSites
     });
   }
 

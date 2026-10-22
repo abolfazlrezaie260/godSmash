@@ -25,6 +25,7 @@ node --test tests/*.test.cjs
 | `src/render/rocket-fx.js` | Reusable soft smoke sprites, incandescent trail fragments and impact bursts |
 | `src/ui/weapon-dock.js` | Accessible fixed weapon inventory, catalog-driven tiles and keyboard navigation |
 | `tests/catalog.test.cjs` | Registry and texture-painting smoke tests |
+| `tests/missile-physics.test.cjs` | Flight acceleration, fuel use, ballistic impacts and frame-rate consistency |
 
 ## Add a planet
 
@@ -32,7 +33,7 @@ Add a `registerPlanet({...})` call in `src/content/catalog.js` (prefer splitting
 
 ## Add a weapon
 
-Add a `registerWeapon({...})` call in `src/content/catalog.js` with unique `id`, `nameFa`, `kind`, `blastRadius`, `damage`, `damageVariance`, `casualties`, `casualtiesVariance`, `speed`, `shake`, `debrisCount`, and optional visual colors and `visualProfile` (for missile silhouettes). For a new missile silhouette, add a matching profile in `src/render/projectile-models.js`; profiles can customize plume colors, fins, wings, booster pods and glow bands. The UI discovers weapons automatically. The dock currently exposes eight weapons, including the three new missile profiles. Supported `kind` values are `missile`, `asteroid`, `beam`. The existing ballistic runtime handles missiles and asteroids; beams use an immediate short-lived cylinder effect. To add a *new kind*, implement its behavior in the runtime's `fireWeaponAtWorldPoint` dispatch and add it to catalog validation. Damage, craters, casualties and debris depend on weapon configuration and planet resistance.
+Add a `registerWeapon({...})` call in `src/content/catalog.js` with unique `id`, `nameFa`, `kind`, `blastRadius`, `damage`, `damageVariance`, `casualties`, `casualtiesVariance`, `speed`, `shake`, `debrisCount`, and optional visual colors, `visualProfile`, `launchSpeed`, `acceleration`, `maxSpeed`, `fuelDuration` and `drag`. Flight values are game-space tuning parameters, not real propulsion measurements. For a new missile silhouette, add a matching profile in `src/render/projectile-models.js`; profiles can customize plume colors, fins, wings, booster pods and glow bands. The UI discovers weapons automatically. The dock currently exposes eight weapons, including the three new missile profiles. Supported `kind` values are `missile`, `asteroid`, `beam`. The existing ballistic runtime handles missiles and asteroids; beams use an immediate short-lived cylinder effect. To add a *new kind*, implement its behavior in the runtime's `fireWeaponAtWorldPoint` dispatch and add it to catalog validation. Damage, craters, casualties and debris depend on weapon configuration and planet resistance.
 
 ## Current content
 
@@ -83,11 +84,13 @@ To introduce a new silhouette, add a compatible entry to `profiles` in `src/rend
 The damage engine is now split into `src/render/planet-damage.js` and `src/render/impact-effects.js`:
 
 - **Every hit** deforms the planet surface into a depth-scaled bowl and raised rim, plus permanent charred/lava texture painting. Damage depth and color vary with weapon and surface resistance.
+- **Impact angle matters:** grazing impacts make wider, shallower, directionally elongated craters and longer scorch marks; the incoming speed also adjusts delivered damage within a bounded arcade range.
+- **Accumulated surface damage:** overlapping impacts are grouped into bounded surface sites, each site tracks repeat hits and the HUD reports an estimated damaged-surface percentage. This is a spherical-cap coverage estimate, not a geophysical measurement.
 - **Large asteroid impacts** remove triangles from the planet's *indexed mesh* around the hit. The missing crust exposes a recessed rocky interior and a jagged, layered rim. These openings persist after the explosion ends. Later missiles can also breach a heavily damaged world.
 - **Blast animation** uses a turbulent procedural fireball shader, a hot plasma shell and two expanding surface shock rings. Soft smoke sprites and incandescent fragments add irregular detail; light flashes on higher-quality devices.
 - **Debris** uses rough, flat-shaded rock materials, varied fragment sizes, independent spin and fading heat. Breaches throw a handful of larger crust chunks as well as small ejecta, within a per-scene cap.
 - **Planet reset or selection** restores the original vertex/index buffers, destroys persistent rim meshes and clears transient effects. Full shattering hides intact crust and breach walls.
-- **Adaptive budgets** allow up to 6 breaches and 4 simultaneous blast effects on small/low-data devices; on larger devices, up to 12 breaches and 8 effects.
+- **Adaptive budgets** allow up to 6 breaches and 4 simultaneous blast effects on small/low-data devices; on larger devices, up to 12 breaches and 8 effects. Live missiles are capped at 8 on small/low-data devices and 20 on larger devices; debris is capped at 96 and 210 respectively. Surface damage sites are capped at 72 and 160.
 
 ### How to try it
 
@@ -95,7 +98,7 @@ Select **شهاب‌سنگ** (asteroid) and strike an intact planet. Rotate the 
 
 ### Limitations
 
-This is a **visually richer arcade destruction model**, not a scientifically accurate planet fracture or fluid/thermodynamic simulation. The crater and interior are produced using CPU-side vertex displacement and indexed triangle removal; there is no voxel engine, free-form CSG or physically correct continent-scale destruction. Hole boundaries are simplified to protect browser/mobile FPS. Overlapping breaches are coalesced visually by skipping nearby new openings; their impact damage still registers. Automated geometry and effects tests pass, but full browser/WebGL visuals and mobile benchmark results are not yet confirmed. A future iteration can introduce fracture chunks/LOD and GPU-based volumetric particles.
+This is a **visually richer arcade destruction model**, not a scientifically accurate planet fracture or fluid/thermodynamic simulation. The crater and interior are produced using CPU-side vertex displacement and indexed triangle removal; there is no voxel engine, free-form CSG or physically correct continent-scale destruction. Hole boundaries are simplified to protect browser/mobile FPS. Overlapping breaches are coalesced visually by skipping nearby new openings; their impact damage still registers. Automated geometry, impact-angle, accumulated-damage, flight-physics and resource-budget tests cover the new systems. Full browser/WebGL visual inspection and real-device FPS/memory measurements are still required before making performance guarantees. The flight model is a deterministic arcade approximation, not a real engine, ballistic trajectory or CFD simulation.
 
 
 ## Fixed weapon dock (responsive)
@@ -125,3 +128,12 @@ The latest visual pass adds:
 The visuals are **cinematic approximations**. The plume is not a measured propulsion/combustion model; smoke is sprite-based rather than volumetric CFD; the shock rings are visual wavefronts, not a physically correct pressure simulation; and planetary fracture does not use a voxel or finite-element solver. The project remains a Three.js browser game, with visual polish balanced against mobile GPU budgets.
 
 Run `node --test tests/*.test.cjs`. Automated tests cover shader configuration, asset loading, exhaust particle budgets, effect disposal, missile geometry and crater topology. These tests do not replace WebGL/browser screenshots or device FPS measurements; those should be done before release.
+
+
+## Gameplay physics and performance budgets
+
+Projectile motion is integrated in small fixed substeps by `src/simulation/missile-physics.js`. Weapon catalog entries can tune launch speed, acceleration, maximum speed, fuel duration and drag. Missiles burn down their exhaust over the powered phase and coast afterward; asteroids are ballistic and do not consume rocket fuel. Flight uses the same scaled delta time as the rest of the simulation, so 0.5×, 1× and 2× affect the full trajectory.
+
+The impact engine records bounded damage sites and estimates surface coverage from spherical caps. Hits near an existing site merge into it, while hits elsewhere create a separate site until the quality-specific cap is reached. Planet reset clears the site history, restores the original mesh and textures, and disposes persistent crater rims.
+
+For a repeatable manual performance check, use the same browser and viewport, select the lowest and highest quality modes (narrow viewport/save-data versus desktop), fire 20+ consecutive missiles including asteroid breaches, leave effects running for 30 seconds, then reset twice. Check for missing HUD updates, lingering effects and steadily growing GPU memory. Record browser/device, viewport, device-pixel ratio, quality mode and average FPS; automated tests do not replace this profiling.

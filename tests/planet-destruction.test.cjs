@@ -88,16 +88,23 @@ test('asteroid can remove triangles, expose interior, preserve holes and reset t
   assert.equal(hole.breached,true);
   assert.ok(geometry.index.array.length < initialCount);
   assert.equal(engine.getBreachCount(),1);
+  assert.equal(engine.getImpactSiteCount(),1);
+  assert.ok(engine.getDamagePercent() > 0 && engine.getDamagePercent() < 100);
+  const firstCoverage = engine.getDamagePercent();
   assert.equal(parent.children[0].visible,true,'exposed core becomes visible');
   assert.equal(parent.children[1].name,'Exposed fractured crust');
   const repeat=engine.impact(point,3.5,{planet:mars,weapon:asteroid,breach:true});
   assert.equal(repeat.breached,false,'overlapping holes do not add duplicate geometry');
   assert.equal(engine.getBreachCount(),1);
+  assert.equal(engine.getImpactSiteCount(),1, 'overlapping hits are merged into one persistent damage site');
+  assert.ok(engine.getDamagePercent() >= firstCoverage);
   engine.setShattered(true);
   assert.equal(parent.children[0].visible,false);
   engine.reset();
   assert.equal(geometry.index.array.length,initialCount);
   assert.equal(engine.getBreachCount(),0);
+  assert.equal(engine.getImpactSiteCount(),0);
+  assert.equal(engine.getDamagePercent(),0, 'reset clears accumulated surface damage');
   assert.equal(parent.children.length,1,'scar mesh removed after reset');
   assert.equal(parent.children[0].visible,false);
 });
@@ -142,4 +149,29 @@ test('blast factory animates and safely disposes of all unique resources',()=>{
   eff.dispose();eff.dispose();
   geos.forEach(g=>assert.equal(g.disposals,1));
   mats.forEach(m=>assert.equal(m.disposals,1));
+});
+
+test('grazing impacts create wider, shallower craters than direct impacts', () => {
+  const directGeometry = globe(), directParent = new Node();
+  const direct = damage.createSystem(THREE, {
+    geometry: directGeometry, group: directParent, radius: 10, lowQuality: false
+  });
+  const directResult = direct.impact(new Vector3(0, 0, 10), 2, {
+    planet: mars, weapon: {damage: 4.2}, breach: false,
+    incidence: 1, impactDirection: new Vector3(0, 0, -1)
+  });
+
+  const grazingGeometry = globe(), grazingParent = new Node();
+  const grazing = damage.createSystem(THREE, {
+    geometry: grazingGeometry, group: grazingParent, radius: 10, lowQuality: false
+  });
+  const grazingResult = grazing.impact(new Vector3(0, 0, 10), 2, {
+    planet: mars, weapon: {damage: 4.2}, breach: false,
+    incidence: 0.15, impactDirection: new Vector3(1, 0, -0.15).normalize()
+  });
+  assert.ok(grazingResult.effectiveRadius > directResult.effectiveRadius);
+  assert.ok(grazingResult.depth < directResult.depth);
+  assert.equal(grazingResult.incidence, 0.15);
+  direct.reset();
+  grazing.reset();
 });
