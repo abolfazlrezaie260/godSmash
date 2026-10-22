@@ -1,11 +1,11 @@
-/* Photographic Earth assets for the existing canvas-based crater engine.
- * Public URLs are version-pinned to the Three.js r128 example textures.
- * Failed network loads leave the original procedural Earth playable.
+/* Local photographic Earth assets for the original canvas crater engine.
+ * All image bytes are committed inside assets/textures/earth for GitHub Pages
+ * and offline Android/WebView builds. No image CDN or cross-origin dependency.
  */
 (function (root) {
   'use strict';
 
-  const BASE = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/';
+  const BASE = './assets/textures/earth/';
   const files = Object.freeze({
     day: 'earth_atmos_4096.jpg',
     night: 'earth_lights_2048.png',
@@ -21,7 +21,6 @@
   function loadImage(filename) {
     return new Promise((resolve, reject) => {
       const image = new Image();
-      image.crossOrigin = 'anonymous'; // Required before src for safe canvas painting
       image.onload = () => resolve(image);
       image.onerror = () => reject(new Error('Failed to load Earth texture: ' + filename));
       image.src = BASE + filename;
@@ -31,22 +30,14 @@
   function preload() {
     if (pictures) return Promise.resolve(pictures);
     if (!ongoing) {
-      ongoing = Promise.allSettled(Object.entries(files).map(async ([key, file]) =>
-        [key, await loadImage(file)]
-      )).then(results => {
-        const loaded = {};
-        for (const item of results) {
-          if (item.status === 'fulfilled') {
-            loaded[item.value[0]] = item.value[1];
-          }
-        }
-        if (!loaded.day) {
-          throw new Error('Earth day map unavailable; procedural fallback remains active');
-        }
-        pictures = loaded;
+      // Require every locally vendored map: never swap to a partially stylized Earth.
+      ongoing = Promise.all(Object.entries(files).map(async ([key, file]) => {
+        return [key, await loadImage(file)];
+      })).then(results => {
+        pictures = Object.fromEntries(results);
         return pictures;
       }).catch(error => {
-        ongoing = null; // Explicit retry is possible after temporary outages
+        ongoing = null; // Retry button can reload missing files without reloading the page.
         throw error;
       });
     }

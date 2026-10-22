@@ -187,9 +187,50 @@
       font-family: 'Inter', 'Vazirmatn', monospace;
       font-variant-numeric: tabular-nums;
     }
+    /* The globe does not start rendering until all local Earth maps are ready. */
+    #earth-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 40%, #0f2a46, #030712 72%);
+      padding: 24px;
+      text-align: center;
+    }
+    .earth-loading-content {
+      max-width: 360px;
+      padding: 28px;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+    .earth-loading-icon { font-size: 38px; margin-bottom: 12px; }
+    #earth-loading-heading { font-size: 16px; font-weight: 800; margin-bottom: 8px; }
+    #earth-loading-message { color: #94a3b8; line-height: 1.9; }
+    #earth-retry {
+      margin-top: 20px;
+      border-radius: 10px;
+      background: #f97316;
+      color: white;
+      border: 0;
+      padding: 10px 22px;
+      cursor: pointer;
+      font: inherit;
+    }
+    #earth-retry[hidden] { display: none; }
   </style>
 </head>
 <body class="relative w-full h-full overflow-hidden select-none">
+
+  <div id="earth-loading" role="status" aria-live="polite" aria-atomic="true">
+    <div class="earth-loading-content">
+      <div class="earth-loading-icon" aria-hidden="true">🌍</div>
+      <div id="earth-loading-heading">آماده‌سازی سیاره زمین</div>
+      <div id="earth-loading-message">در حال بارگذاری تصاویر واقعی زمین از فایل‌های بازی...</div>
+      <button id="earth-retry" type="button" hidden>تلاش دوباره</button>
+    </div>
+  </div>
 
   <!-- 3D WebGL Viewport -->
   <div id="canvas-container" aria-label="فضای سه‌بعدی سیاره زمین"></div>
@@ -587,126 +628,14 @@
       emissiveCanvas.height = TEX_H;
       const emissiveCtx = emissiveCanvas.getContext('2d');
 
-      // Landmass polygons (normalized [u, v] approximations of Continents)
-      const continents = [
-        // North America
-        [[0.12,0.18],[0.24,0.16],[0.31,0.24],[0.27,0.36],[0.22,0.44],[0.17,0.38],[0.10,0.26]],
-        // South America
-        [[0.25,0.48],[0.33,0.52],[0.36,0.64],[0.31,0.81],[0.27,0.84],[0.24,0.66]],
-        // Greenland
-        [[0.33,0.10],[0.41,0.09],[0.39,0.18],[0.34,0.17]],
-        // Europe
-        [[0.46,0.18],[0.57,0.16],[0.59,0.28],[0.51,0.31],[0.45,0.27]],
-        // Africa
-        [[0.45,0.34],[0.56,0.34],[0.61,0.46],[0.58,0.68],[0.52,0.74],[0.47,0.56],[0.43,0.44]],
-        // Asia
-        [[0.57,0.16],[0.83,0.15],[0.88,0.28],[0.81,0.44],[0.71,0.47],[0.62,0.38],[0.58,0.27]],
-        // India & SE Asia
-        [[0.68,0.38],[0.77,0.40],[0.79,0.52],[0.71,0.50]],
-        // Australia
-        [[0.77,0.60],[0.88,0.60],[0.90,0.72],[0.81,0.75],[0.76,0.69]],
-        // Japan & Islands
-        [[0.85,0.27],[0.88,0.29],[0.86,0.34],[0.84,0.31]]
-      ];
-
-      function drawPoly(ctx, poly, fillStyle, blur = 0) {
-        ctx.save();
-        if (blur > 0) ctx.filter = `blur(${blur}px)`;
-        ctx.beginPath();
-        poly.forEach((pt, idx) => {
-          const x = pt[0] * TEX_W;
-          const y = pt[1] * TEX_H;
-          if (idx === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.closePath();
-        ctx.fillStyle = fillStyle;
-        ctx.fill();
-        ctx.restore();
-      }
-
-      function paintPristineEarthTextures() {
-        // 1. Deep Ocean Gradient
-        const oceanGrad = surfaceCtx.createLinearGradient(0, 0, 0, TEX_H);
-        oceanGrad.addColorStop(0, '#0c2d48');
-        oceanGrad.addColorStop(0.2, '#07223b');
-        oceanGrad.addColorStop(0.5, '#0a365c');
-        oceanGrad.addColorStop(0.8, '#07223b');
-        oceanGrad.addColorStop(1, '#0c2d48');
-        surfaceCtx.fillStyle = oceanGrad;
-        surfaceCtx.fillRect(0, 0, TEX_W, TEX_H);
-
-        // Subtle ocean bathymetry ridges
-        for (let i = 0; i < 180; i++) {
-          surfaceCtx.fillStyle = i % 2 === 0 ? 'rgba(14, 116, 144, 0.08)' : 'rgba(2, 6, 23, 0.1)';
-          surfaceCtx.beginPath();
-          surfaceCtx.arc(
-            Math.random() * TEX_W,
-            Math.random() * TEX_H,
-            10 + Math.random() * 55,
-            0,
-            Math.PI * 2
-          );
-          surfaceCtx.fill();
-        }
-
-        // 2. Continental Shelf Glow
-        continents.forEach(poly => {
-          drawPoly(surfaceCtx, poly, 'rgba(14, 165, 233, 0.28)', 10);
-        });
-
-        // 3. Landmasses Base Green/Forest
-        continents.forEach(poly => {
-          drawPoly(surfaceCtx, poly, '#1f6f43', 3);
-        });
-
-        // 4. Biome Detailing (Deserts, Mountains, Steppes)
-        const desertZones = [
-          { x: 0.51, y: 0.40, rx: 0.06, ry: 0.045, color: '#b48a4e' }, // Sahara
-          { x: 0.60, y: 0.37, rx: 0.04, ry: 0.035, color: '#a87e43' }, // Arabian
-          { x: 0.83, y: 0.66, rx: 0.045, ry: 0.04, color: '#b06d3b' }, // Outback
-          { x: 0.19, y: 0.32, rx: 0.035, ry: 0.03, color: '#8c6d46' }, // Western US
-          { x: 0.72, y: 0.30, rx: 0.055, ry: 0.04, color: '#8b7355' }  // Gobi/Himalayas
-        ];
-        desertZones.forEach(z => {
-          surfaceCtx.save();
-          surfaceCtx.filter = 'blur(8px)';
-          surfaceCtx.fillStyle = z.color;
-          surfaceCtx.beginPath();
-          surfaceCtx.ellipse(z.x * TEX_W, z.y * TEX_H, z.rx * TEX_W, z.ry * TEX_H, 0.2, 0, Math.PI * 2);
-          surfaceCtx.fill();
-          surfaceCtx.restore();
-        });
-
-        // 5. Polar Ice Caps (Arctic & Antarctica)
-        surfaceCtx.fillStyle = '#e2e8f0';
-        surfaceCtx.fillRect(0, 0, TEX_W, 24);
-        surfaceCtx.fillRect(0, TEX_H - 36, TEX_W, 36);
-
-        // 6. Emissive Map (City Lights at Night + Zero Lava Initially)
-        emissiveCtx.fillStyle = '#000000';
-        emissiveCtx.fillRect(0, 0, TEX_W, TEX_H);
-
-        // City light clusters on continents
-        const cityHubs = [
-          [0.23, 0.29], [0.26, 0.31], [0.16, 0.31], [0.32, 0.62],
-          [0.49, 0.24], [0.53, 0.26], [0.55, 0.36], [0.71, 0.41],
-          [0.79, 0.34], [0.83, 0.31], [0.86, 0.31], [0.86, 0.69]
-        ];
-        cityHubs.forEach(hub => {
-          for (let j = 0; j < 28; j++) {
-            const cx = (hub[0] + (Math.random() - 0.5) * 0.05) * TEX_W;
-            const cy = (hub[1] + (Math.random() - 0.5) * 0.04) * TEX_H;
-            emissiveCtx.fillStyle = 'rgba(251, 191, 36, 0.55)';
-            emissiveCtx.fillRect(cx, cy, 1.8, 1.8);
-          }
-        });
-      }
-
       function paintPlanet() {
         if (planet.id === "earth") {
           if (!window.GodSmashRealEarth.paint(surfaceCtx, emissiveCtx, TEX_W, TEX_H)) {
-            paintPristineEarthTextures(); // Offline/loading fallback
+            // Preload placeholder never renders: initialization waits for all maps.
+            surfaceCtx.fillStyle = '#071827';
+            surfaceCtx.fillRect(0, 0, TEX_W, TEX_H);
+            emissiveCtx.fillStyle = '#000000';
+            emissiveCtx.fillRect(0, 0, TEX_W, TEX_H);
           }
         } else {
           GodSmashTextures.paint(planet, surfaceCtx, emissiveCtx, TEX_W, TEX_H);
@@ -1546,24 +1475,34 @@
       }
 
       window.onload = () => {
-        // Start immediately with the procedural fallback, upgrade as assets arrive.
-        selectPlanet("earth");
-        updateHUD();
-        requestAnimationFrame(animate);
-        window.GodSmashRealEarth.preload().then(() => {
-          if (planet.id !== "earth") return;
-          window.GodSmashRealEarth.configure(
-            THREE, earthMat, cloudMat, fallbackCloudTexture, true
-          );
-          // Never silently erase the player's craters during asynchronous loading.
-          if (state.impacts === 0 && !state.shattered) {
-            paintPlanet();
-            surfaceTexture.needsUpdate = true;
-            emissiveTexture.needsUpdate = true;
-          }
-        }).catch(error => {
-          console.warn(error.message + '. Using generated Earth textures.');
-        });
+        const loading = document.getElementById('earth-loading');
+        const loadingHeading = document.getElementById('earth-loading-heading');
+        const loadingMessage = document.getElementById('earth-loading-message');
+        const retryButton = document.getElementById('earth-retry');
+        let started = false;
+        function startGameWithRealEarth() {
+          if (started) return;
+          // No artificial globe is rendered during the initial asset loading.
+          selectPlanet("earth");
+          updateHUD();
+          started = true;
+          loading.remove();
+          requestAnimationFrame(animate);
+        }
+        function loadLocalMaps() {
+          retryButton.hidden = true;
+          loadingHeading.textContent = 'آماده‌سازی سیاره زمین';
+          loadingMessage.textContent = 'در حال بارگذاری تصاویر واقعی زمین از فایل‌های بازی...';
+          window.GodSmashRealEarth.preload().then(startGameWithRealEarth).catch(error => {
+            console.error('Local Earth textures are missing or invalid:', error);
+            loadingHeading.textContent = 'خطا در بارگذاری نقشه زمین';
+            loadingMessage.textContent =
+              'یکی از فایل‌های تصویری زمین بارگذاری نشد. اتصال یا فایل‌های بازی را بررسی و دوباره تلاش کنید.';
+            retryButton.hidden = false;
+          });
+        }
+        retryButton.addEventListener('click', loadLocalMaps);
+        loadLocalMaps();
       };
     })();
   </script>

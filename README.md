@@ -4,7 +4,7 @@ Browser-based 3D planet destruction game, built with Three.js. The game uses mod
 
 ## Run
 
-Serve the repository root through a static server or GitHub Pages. Open `index.html`. The default choice is **Earth + ICBM**. The planet selector remains a dropdown; weapons are selected from a fixed bottom-left icon dock supporting mouse, touch and keyboard. No compilation step is needed. The Three.js, Tailwind and fonts CDNs still require a network connection.
+Serve the repository root through a static server or GitHub Pages. Open `index.html`. The default choice is **Earth + ICBM**. The planet selector remains a dropdown; weapons are selected from a fixed bottom-left icon dock supporting mouse, touch and keyboard. No compilation step is needed. The Three.js runtime, Tailwind and fonts CDNs still require network access; **Earth imagery itself is served locally by the same site**.
 
 ```sh
 npx serve .
@@ -18,14 +18,15 @@ node --test tests/*.test.cjs
 | `index.html` | Existing Three.js scene, HUD, camera, raycast, impact engine and loop |
 | `src/content/catalog.js` | Planets and weapons registries, data validation and default presets |
 | `src/render/planet-textures.js` | Deterministic, procedural surface painter for new planets |
-| `src/render/real-earth.js` | Photographic Earth imagery loader with offline fallback |
+| `src/render/real-earth.js` | Required same-origin photographic Earth asset loader with retry UI |
+| `assets/textures/earth/` | Five bundled day/night/cloud/normal/specular maps |
 | `src/render/projectile-models.js` | Detailed fictional missile silhouettes, decals, fins, nozzles and plume effects |
 | `src/ui/weapon-dock.js` | Accessible fixed weapon inventory, catalog-driven tiles and keyboard navigation |
 | `tests/catalog.test.cjs` | Registry and texture-painting smoke tests |
 
 ## Add a planet
 
-Add a `registerPlanet({...})` call in `src/content/catalog.js` (prefer splitting presets into their own files in the next refactor). Provide unique `id`, `nameFa`, `nameEn`, `surface`, `population`, `rotationSpeed`, `resistance`, `cloudOpacity`, three palette colors, and optional atmosphere/cloud tint. The UI discovers planets automatically. Choose `rocky` or `bands` for procedural textures; `earth` uses the legacy continental painter. Each body uses a normalized in-game radius of 10 and has its **own fresh state on selection**; physical scale is not simulated.
+Add a `registerPlanet({...})` call in `src/content/catalog.js` (prefer splitting presets into their own files in the next refactor). Provide unique `id`, `nameFa`, `nameEn`, `surface`, `population`, `rotationSpeed`, `resistance`, `cloudOpacity`, three palette colors, and optional atmosphere/cloud tint. The UI discovers planets automatically. Choose `rocky` or `bands` for procedural textures; `earth` uses the bundled photographic maps. The procedural painter is no longer used for Earth. Each body uses a normalized in-game radius of 10 and has its **own fresh state on selection**; physical scale is not simulated.
 
 ## Add a weapon
 
@@ -33,7 +34,7 @@ Add a `registerWeapon({...})` call in `src/content/catalog.js` with unique `id`,
 
 ## Current content
 
-Planets: Earth, Mars, Venus, Moon. Weapons: three fictional missile models (strategic, lightweight, winged), kinetic asteroid, orbital laser. Planet artwork beyond Earth is intentionally procedural/stylized, not photorealistic. Earth loads photographic day/night, surface normals and cloud maps online (with fallback to the old painter).
+Planets: Earth, Mars, Venus, Moon. Weapons: three fictional missile models (strategic, lightweight, winged), kinetic asteroid, orbital laser. Planet artwork beyond Earth is intentionally procedural/stylized, not photorealistic. Earth loads bundled photographic day/night, surface normals and cloud maps before the first gameplay frame.
 
 ## Architecture roadmap
 
@@ -49,16 +50,15 @@ Planets: Earth, Mars, Venus, Moon. Weapons: three fictional missile models (stra
 The core game still lives in a long HTML script. Selecting another planet resets the active simulation instead of retaining multiple worlds simultaneously. Stats use arcade values, not astronomical or demographic simulation. The test suite covers catalogs, procedural surfaces and projectile model resource lifecycles but **does not** substitute for browser/WebGL playtesting.
 
 
-## Photographic Earth rendering
+## Photographic Earth rendering (local assets)
 
-Earth now upgrades automatically from the original painted globe to real equirectangular imagery: daytime surface (4096-wide source), night city lights, atmospheric clouds, terrain normal map and an ocean reflectance/roughness approximation. Deformation, craters and reset reuse the original dynamic canvas. Mars, Venus and the Moon retain their procedural appearances. On a failed image request, the original playable Earth remains visible.
+The five Earth map files are **committed inside this repository** at `assets/textures/earth/`. They are loaded by `src/render/real-earth.js` using relative URLs, so a GitHub Pages project subpath such as `/godSmash/` works without hardcoded origins or external texture CDNs. The player sees a loading screen until **all five** maps are available; if one is missing, a localized error with a retry button appears instead of the old cartoon Earth. The planet and its destruction/canvas reset start only after the maps load. Mars, Venus and the Moon retain the separate procedural paint engine.
 
-Image assets are loaded from a version-pinned public CDN and are **not bundled** with the repository. The browser needs network access for the high-fidelity layer, even on GitHub Pages. Canvas images are requested with CORS enabled. On first load the original surface is shown before the upgrade. Late image completion does not overwrite a planet after impacts.
+Asset provenance and exact content verification are documented in [assets/textures/earth/README.md](assets/textures/earth/README.md). These particular maps were vendored from the Three.js r128 example assets. **Asset redistribution rights and required credits must be audited before commercial use**; MIT licensing of the Three.js source code does not automatically establish licensing for every image. See [NASA media usage](https://www.nasa.gov/nasa-brand-center/images-and-media/) for imagery of NASA origin.
 
-Sources and upstream files: [Three.js r128 examples planet textures](https://github.com/mrdoob/three.js/tree/r128/examples/textures/planets). These sample image files must be checked for any relevant individual asset license or attribution obligations before commercial redistribution; do not assume the code's MIT license automatically covers each image. Consult the [NASA image usage policy](https://www.nasa.gov/nasa-brand-center/images-and-media/) for NASA-derived imagery. This build links to them at runtime, rather than redistributing image bytes.
+Run `node --test tests/*.test.cjs` to check bytes, file signatures and loader retry behavior. Earth textures now work without network access **once the web application and its runtime dependencies are available** (the game still includes external JavaScript and font CDNs). Browser visual testing and a full Android offline package are separate tasks.
 
-Next quality improvements: physically accurate day/night masking for city lights, higher quality Earth normals, source-verified local textures for fully offline Android packaging and a dedicated cloud shadow shader. Browser visual QA is required after deployment.
-
+Next visual improvements: physically correct night-side city light illumination, dynamic cloud shadows, and additional LOD variants.
 
 ## Detailed 3D missile models
 
