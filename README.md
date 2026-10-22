@@ -18,9 +18,9 @@ node --test tests/*.test.cjs
 | `index.html` | Existing Three.js scene, HUD, camera, raycast, impact engine and loop |
 | `src/content/catalog.js` | Planets and weapons registries, data validation and default presets |
 | `src/render/planet-textures.js` | Deterministic, procedural surface painter for new planets |
-| `src/render/real-earth.js` | Required same-origin photographic Earth asset loader with retry UI |
+| `src/render/real-earth.js` | Photographic maps, normal/roughness/cloud maps and night-side city-light shader |
 | `assets/textures/earth/` | Five bundled day/night/cloud/normal/specular maps |
-| `src/render/projectile-models.js` | Detailed fictional missile silhouettes, decals, fins, nozzles and plume effects |
+| `src/render/projectile-models.js` | Detailed fictional missile silhouettes, metal panels, nozzle, thermal exhaust layers and shock diamonds |\n| `src/render/impact-effects.js` | Turbulent procedural fireball shader and expanding surface shockwave rings |\n| `src/render/rocket-fx.js` | Reusable soft smoke sprites, incandescent trail fragments and impact bursts |
 | `src/ui/weapon-dock.js` | Accessible fixed weapon inventory, catalog-driven tiles and keyboard navigation |
 | `tests/catalog.test.cjs` | Registry and texture-painting smoke tests |
 
@@ -34,7 +34,7 @@ Add a `registerWeapon({...})` call in `src/content/catalog.js` with unique `id`,
 
 ## Current content
 
-Planets: Earth, Mars, Venus, Moon. Weapons: three fictional missile models (strategic, lightweight, winged), kinetic asteroid, orbital laser. Planet artwork beyond Earth is intentionally procedural/stylized, not photorealistic. Earth loads bundled photographic day/night, surface normals and cloud maps before the first gameplay frame.
+Planets: Earth, Mars, Venus, Moon. Weapons: three fictional missile models (strategic, lightweight, winged), kinetic asteroid, orbital laser. Planet artwork beyond Earth is intentionally procedural/stylized, not photorealistic. Earth loads bundled photographic day/night, surface normals and cloud maps before the first gameplay frame. City lights render on a separate shader layer that fades to the night hemisphere based on the sun direction.
 
 ## Architecture roadmap
 
@@ -82,8 +82,8 @@ The damage engine is now split into `src/render/planet-damage.js` and `src/rende
 
 - **Every hit** deforms the planet surface into a depth-scaled bowl and raised rim, plus permanent charred/lava texture painting. Damage depth and color vary with weapon and surface resistance.
 - **Large asteroid impacts** remove triangles from the planet's *indexed mesh* around the hit. The missing crust exposes a recessed rocky interior and a jagged, layered rim. These openings persist after the explosion ends. Later missiles can also breach a heavily damaged world.
-- **Blast animation** has bright inner fire, glowing plasma, a growing shock sphere and an expanding smoke/dust plume. Light flashes on higher-quality devices; transient visuals are disposed after each impact.
-- **Debris** has differentiated rocky/hot colors, larger pieces on crust ruptures and a per-scene cap.
+- **Blast animation** uses a turbulent procedural fireball shader, a hot plasma shell and two expanding surface shock rings. Soft smoke sprites and incandescent fragments add irregular detail; light flashes on higher-quality devices.
+- **Debris** uses rough, flat-shaded rock materials, varied fragment sizes, independent spin and fading heat. Breaches throw a handful of larger crust chunks as well as small ejecta, within a per-scene cap.
 - **Planet reset or selection** restores the original vertex/index buffers, destroys persistent rim meshes and clears transient effects. Full shattering hides intact crust and breach walls.
 - **Adaptive budgets** allow up to 6 breaches and 4 simultaneous blast effects on small/low-data devices; on larger devices, up to 12 breaches and 8 effects.
 
@@ -107,3 +107,19 @@ Weapon selection is now **not a dropdown**. It appears in a floating panel at th
 - The dock measures the footer height using `ResizeObserver` (with a resize fallback), leaving clearance for the firing controls even on narrow screens.
 
 To add another weapon button, register it in `src/content/catalog.js`; the dock automatically builds from `catalog.listWeapons()`. Add an optional `shortLabel` to keep the mobile label concise. No changes to the HUD markup are necessary. Check `tests/weapon-dock.test.cjs` for interaction tests. Real-device visual layout testing remains recommended.
+
+
+## Realistic cinematic effects pass
+
+The latest visual pass adds:
+
+- **Earth lighting:** city lights are separated from crater/magma emission and masked to the night hemisphere using a world-space sun direction. The photographic normal and ocean roughness maps remain active; real cloud imagery is layered above the surface.
+- **Rocket exhaust:** the missile nozzle plume now has five thermal layers (cool outer envelope, orange combustion, yellow flame and white-hot core) plus subtle shock-diamond rings. The plume flickers, scales down as the projectile approaches impact and emits soft smoke with occasional glowing fragments.
+- **Impact fireball:** a procedural fragment-shader adds moving turbulence to the fireball, instead of a uniformly colored smooth sphere. A hot plasma shell fades while two surface-parallel shock rings expand across the impact site.
+- **Atmospheric-looking smoke and ejecta:** shared procedural alpha textures are rendered as camera-facing sprites. Smoke spreads and fades; ember particles move faster and fade sooner. The particle system enforces a global budget (92 on small/save-data devices, 220 on larger devices).
+- **Surface fracture:** the existing mesh breach system is retained; impacts now eject varied rough-rock fragments, larger chunks on breaches, random angular motion and cooling emissive heat. Planet-wide rupture gets a separate core bloom and a capped radial debris burst.
+- **Cleanup and mobile budget:** particle materials, transient effects, meshes and textures are released when cleared; fragment and effect counts are bounded.
+
+The visuals are **cinematic approximations**. The plume is not a measured propulsion/combustion model; smoke is sprite-based rather than volumetric CFD; the shock rings are visual wavefronts, not a physically correct pressure simulation; and planetary fracture does not use a voxel or finite-element solver. The project remains a Three.js browser game, with visual polish balanced against mobile GPU budgets.
+
+Run `node --test tests/*.test.cjs`. Automated tests cover shader configuration, asset loading, exhaust particle budgets, effect disposal, missile geometry and crater topology. These tests do not replace WebGL/browser screenshots or device FPS measurements; those should be done before release.
