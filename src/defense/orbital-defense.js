@@ -108,7 +108,7 @@
     reposition();
     return Object.freeze({
       step,reset,configure,visibleLine,
-      getUnits:()=>units.filter(u=>u.active).map(u=>({id:u.id,position:{...u.position}})),
+      getUnits:()=>units.filter(u=>u.active&&enabled).map(u=>({id:u.id,position:{...u.position}})),
       getState:()=>Object.freeze({
         typeId:type.id, enabled, count, totalShots, interceptions,
         maxCount, elapsed
