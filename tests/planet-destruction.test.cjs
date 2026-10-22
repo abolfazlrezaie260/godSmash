@@ -69,7 +69,9 @@ const THREE = {
   BufferGeometry:Geometry, Float32BufferAttribute:BufferAttribute,
   MeshStandardMaterial:Material, MeshBasicMaterial:Material,
   DoubleSide:2, AdditiveBlending:1,
-  IcosahedronGeometry:Geometry, PointLight:class extends Node {constructor(color,intensity,distance){super();this.color=color;this.intensity=intensity;this.distance=distance;}}
+  IcosahedronGeometry:Geometry, RingGeometry:Geometry,
+  ShaderMaterial:Material,
+  PointLight:class extends Node {constructor(color,intensity,distance){super();this.color=color;this.intensity=intensity;this.distance=distance;}}
 };
 const mars={id:'mars',resistance:0.85};
 const moon={id:'moon',resistance:0.7};
@@ -127,9 +129,13 @@ test('blast factory animates and safely disposes of all unique resources',()=>{
   const eff=effects.createEffect(THREE,{
     plasmaColor:'#f97316',fireColor:'#fff4b4',waveColor:'#ffaa72'
   },2.3,false);
-  assert.equal(eff.duration,2.5);
-  assert.ok(eff.group.children.length>=14);
+  assert.equal(eff.duration,2.65);
+  assert.ok(eff.group.children.length>=4, 'fireball, plasma and two surface shock rings');
+  const shaderFire = eff.group.children[0].material;
+  assert.ok(shaderFire.uniforms.uTime);
+  assert.ok(shaderFire.fragmentShader.includes('fbm'), 'fireball uses a turbulent procedural shader');
   assert.doesNotThrow(()=>eff.update(0.5));
+  assert.ok(shaderFire.uniforms.uTime.value > 0);
   assert.doesNotThrow(()=>eff.update(1));
   const mats=new Set(),geos=new Set();
   eff.group.traverse(child=>{if(child.geometry)geos.add(child.geometry);if(child.material)mats.add(child.material);});

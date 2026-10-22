@@ -19,4 +19,10 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /GodSmashWeaponDock\.mount/);
   assert.match(match[1], /weaponDock\.setSelected/);
   assert.match(match[1], /weaponDock\.selectAt/);
+  assert.ok(html.includes('src="./src/render/rocket-fx.js"'));
+  assert.match(match[1], /GodSmashRocketFX\.createSystem/);
+  assert.match(match[1], /rocketFx\.trail/);
+  assert.match(match[1], /rocketFx\.burst/);
+  assert.match(match[1], /createNightLightLayer/);
+  assert.match(match[1], /hotIntensity/);
 });

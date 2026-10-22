@@ -177,29 +177,48 @@
       }
     }
 
-    // Layered, semi-transparent rocket plume; animated independently per missile.
+    // Multi-temperature exhaust: translucent outer envelope, orange combustion,
+    // yellow flame front and a compact white-hot core. All layers flicker in runtime.
     const plume = new THREE.Group();
+    plume.name = 'Layered rocket exhaust';
     plume.position.z = nozzleZ - 0.28;
-    const exhaustOuter = new THREE.Mesh(
-      new THREE.ConeGeometry(p.radius * 0.77, 1.15, segmentCount),
-      new THREE.MeshBasicMaterial({
-        color: 0xff7d22, transparent: true, opacity: 0.72,
+
+    function addFlameLayer(radius, length, color, opacity, z) {
+      const material = new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide
+      });
+      const geometry = new THREE.ConeGeometry(radius, length, segmentCount);
+      geometry.rotateX(-Math.PI / 2);
+      const flame = new THREE.Mesh(geometry, material);
+      flame.position.z = z;
+      flame.userData.baseOpacity = opacity;
+      plume.add(flame);
+      return flame;
+    }
+
+    addFlameLayer(p.radius * 0.98, 1.72, 0x8fc9ff, 0.16, -0.60);
+    addFlameLayer(p.radius * 0.78, 1.28, 0xff5424, 0.58, -0.37);
+    addFlameLayer(p.radius * 0.57, 1.03, 0xff9d35, 0.72, -0.29);
+    addFlameLayer(p.radius * 0.37, 0.78, 0xffe0a0, 0.88, -0.22);
+    addFlameLayer(p.radius * 0.20, 0.52, 0xf8fdff, 0.98, -0.16);
+
+    // Faint exhaust shock diamonds, spaced along the plume axis.
+    [ -0.42, -0.78, -1.12 ].forEach((z, i) => {
+      const material = new THREE.MeshBasicMaterial({
+        color: i === 0 ? 0xffd6a1 : 0xb6e4ff,
+        transparent: true, opacity: 0.22 - i * 0.035,
         depthWrite: false, blending: THREE.AdditiveBlending
-      })
-    );
-    exhaustOuter.geometry.rotateX(-Math.PI / 2);
-    exhaustOuter.position.z = -0.32;
-    plume.add(exhaustOuter);
-    const exhaustCore = new THREE.Mesh(
-      new THREE.ConeGeometry(p.radius * 0.40, 0.78, segmentCount),
-      new THREE.MeshBasicMaterial({
-        color: 0xc7f2ff, transparent: true, opacity: 0.88,
-        depthWrite: false, blending: THREE.AdditiveBlending
-      })
-    );
-    exhaustCore.geometry.rotateX(-Math.PI / 2);
-    exhaustCore.position.z = -0.20;
-    plume.add(exhaustCore);
+      });
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(p.radius * (0.40 - i * 0.055), p.radius * 0.035, 5, segmentCount),
+        material
+      );
+      ring.position.z = z;
+      ring.userData.baseOpacity = material.opacity;
+      plume.add(ring);
+    });
     group.add(plume);
     group.userData.trailOffsetZ = nozzleZ - 0.60;
     group.userData.visualProfile = p.id;

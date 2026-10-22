@@ -39,6 +39,9 @@ test('renderer uses local GitHub Pages assets and waits for Earth to load', () =
   assert.ok(html.includes('id="earth-loading"'));
   assert.ok(html.includes('GodSmashRealEarth.preload().then(startGameWithRealEarth)'));
   assert.ok(html.includes('requestAnimationFrame(animate)'));
+  assert.ok(html.includes('createNightLightLayer(THREE)'));
+  assert.ok(html.includes('Earth city lights (night side only)'));
+  assert.ok(html.includes('nightMesh.visible = p.id === "earth"'));
 });
 
 test('missing local image rejects preload; retry recovers', async () => {
@@ -59,4 +62,45 @@ test('missing local image rejects preload; retry recovers', async () => {
   broken = false;
   await context.module.exports.preload();
   assert.equal(context.module.exports.isReady(),true);
+});
+
+test('city lights use a sun-masked shader and are separated from crater emissive paint', async () => {
+  const realEarth = require('../src/render/real-earth.js');
+  const originalImage = global.Image;
+  global.Image = class {
+    set src(value) { this.source=value; queueMicrotask(() => this.onload()); }
+  };
+  class Vector3 {
+    constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z;}
+    copy(v){this.x=v.x;this.y=v.y;this.z=v.z;return this;}
+    normalize(){const l=Math.hypot(this.x,this.y,this.z)||1;this.x/=l;this.y/=l;this.z/=l;return this;}
+  }
+  class Texture {
+    constructor(image){this.image=image;this.disposed=0;}
+    dispose(){this.disposed++;}
+  }
+  class ShaderMaterial {
+    constructor(config){Object.assign(this,config);this.disposed=0;}
+    dispose(){this.disposed++;}
+  }
+  try {
+    await realEarth.preload();
+    const layer=realEarth.createNightLightLayer({
+      Texture, ShaderMaterial, Vector3, sRGBEncoding:3001, AdditiveBlending:2
+    });
+    assert.ok(layer.material.fragmentShader.includes('nightSide'));
+    assert.ok(layer.material.fragmentShader.includes('uSunDirectionWorld'));
+    assert.ok(layer.material.fragmentShader.includes('cityMask'));
+    const direction=new Vector3(45,22,35);
+    layer.updateSunDirection(direction);
+    assert.ok(Math.abs(Math.hypot(
+      layer.material.uniforms.uSunDirectionWorld.value.x,
+      layer.material.uniforms.uSunDirectionWorld.value.y,
+      layer.material.uniforms.uSunDirectionWorld.value.z
+    )-1)<1e-9);
+    const texture=layer.material.uniforms.uNightMap.value;
+    layer.dispose();
+    assert.equal(layer.material.disposed,1);
+    assert.equal(texture.disposed,1);
+  } finally { global.Image=originalImage; }
 });

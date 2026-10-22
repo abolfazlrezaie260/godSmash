@@ -1,98 +1,155 @@
-/* Animated impact visuals: hot fireball, transient shock front, debris haze,
- * growing dust column, and localized flash light. No per-frame allocation.
+/* Cinematic impact core: turbulent fireball, hot plasma shell and surface shock rings.
+ * Combined with GodSmashRocketFX for wispy smoke and hot fragments.
+ * Visual units are game-space approximations, not a thermodynamic simulation.
  */
 (function (root) {
   'use strict';
 
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    precision highp float;
+    uniform float uTime;
+    uniform float uOpacity;
+    uniform vec3 uHotColor;
+    uniform vec3 uOuterColor;
+    varying vec2 vUv;
+
+    float hash(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(
+        mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y
+      );
+    }
+    float fbm(vec2 p) {
+      float value = 0.0;
+      float amplitude = 0.5;
+      for (int i = 0; i < 4; i++) {
+        value += amplitude * noise(p);
+        p = p * 2.03 + vec2(7.1, 3.7);
+        amplitude *= 0.5;
+      }
+      return value;
+    }
+    void main() {
+      vec2 flowUv = vUv * vec2(17.0, 10.0);
+      float slow = fbm(flowUv + vec2(uTime * 0.42, -uTime * 0.26));
+      float fine = fbm(flowUv * 1.9 + vec2(-uTime * 0.72, uTime * 0.58));
+      float turbulence = slow * 0.64 + fine * 0.36;
+      float limb = smoothstep(0.015, 0.20, vUv.y) *
+                   (1.0 - smoothstep(0.80, 0.99, vUv.y));
+      float flame = smoothstep(0.22, 0.69, turbulence);
+      float alpha = uOpacity * limb * smoothstep(0.13, 0.44, turbulence);
+      vec3 color = mix(uOuterColor * 0.62, uHotColor, flame);
+      color += uHotColor * pow(max(0.0, turbulence - 0.63), 2.0) * 1.6;
+      gl_FragColor = vec4(color, alpha * 0.96);
+    }
+  `;
+
   function createEffect(THREE, weapon, size, lowQuality) {
     const group = new THREE.Group();
-    group.name = 'Impact blast';
+    group.name = 'Cinematic impact blast';
     const span = Math.max(0.4, size);
-    const shellMaterial = new THREE.MeshBasicMaterial({
-      color: weapon.plasmaColor || '#ff7c32', transparent: true,
-      opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending,
+    const hotColor = weapon.fireColor || '#ffdb93';
+    const outerColor = weapon.plasmaColor || '#ff7c32';
+
+    const fireMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: {value: 0},
+        uOpacity: {value: 1},
+        uHotColor: {value: new THREE.Color(hotColor)},
+        uOuterColor: {value: new THREE.Color(outerColor)}
+      },
+      vertexShader, fragmentShader,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide
     });
-    const fireMaterial = new THREE.MeshBasicMaterial({
-      color: weapon.fireColor || '#ffdb93', transparent: true,
-      opacity: 0.99, depthWrite: false, blending: THREE.AdditiveBlending
+    const shellMaterial = new THREE.MeshBasicMaterial({
+      color: outerColor, transparent: true, opacity: 0.42,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
     });
     const waveMaterial = new THREE.MeshBasicMaterial({
       color: weapon.waveColor || '#ffbb6e', transparent: true,
-      opacity: 0.65, depthWrite: false,
+      opacity: 0.8, depthWrite: false,
       blending: THREE.AdditiveBlending, side: THREE.DoubleSide
     });
-    const sootMaterial = new THREE.MeshBasicMaterial({
-      color: 0x2b262a, transparent: true, opacity: 0.36, depthWrite: false
-    });
-    const glowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff7835, transparent: true, opacity: 0.28,
-      depthWrite: false, blending: THREE.AdditiveBlending
+    const innerWaveMaterial = new THREE.MeshBasicMaterial({
+      color: hotColor, transparent: true, opacity: 0.54,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
     });
 
     const fireball = new THREE.Mesh(
-      new THREE.SphereGeometry(span * 0.34, lowQuality ? 12 : 20, lowQuality ? 8 : 14), fireMaterial);
-    fireball.position.z = span * 0.15;
+      new THREE.SphereGeometry(span * 0.35, lowQuality ? 12 : 24, lowQuality ? 8 : 16),
+      fireMaterial
+    );
+    fireball.position.z = span * 0.14;
     group.add(fireball);
+
     const plasma = new THREE.Mesh(
-      new THREE.SphereGeometry(span * 0.52, lowQuality ? 12 : 20, lowQuality ? 8 : 14), shellMaterial);
-    plasma.position.z = span * 0.16;
+      new THREE.SphereGeometry(span * 0.50, lowQuality ? 12 : 20, lowQuality ? 8 : 14),
+      shellMaterial
+    );
+    plasma.position.z = span * 0.12;
     group.add(plasma);
+
+    // The shock front expands along the surface as rings, rather than a clean sphere.
+    const ringSegments = lowQuality ? 28 : 56;
     const shockFront = new THREE.Mesh(
-      new THREE.SphereGeometry(1, lowQuality ? 16 : 28, lowQuality ? 12 : 20), waveMaterial);
-    shockFront.position.z = span * 0.1;
+      new THREE.RingGeometry(0.82, 1.0, ringSegments), waveMaterial
+    );
+    shockFront.position.z = span * 0.055;
     shockFront.scale.setScalar(0.001);
     group.add(shockFront);
 
-    const dust = [];
-    const count = lowQuality ? 5 : 11;
-    const shardGeo = new THREE.IcosahedronGeometry(1, 0);
-    for (let i = 0; i < count; i++) {
-      const smoke = new THREE.Mesh(shardGeo, i % 4 === 0 ? glowMaterial : sootMaterial);
-      const angle = i * 2.39996;
-      const ring = 0.14 + 0.26 * Math.sqrt((i + 1) / count);
-      smoke.userData = {
-        x: Math.cos(angle) * ring,
-        y: Math.sin(angle) * ring,
-        rise: 0.18 + (i % 5) * 0.16,
-        phase: i / count
-      };
-      group.add(smoke);
-      dust.push(smoke);
-    }
+    const innerWave = new THREE.Mesh(
+      new THREE.RingGeometry(0.94, 1.0, ringSegments), innerWaveMaterial
+    );
+    innerWave.position.z = span * 0.04;
+    innerWave.scale.setScalar(0.001);
+    group.add(innerWave);
+
     const flash = lowQuality ? null : new THREE.PointLight(
-      new THREE.Color(weapon.plasmaColor || '#f97316'), 2.2, span * 5
+      new THREE.Color(outerColor), 2.2, span * 5
     );
     if (flash) {
-      flash.position.z = 0.2;
+      flash.position.z = span * 0.18;
       group.add(flash);
     }
+
     let disposed = false;
     function update(progress) {
       if (disposed) return;
       const t = Math.max(0, Math.min(1, progress));
-      const bloom = Math.sin(Math.PI * Math.min(1, t * 1.6));
-      fireball.scale.setScalar(Math.max(0.001, 0.15 + bloom * 1.8));
-      fireMaterial.opacity = Math.max(0, 1 - t * 2.6);
-      plasma.scale.setScalar(0.25 + Math.pow(t, 0.6) * 2.1);
-      shellMaterial.opacity = Math.max(0, 0.75 * (1 - t * 1.8));
-      const expanding = span * (0.30 + t * 4.5);
+      const bloom = Math.sin(Math.PI * Math.min(1, t * 1.55));
+      fireball.scale.setScalar(Math.max(0.001, 0.22 + bloom * 1.75));
+      fireMaterial.uniforms.uTime.value = t * 8.5;
+      fireMaterial.uniforms.uOpacity.value = Math.max(0, 1 - t * 2.05);
+      plasma.scale.setScalar(0.18 + Math.pow(t, 0.62) * 2.2);
+      shellMaterial.opacity = Math.max(0, 0.52 * (1 - t * 1.75));
+      const expanding = span * (0.18 + t * 3.9);
       shockFront.scale.setScalar(expanding);
-      waveMaterial.opacity = Math.max(0, 0.50 * (1 - t));
-      dust.forEach(d => {
-        const phase = d.userData;
-        d.position.set(
-          phase.x * span * (0.8 + t * 4.0),
-          phase.y * span * (0.8 + t * 4.0),
-          span * (phase.rise + 1.95 * t)
-        );
-        const spread = span * (0.18 + t * 0.72);
-        d.scale.set(spread, spread, spread * (0.82 + phase.phase));
-        d.rotation.z += 0.009;
-      });
-      sootMaterial.opacity = Math.max(0, 0.47 * (1 - t * 0.8));
-      glowMaterial.opacity = Math.max(0, 0.38 * (1 - t * 2));
-      if (flash) flash.intensity = 5 * Math.pow(1 - t, 3);
+      innerWave.scale.setScalar(expanding * 0.78);
+      waveMaterial.opacity = Math.max(0, 0.68 * (1 - t));
+      innerWaveMaterial.opacity = Math.max(0, 0.46 * (1 - t * 1.25));
+      if (flash) flash.intensity = 5.5 * Math.pow(1 - t, 3);
     }
 
     function dispose() {
@@ -110,7 +167,7 @@
       materials.forEach(m => m.dispose());
     }
 
-    return {group, update, dispose, duration: lowQuality ? 1.9 : 2.5};
+    return {group, update, dispose, duration: lowQuality ? 1.85 : 2.65};
   }
 
   root.GodSmashImpactEffects = Object.freeze({createEffect});

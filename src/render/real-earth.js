@@ -54,9 +54,10 @@
     surfaceCtx.clearRect(0, 0, width, height);
     surfaceCtx.drawImage(pictures.day, 0, 0, width, height);
 
+    // City lights are rendered by a separate night-side shader layer.
+    // Keeping them out of this canvas lets impact magma stay visible in daylight.
     emissiveCtx.fillStyle = '#000000';
     emissiveCtx.fillRect(0, 0, width, height);
-    if (pictures.night) emissiveCtx.drawImage(pictures.night, 0, 0, width, height);
     return true;
   }
 
@@ -65,6 +66,61 @@
     texture.anisotropy = 4;
     texture.needsUpdate = true;
     return texture;
+  }
+
+  // City lights are a separate transparent layer, masked to the dark hemisphere.
+  // The sun direction is world-space so planetary rotation naturally changes the terminator.
+  function createNightLightLayer(THREE) {
+    if (!isReady() || !pictures.night) throw new Error('Earth night-light map is not ready');
+    const texture = makeTexture(THREE, pictures.night);
+    if (THREE.sRGBEncoding !== undefined) texture.encoding = THREE.sRGBEncoding;
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uNightMap: {value: texture},
+        uSunDirectionWorld: {value: new THREE.Vector3(1, 0, 0)},
+        uOpacity: {value: 1.0}
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        void main() {
+          vUv = uv;
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform sampler2D uNightMap;
+        uniform vec3 uSunDirectionWorld;
+        uniform float uOpacity;
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        void main() {
+          vec3 mapColor = texture2D(uNightMap, vUv).rgb;
+          float luminance = max(mapColor.r, max(mapColor.g, mapColor.b));
+          float nightSide = 1.0 - smoothstep(-0.10, 0.20,
+            dot(normalize(vWorldNormal), normalize(uSunDirectionWorld)));
+          float cityMask = smoothstep(0.025, 0.22, luminance) * luminance;
+          float alpha = nightSide * cityMask * uOpacity;
+          vec3 warmCityLight = vec3(1.0, 0.64, 0.31) * min(1.6, luminance * 1.8);
+          gl_FragColor = vec4(warmCityLight, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    return Object.freeze({
+      material,
+      updateSunDirection(direction) {
+        material.uniforms.uSunDirectionWorld.value.copy(direction).normalize();
+      },
+      dispose() {
+        material.dispose();
+        texture.dispose();
+      }
+    });
   }
 
   // The Three.js sample specular texture marks reflective ocean regions.
@@ -117,6 +173,6 @@
     cloudMaterial.needsUpdate = true;
   }
 
-  root.GodSmashRealEarth = Object.freeze({ preload, isReady, paint, configure, files });
+  root.GodSmashRealEarth = Object.freeze({ preload, isReady, paint, configure, createNightLightLayer, files });
   if (typeof module !== 'undefined' && module.exports) module.exports = root.GodSmashRealEarth;
 })(typeof window !== 'undefined' ? window : globalThis);

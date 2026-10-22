@@ -12,6 +12,7 @@
 <script src="./src/render/projectile-models.js"></script>
 <script src="./src/render/planet-damage.js"></script>
 <script src="./src/render/impact-effects.js"></script>
+<script src="./src/render/rocket-fx.js"></script>
   <script src="./src/ui/weapon-dock.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -675,6 +676,8 @@
       // Earth Group
       const earthGroup = new THREE.Group();
       scene.add(earthGroup);
+      let nightLayer = null;
+      let nightMesh = null;
 
       // High-density sphere geometry so vertices can be displaced into 3D craters
       const SEGMENTS = 112;
@@ -691,6 +694,7 @@
       });
 
       const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+      earthMesh.renderOrder = 0;
       earthGroup.add(earthMesh);
 
       // Clouds Mesh
@@ -704,6 +708,7 @@
         roughness: 1.0
       });
       const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+      cloudMesh.renderOrder = 2;
       earthGroup.add(cloudMesh);
 
       // Atmospheric Fresnel Rim Glow
@@ -739,6 +744,10 @@
         lowQuality: lowImpactQuality
       });
       const impactEffects = window.GodSmashImpactEffects;
+      const rocketFx = window.GodSmashRocketFX.createSystem(THREE, {
+        scene, lowQuality: lowImpactQuality,
+        maxParticles: lowImpactQuality ? 92 : 220
+      });
 
       // ==========================================
       // 5. CRATER DEFORMATION & MAGMA SCORCHING
@@ -824,7 +833,6 @@
       const activeMissiles = [];
       const activeExplosions = [];
       const activeDebris = [];
-      const smokeParticles = [];
 
       function createTargetReticle(localPos, localNormal) {
         const retGroup = new THREE.Group();
@@ -912,25 +920,9 @@
         }, delayMs);
       }
 
-      function spawnSmokeParticle(pos) {
-        const geo = new THREE.SphereGeometry(0.11 + Math.random() * 0.08, 6, 6);
-        const mat = new THREE.MeshBasicMaterial({
-          color: Math.random() > 0.35 ? 0xf97316 : 0x94a3b8,
-          transparent: true,
-          opacity: 0.75
-        });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.copy(pos);
-        scene.add(mesh);
-        smokeParticles.push({
-          mesh,
-          life: 1.0,
-          decay: 1.6 + Math.random() * 0.6
-        });
-      }
 
       function triggerNuclearDetonation(localTarget, localNormal, selected = weapon) {
-        SoundEngine.playExplosion(1.0);
+        SoundEngine.playExplosion(Math.min(1.8, 0.55 + selected.blastRadius * 0.48));
         state.screenShake = Math.min(1.8, state.screenShake + selected.shake);
 
         // 1. Deform 3D Earth Geometry & Scorch Magma Texture
@@ -963,9 +955,12 @@
         updateHUD();
 
         const blast = impactEffects.createEffect(THREE, selected, blastRadius, lowImpactQuality);
+        const blastWorldPosition = earthGroup.localToWorld(localTarget.clone());
+        const blastWorldNormal = localNormal.clone().applyQuaternion(earthGroup.quaternion).normalize();
         blast.group.position.copy(localTarget);
-        blast.group.lookAt(localTarget.clone().add(localNormal));
         earthGroup.add(blast.group);
+        // Object3D.lookAt takes a world-space target and accounts for the parent transform.
+        blast.group.lookAt(blastWorldPosition.clone().add(blastWorldNormal));
         const maxEffects = lowImpactQuality ? 4 : 8;
         if (activeExplosions.length >= maxEffects) {
           const expired = activeExplosions.shift();
@@ -975,19 +970,27 @@
         activeExplosions.push({ ...blast, age: 0, maxAge: blast.duration });
 
         // 4. Eject Molten Rock Debris into Low Orbit
-        const worldImpactPos = earthGroup.localToWorld(localTarget.clone());
-        const worldNormal = localNormal.clone().applyQuaternion(earthGroup.quaternion).normalize();
+        const worldImpactPos = blastWorldPosition;
+        const worldNormal = blastWorldNormal;
+        rocketFx.burst(worldImpactPos, worldNormal,
+          damageResult.breached ? (lowImpactQuality ? 14 : 30) : (lowImpactQuality ? 8 : 16),
+          selected.plasmaColor || 0xff9b45);
 
         const debrisBudget = Math.max(0, 210 - activeDebris.length);
         const debrisCount = Math.min(debrisBudget,
           Math.ceil(selected.debrisCount * (lowImpactQuality ? 0.5 : 1.2)));
         for (let i = 0; i < debrisCount; i++) {
-          const size = (0.09 + Math.random() * 0.22) * (damageResult.breached ? 1.65 : 1);
+          const largeFracture = damageResult.breached && i < Math.min(5, debrisCount);
+          const size = (0.075 + Math.random() * 0.19) *
+            (largeFracture ? 2.7 : damageResult.breached ? 1.55 : 1);
+          const isHot = i % 5 === 0 || (largeFracture && i % 2 === 0);
           const debGeo = new THREE.DodecahedronGeometry(size, 0);
-          const debMat = new THREE.MeshBasicMaterial({
-            color: i % 5 === 0 ? 0xffab57 : (planet.id === 'moon' ? 0x6b7280 : 0x63514a),
-            transparent: true,
-            opacity: 1.0
+          const debMat = new THREE.MeshStandardMaterial({
+            color: isHot ? 0x9b5030 : (planet.id === 'moon' ? 0x747780 : 0x514c48),
+            roughness: 0.92, metalness: 0.04, flatShading: true,
+            emissive: isHot ? 0xff4b17 : 0x130d0a,
+            emissiveIntensity: isHot ? 0.85 : 0.08,
+            transparent: true, opacity: 1.0
           });
           const debMesh = new THREE.Mesh(debGeo, debMat);
           debMesh.position.copy(worldImpactPos);
@@ -997,15 +1000,21 @@
             Math.random() - 0.5,
             Math.random() - 0.5
           ).normalize();
-          const vel = worldNormal.clone().multiplyScalar(4.5 + Math.random() * 6.5)
-            .add(randVec.multiplyScalar(3.5));
+          const vel = worldNormal.clone().multiplyScalar(
+            (largeFracture ? 5.5 : 3.2) + Math.random() * (largeFracture ? 7.5 : 5.0)
+          ).add(randVec.multiplyScalar(2.4 + Math.random() * 4.2));
+          const spin = new THREE.Vector3(
+            (Math.random() - 0.5) * 7,
+            (Math.random() - 0.5) * 7,
+            (Math.random() - 0.5) * 7
+          );
 
           scene.add(debMesh);
           activeDebris.push({
-            mesh: debMesh,
-            vel,
+            mesh: debMesh, vel, spin,
+            hotIntensity: isHot ? 0.85 : 0.08,
             life: 1.0,
-            decay: (damageResult.breached ? 0.18 : 0.32) + Math.random() * 0.16
+            decay: (largeFracture ? 0.12 : damageResult.breached ? 0.20 : 0.34) + Math.random() * 0.13
           });
         }
 
@@ -1027,18 +1036,37 @@
         earthMesh.visible = false;
         cloudMesh.visible = false;
         atmosMesh.visible = false;
+        if (nightMesh) nightMesh.visible = false;
         planetDamage.setShattered(true);
 
-        const shatterFragments = lowImpactQuality ? 42 : 95;
+        // One larger rupture bloom plus a bounded radial cloud of incandescent debris.
+        const rupture = impactEffects.createEffect(THREE, {
+          fireColor: "#fff0ba", plasmaColor: "#f04420", waveColor: "#fb923c"
+        }, EARTH_RADIUS * 0.72, lowImpactQuality);
+        rupture.group.position.set(0, 0, 0);
+        if (activeExplosions.length >= (lowImpactQuality ? 4 : 8)) {
+          const expired = activeExplosions.shift();
+          earthGroup.remove(expired.group);
+          expired.dispose();
+        }
+        earthGroup.add(rupture.group);
+        rupture.group.lookAt(camera.position);
+        activeExplosions.push({...rupture, age: 0, maxAge: rupture.duration});
+        rocketFx.burst(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0),
+          lowImpactQuality ? 18 : 42, 0xff5428);
+
+        const shatterFragments = Math.min(lowImpactQuality ? 42 : 95,
+          Math.max(0, 210 - activeDebris.length));
         for (let i = 0; i < shatterFragments; i++) {
           const size = 0.35 + Math.random() * 1.15;
           const fragGeo = new THREE.DodecahedronGeometry(size, 1);
           const isCore = Math.random() > 0.45;
           const fragMat = new THREE.MeshStandardMaterial({
-            color: isCore ? 0xdc2626 : 0x334155,
-            emissive: isCore ? 0xf97316 : 0x7c2d12,
-            emissiveIntensity: isCore ? 1.2 : 0.35,
-            roughness: 0.75
+            color: isCore ? 0x7f3b2b : (Math.random() > 0.5 ? 0x424b58 : 0x676b70),
+            emissive: isCore ? 0xff4b16 : 0x23130f,
+            emissiveIntensity: isCore ? 1.4 : 0.12,
+            roughness: 0.94, metalness: 0.03, flatShading: true,
+            transparent: true, opacity: 1, depthWrite: false
           });
           const frag = new THREE.Mesh(fragGeo, fragMat);
           const dir = new THREE.Vector3(
@@ -1048,11 +1076,16 @@
           ).normalize();
           frag.position.copy(dir.clone().multiplyScalar(Math.random() * EARTH_RADIUS * 0.7));
           const vel = dir.multiplyScalar(2.5 + Math.random() * 9.0);
+          const spin = new THREE.Vector3(
+            (Math.random() - 0.5) * 5,
+            (Math.random() - 0.5) * 5,
+            (Math.random() - 0.5) * 5
+          );
 
           scene.add(frag);
           activeDebris.push({
-            mesh: frag,
-            vel,
+            mesh: frag, vel, spin,
+            hotIntensity: isCore ? 1.4 : 0.12,
             life: 1.0,
             decay: 0.08 // linger in space until reset
           });
@@ -1085,12 +1118,7 @@
           earthGroup.remove(e.group);
           e.dispose();
         }
-        while (smokeParticles.length > 0) {
-          const particle = smokeParticles.pop();
-          scene.remove(particle.mesh);
-          particle.mesh.geometry.dispose();
-          particle.mesh.material.dispose();
-        }
+        rocketFx.clear();
         while (activeDebris.length > 0) {
           const d = activeDebris.pop();
           scene.remove(d.mesh);
@@ -1101,6 +1129,7 @@
         earthMesh.visible = true;
         cloudMesh.visible = planet.cloudOpacity > 0;
         atmosMesh.visible = !!planet.atmosphereColor;
+        if (nightMesh) nightMesh.visible = planet.id === "earth";
 
         state.population = planet.population;
         state.impacts = 0;
@@ -1157,6 +1186,7 @@
         );
         atmosMesh.visible = !!p.atmosphereColor;
         atmosMat.uniforms.rimColor.value.set(p.atmosphereColor || "#000000");
+        if (nightMesh) nightMesh.visible = p.id === "earth";
         document.getElementById("planet-name").textContent = "سیاره " + p.nameFa + " (" + p.nameEn + ")";
         document.querySelector("#btn-reset span:last-child").textContent = "بازسازی " + p.nameFa;
         planetSelect.value = p.id;
@@ -1387,23 +1417,33 @@
 
           m.mesh.position.copy(pos);
           m.mesh.lookAt(nextPos);
+          const flightDirection = nextPos.clone().sub(pos).normalize();
           if (m.plume) {
-            m.plume.scale.setScalar(0.83 + Math.random() * 0.29);
+            // A small fuel burn-down and turbulence keep the exhaust from looking static.
+            const fuel = Math.max(0.38, 1 - t * 0.48);
+            m.plume.scale.setScalar(fuel * (0.91 + Math.random() * 0.15));
             m.plume.children.forEach((flame, k) => {
-              flame.material.opacity = (k === 0 ? 0.66 : 0.84) + Math.random() * 0.12;
+              const baseOpacity = flame.userData.baseOpacity || flame.material.opacity || 0.5;
+              const flicker = 0.84 + Math.random() * 0.24;
+              flame.material.opacity = baseOpacity * flicker * fuel;
+              flame.scale.x = 0.94 + Math.random() * 0.12;
+              flame.scale.y = 0.92 + Math.random() * 0.16;
+              flame.scale.z = 0.92 + Math.random() * 0.16;
             });
           }
 
-          // Emission follows elapsed time rather than FPS; capped for mobile.
+          // Wispy, camera-facing smoke and occasional incandescent particles; capped for mobile.
           m.trailClock += dt;
           const emissionInterval = projectileQuality === 'low' ? 0.09 : 0.05;
-          if (m.weapon.kind === 'missile' && smokeParticles.length < 140 &&
+          if ((m.weapon.kind === 'missile' || m.weapon.kind === 'asteroid') &&
               m.trailClock >= emissionInterval) {
             m.trailClock %= emissionInterval;
             const trailPos = m.mesh.localToWorld(new THREE.Vector3(
               0, 0, m.mesh.userData.trailOffsetZ
             ));
-            spawnSmokeParticle(trailPos);
+            // Missiles leave a fading exhaust trail; incoming asteroids shed hot meteor fragments.
+            rocketFx.trail(trailPos, flightDirection,
+              m.weapon.kind === 'asteroid' ? 'asteroid' : (m.weapon.visualProfile || 'strategic'));
           }
 
           if (m.progress >= 1.0) {
@@ -1419,21 +1459,8 @@
           }
         }
 
-        // 4. Update Smoke Trail Particles
-        for (let i = smokeParticles.length - 1; i >= 0; i--) {
-          const p = smokeParticles[i];
-          p.life -= p.decay * dt;
-          if (p.life <= 0) {
-            scene.remove(p.mesh);
-            p.mesh.geometry.dispose();
-            p.mesh.material.dispose();
-            smokeParticles.splice(i, 1);
-          } else {
-            p.mesh.material.opacity = p.life * 0.65;
-            p.mesh.scale.addScalar(dt * 1.4);
-          }
-        }
-
+        // 4. Update soft smoke sprites and short-lived hot exhaust fragments.
+        rocketFx.update(dt);
         // 5. Fireball, dust cloud and blast shockwave animation
         for (let i = activeExplosions.length - 1; i >= 0; i--) {
           const effect = activeExplosions[i];
@@ -1458,8 +1485,14 @@
             activeDebris.splice(i, 1);
           } else {
             d.mesh.position.addScaledVector(d.vel, dt);
-            d.mesh.rotation.x += 2.5 * dt;
-            d.mesh.rotation.y += 3.1 * dt;
+            const spin = d.spin || {x: 2.5, y: 3.1, z: 1.4};
+            d.mesh.rotation.x += spin.x * dt;
+            d.mesh.rotation.y += spin.y * dt;
+            d.mesh.rotation.z += spin.z * dt;
+            if (d.hotIntensity && d.mesh.material.emissiveIntensity !== undefined) {
+              d.mesh.material.emissiveIntensity = d.hotIntensity * Math.min(1, d.life * 1.8);
+            }
+            if (d.mesh.material.transparent) d.mesh.material.opacity = Math.min(1, d.life);
             // Subtle gravitational pull toward origin if Earth is intact
             if (!state.shattered) {
               const pullDir = d.mesh.position.clone().normalize().multiplyScalar(-3.2 * dt);
@@ -1482,6 +1515,17 @@
         let started = false;
         function startGameWithRealEarth() {
           if (started) return;
+          // The night-light overlay is built only after the photographic maps finish loading.
+          nightLayer = window.GodSmashRealEarth.createNightLightLayer(THREE);
+          nightLayer.updateSunDirection(sunLight.position);
+          nightMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(EARTH_RADIUS * 1.002, 96, 96),
+            nightLayer.material
+          );
+          nightMesh.name = 'Earth city lights (night side only)';
+          nightMesh.renderOrder = 1;
+          earthGroup.add(nightMesh);
+          nightMesh.visible = true;
           // No artificial globe is rendered during the initial asset loading.
           selectPlanet("earth");
           updateHUD();
