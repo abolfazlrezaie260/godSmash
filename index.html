@@ -1046,6 +1046,7 @@
             health: Math.max(0.75, selected.damage * 0.33),
             destroyed: false,
             incoming: true,
+            position: group.position,
             mesh: group,
             plume,
             dispose: model.dispose,
@@ -1712,19 +1713,11 @@
 
         // Orbital defenders fire only at still-incoming physical projectiles.
         // Laser/beam weapons are instantaneous and never enter activeMissiles.
+        let defenseShotsCount = 0;
         if (!state.shattered) {
-          orbitalDefense.step(dt, activeMissiles.map(m => ({
-            id: m.id, position: m.mesh.position,
-            progress: m.progress, health: m.health,
-            destroyed: m.destroyed, incoming: m.incoming,
-            source: m
-          })), evt => {
+          orbitalDefense.step(dt, activeMissiles, evt => {
             defenseVisuals.fire(evt.from, evt.to);
-            const live = activeMissiles.find(m => m.id === evt.targetId);
-            if (live) {
-              live.health = evt.remainingHealth;
-              live.destroyed = evt.destroyed;
-            }
+            defenseShotsCount++;
           });
           defenseVisuals.sync(orbitalDefense.getUnits());
           for (let i = activeMissiles.length - 1; i >= 0; i--) {
@@ -1738,7 +1731,7 @@
           }
         }
         defenseVisuals.update(dt);
-        refreshDefenseHUD();
+        if (defenseShotsCount) refreshDefenseHUD();
 
         // 4. Update soft smoke sprites and short-lived hot exhaust fragments.
         rocketFx.update(dt);
