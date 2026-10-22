@@ -55,8 +55,7 @@
     const particles = [];
     // Each sprite needs its own opacity/material. Keep idle sprites for reuse,
     // disposing their individual materials only when this system is destroyed.
-    const idleSmoke = [];
-    const idleEmbers = [];
+    const idleParticles = [];
     let allocated = 0;
     let budget = maxParticles;
     let trailCount = 0;
@@ -65,14 +64,13 @@
     function recycleAt(index) {
       const p = particles[index];
       scene.remove(p.sprite);
-      (p.type === 'smoke' ? idleSmoke : idleEmbers).push(p);
+      idleParticles.push(p);
       particles.splice(index, 1);
     }
 
     function allocate(type) {
       const isSmoke = type === 'smoke';
-      const pool = isSmoke ? idleSmoke : idleEmbers;
-      if (pool.length) return pool.pop();
+      if (idleParticles.length) return idleParticles.pop();
       const material = new THREE.SpriteMaterial({
         map: isSmoke ? smokeTexture : emberTexture,
         color: isSmoke ? 0x78818d : 0xffa044,
@@ -93,6 +91,8 @@
       const size = (isSmoke ? 0.18 + Math.random() * 0.25 : 0.045 + Math.random() * 0.075) * intensity;
       const p = allocate(type);
       const material = p.sprite.material;
+      material.map = isSmoke ? smokeTexture : emberTexture;
+      material.blending = isSmoke ? THREE.NormalBlending : THREE.AdditiveBlending;
       if (material.color && typeof material.color.set === 'function') {
         material.color.set(tint || (isSmoke ? 0x78818d : 0xffa044));
       } else {
@@ -179,9 +179,8 @@
       if (disposed) return;
       clear();
       disposed = true;
-      for (const p of idleSmoke.concat(idleEmbers)) p.sprite.material.dispose();
-      idleSmoke.length = 0;
-      idleEmbers.length = 0;
+      for (const p of idleParticles) p.sprite.material.dispose();
+      idleParticles.length = 0;
       smokeTexture.dispose();
       emberTexture.dispose();
     }
@@ -192,7 +191,7 @@
       getMaxParticles: () => maxParticles,
       getBudget: () => budget,
       getPoolSize: () => allocated,
-      getIdleCount: () => idleSmoke.length + idleEmbers.length
+      getIdleCount: () => idleParticles.length
     });
 
   }
