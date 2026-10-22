@@ -222,6 +222,42 @@
       font: inherit;
     }
     #earth-retry[hidden] { display: none; }
+    #defense-modal[hidden] { display: none; }
+    .defense-backdrop {
+      position: fixed; inset: 0; z-index: 60;
+      display: grid; place-items: center;
+      background: rgba(2,6,23,.82);
+      backdrop-filter: blur(6px);
+      padding: 16px;
+    }
+    .defense-panel {
+      width: min(460px, 100%);
+      max-height: min(90dvh, 720px);
+      overflow-y: auto;
+      border: 1px solid rgba(56,189,248,.33);
+      border-radius: 20px;
+      background: #0b1428;
+      box-shadow: 0 24px 80px rgba(0,0,0,.8);
+      padding: 20px;
+      color: #e2e8f0;
+    }
+    .defense-type, .defense-count {
+      border: 1px solid #334155;
+      background: #172238;
+      border-radius: 12px;
+      padding: 10px 13px;
+      cursor: pointer;
+      text-align: right;
+      color: #e2e8f0;
+    }
+    .defense-type[aria-pressed="true"], .defense-count[aria-pressed="true"] {
+      border-color: #22d3ee;
+      box-shadow: inset 0 0 0 1px #0891b2;
+      background: rgba(8,145,178,.18);
+    }
+    .defense-type:focus-visible, .defense-count:focus-visible {
+      outline: 2px solid #67e8f9;outline-offset: 2px;
+    }
   </style>
 </head>
 <body class="relative w-full h-full overflow-hidden select-none">
@@ -291,6 +327,9 @@
         <span id="impact-toast-text">اصابت ثبت شد</span>
       </div>
 
+      <button id="btn-defenses" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-semibold text-cyan-300" aria-haspopup="dialog" aria-controls="defense-modal" aria-expanded="false" title="مدیریت دفاع سیاره‌ای">
+        <span>دفاع: <b id="defense-status">۴ ماهواره</b></span>
+      </button>
       <button id="btn-autorotate" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-medium text-slate-200 flex items-center gap-1.5" title="چرخش خودکار زمین">
         <span id="autorotate-icon">🔄</span>
         <span class="hidden md:inline" id="autorotate-label">چرخش: روشن</span>
@@ -307,6 +346,29 @@
       </button>
     </div>
   </header>
+
+  <!-- Configurable planetary defence, isolated from weapon selection. -->
+  <div id="defense-modal" class="defense-backdrop" hidden>
+    <section class="defense-panel" role="dialog" aria-modal="true" aria-labelledby="defense-title" dir="rtl" tabindex="-1">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <h2 id="defense-title" class="font-bold text-base">دفاع سیاره‌ای</h2>
+        <button id="defense-close" type="button" class="hud-btn border border-slate-600 rounded-lg px-3 py-1" aria-label="بستن پنجره دفاع">✕</button>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">سامانه‌های دفاعی مداری، اجسام مهاجم را شناسایی و پیش از برخورد هدف می‌گیرند.</p>
+      <label class="flex items-center gap-2 text-sm font-semibold mb-4">
+        <input id="defense-enabled" type="checkbox" checked class="accent-cyan-400 w-4 h-4" />
+        فعال‌سازی سامانه دفاعی
+      </label>
+      <h3 class="text-xs font-bold mb-2 text-cyan-300">دسته سامانه دفاعی</h3>
+      <div id="defense-types" class="grid gap-2 mb-4"></div>
+      <h3 class="text-xs font-bold mb-2 text-cyan-300">تعداد ماهواره‌ها</h3>
+      <div id="defense-counts" class="grid grid-cols-4 gap-2 mb-4" role="group" aria-label="تعداد ماهواره"></div>
+      <div class="text-xs text-slate-400 border-t border-slate-700 pt-3">
+        شلیک‌های دفاعی: <strong id="defense-shots" class="text-cyan-200">۰</strong>
+        <span class="mx-2">|</span> رهگیری موفق: <strong id="defense-intercepts" class="text-cyan-200">۰</strong>
+      </div>
+    </section>
+  </div>
 
   <!-- Fixed left-corner weapon inventory. The planet selector stays in the HUD. -->
   <aside id="weapon-dock" class="weapon-dock glass-panel" aria-label="انتخاب سلاح">
@@ -363,6 +425,9 @@
     </div>
   </footer>
 
+  <script src="./src/defense/catalog.js"></script>
+  <script src="./src/defense/orbital-defense.js"></script>
+  <script src="./src/defense/orbital-defense-renderer.js"></script>
   <script>
     (function () {
       'use strict';
@@ -531,6 +596,11 @@
       const btnZoomIn = document.getElementById('btn-zoom-in');
       const btnZoomOut = document.getElementById('btn-zoom-out');
       const gameSpeedSelect = document.getElementById('game-speed-select');
+      const defenceModal = document.getElementById('defense-modal');
+      const defenceButton = document.getElementById('btn-defenses');
+      const defenceClose = document.getElementById('defense-close');
+      const defenceEnabledControl = document.getElementById('defense-enabled');
+      const defenceStatus = document.getElementById('defense-status');
 
       let toastTimeout = null;
       function showImpactToast(msg) {
@@ -768,6 +838,17 @@
         lowQuality: lowImpactQuality
       });
       const impactEffects = window.GodSmashImpactEffects;
+      const defenseCatalog = window.GodSmashDefenseCatalog;
+      const defenseType = defenseCatalog.getType('orbital-laser');
+      const orbitalDefense = window.GodSmashOrbitalDefense.createSystem({
+        type: defenseType, planetRadius: EARTH_RADIUS,
+        enabled: true, count: defenseType.defaultCount
+      });
+      const defenseVisuals = window.GodSmashOrbitalDefenseRenderer.createRenderer(THREE, scene, {
+        maxUnits: Math.max(...defenseType.allowedCounts),
+        maxBeams: lowImpactQuality ? 6 : 12,
+        color: defenseType.beamColor
+      });
       const rocketFx = window.GodSmashRocketFX.createSystem(THREE, {
         scene, lowQuality: lowImpactQuality,
         maxParticles: lowImpactQuality ? 92 : 220
@@ -882,6 +963,7 @@
       const activeMissiles = [];
       const activeExplosions = [];
       const activeDebris = [];
+      let missileSequence = 0;
       const missilePhysics = window.GodSmashMissilePhysics;
       const maxActiveMissiles = lowImpactQuality ? 8 : 20;
       const maxActiveDebris = lowImpactQuality ? 96 : 210;
@@ -960,6 +1042,11 @@
           scene.add(group);
 
           activeMissiles.push({
+            id: 'projectile-' + (++missileSequence),
+            health: Math.max(0.75, selected.damage * 0.33),
+            destroyed: false,
+            incoming: true,
+            position: group.position,
             mesh: group,
             plume,
             dispose: model.dispose,
@@ -1107,6 +1194,7 @@
         atmosMesh.visible = false;
         if (nightMesh) nightMesh.visible = false;
         planetDamage.setShattered(true);
+        defenseVisuals.sync([]);
 
         // One larger rupture bloom plus a bounded radial cloud of incandescent debris.
         const rupture = impactEffects.createEffect(THREE, {
@@ -1173,14 +1261,7 @@
 
         // Clean up active missiles, explosions, debris
         while (activeMissiles.length > 0) {
-          const m = activeMissiles.pop();
-          scene.remove(m.mesh);
-          earthGroup.remove(m.reticle);
-          m.dispose();
-          m.reticle.traverse(child => {
-            if (child.geometry) child.geometry.dispose();
-            if (child.material) child.material.dispose();
-          });
+          removeMissile(activeMissiles.pop());
         }
         while (activeExplosions.length > 0) {
           const e = activeExplosions.pop();
@@ -1188,6 +1269,10 @@
           e.dispose();
         }
         rocketFx.clear();
+        orbitalDefense.reset();
+        defenseVisuals.clear();
+        defenseVisuals.sync(orbitalDefense.getUnits());
+        refreshDefenseHUD();
         while (activeDebris.length > 0) {
           const d = activeDebris.pop();
           scene.remove(d.mesh);
@@ -1206,6 +1291,90 @@
         state.shattered = false;
         updateHUD();
         showImpactToast(planet.nameFa + ' بازسازی شد.');
+      }
+
+      function refreshDefenseHUD() {
+        const ds = orbitalDefense.getState();
+        defenceStatus.textContent = ds.enabled && ds.count ? ds.count + ' ماهواره' : 'خاموش';
+        document.getElementById('defense-shots').textContent = ds.totalShots.toLocaleString('fa-IR');
+        document.getElementById('defense-intercepts').textContent = ds.interceptions.toLocaleString('fa-IR');
+        defenceEnabledControl.checked = ds.enabled;
+        document.querySelectorAll('#defense-counts button').forEach(button => {
+          button.setAttribute('aria-pressed', String(Number(button.dataset.count) === ds.count));
+        });
+      }
+      function configureDefense(options) {
+        orbitalDefense.configure(options);
+        if (!orbitalDefense.getState().enabled || orbitalDefense.getState().count === 0) {
+          defenseVisuals.clear();
+        }
+        defenseVisuals.sync(orbitalDefense.getUnits());
+        refreshDefenseHUD();
+      }
+      defenseCatalog.listTypes().forEach(type => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'defense-type';
+        button.setAttribute('aria-pressed', String(type.id === defenseType.id));
+        button.textContent = type.nameFa + ' — ' + type.descriptionFa;
+        button.title = type.nameEn;
+        button.addEventListener('click', () => {
+          // Additional types can supply their own runtime in later releases.
+          if (type.id !== defenseType.id) return;
+        });
+        document.getElementById('defense-types').appendChild(button);
+      });
+      defenseType.allowedCounts.forEach(count => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'defense-count';
+        button.dataset.count = String(count);
+        button.textContent = count === 0 ? 'بدون ماهواره' : count.toLocaleString('fa-IR');
+        button.setAttribute('aria-label', count === 0 ? 'بدون ماهواره' : count + ' ماهواره');
+        button.addEventListener('click', () => configureDefense({count}));
+        document.getElementById('defense-counts').appendChild(button);
+      });
+      defenceEnabledControl.addEventListener('change', () => {
+        configureDefense({enabled: defenceEnabledControl.checked});
+      });
+      function closeDefenseModal() {
+        defenceModal.hidden = true;
+        defenceButton.setAttribute('aria-expanded', 'false');
+        defenceButton.focus();
+      }
+      defenceButton.addEventListener('click', () => {
+        defenceModal.hidden = false;
+        defenceButton.setAttribute('aria-expanded', 'true');
+        defenceClose.focus();
+      });
+      defenceClose.addEventListener('click', closeDefenseModal);
+      defenceModal.addEventListener('click', e => {
+        if (e.target === defenceModal) closeDefenseModal();
+      });
+      defenceModal.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeDefenseModal();
+        } else if (e.key === 'Tab') {
+          const focusables = [...defenceModal.querySelectorAll('button,input')];
+          const first = focusables[0], last = focusables[focusables.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();first.focus();
+          }
+        }
+      });
+      configureDefense({enabled:true,count:defenseType.defaultCount});
+
+      function removeMissile(m) {
+        scene.remove(m.mesh);
+        earthGroup.remove(m.reticle);
+        m.dispose();
+        m.reticle.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
       }
 
       const planetSelect = document.getElementById("planet-select");
@@ -1539,19 +1708,35 @@
           }
 
           if (m.progress >= 1.0) {
-            scene.remove(m.mesh);
-            earthGroup.remove(m.reticle);
-            m.dispose();
-            m.reticle.traverse(child => {
-              if (child.geometry) child.geometry.dispose();
-              if (child.material) child.material.dispose();
-            });
+            removeMissile(m);
             activeMissiles.splice(i, 1);
             triggerNuclearDetonation(m.localTarget, m.localNormal, m.weapon, {
               speed: m.flight.velocity, direction: flightDirection
             });
           }
         }
+
+        // Orbital defenders fire only at still-incoming physical projectiles.
+        // Laser/beam weapons are instantaneous and never enter activeMissiles.
+        let defenseShotsCount = 0;
+        if (!state.shattered) {
+          orbitalDefense.step(dt, activeMissiles, evt => {
+            defenseVisuals.fire(evt.from, evt.to);
+            defenseShotsCount++;
+          });
+          defenseVisuals.sync(orbitalDefense.getUnits());
+          for (let i = activeMissiles.length - 1; i >= 0; i--) {
+            const m = activeMissiles[i];
+            if (!m.destroyed) continue;
+            const point = m.mesh.position.clone();
+            rocketFx.burst(point, point.clone().normalize(),
+              lowImpactQuality ? 5 : 9, 0x67e8f9);
+            removeMissile(m);
+            activeMissiles.splice(i,1);
+          }
+        }
+        defenseVisuals.update(dt);
+        if (defenseShotsCount) refreshDefenseHUD();
 
         // 4. Update soft smoke sprites and short-lived hot exhaust fragments.
         rocketFx.update(dt);
