@@ -14,6 +14,7 @@
 <script src="./src/simulation/missile-physics.js"></script>
 <script src="./src/render/impact-effects.js"></script>
 <script src="./src/render/rocket-fx.js"></script>
+<script src="./src/performance/quality-controller.js"></script>
   <script src="./src/ui/weapon-dock.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -243,6 +244,10 @@
       <div class="w-1.5 h-1.5 rounded-full bg-orange-400"></div>
     </div>
   </div>
+
+  <!-- Opt-in performance profiling: append ?perf=1 to the game URL. -->
+  <div id="performance-overlay" hidden dir="ltr" aria-live="off"
+    class="fixed top-24 right-3 z-30 pointer-events-none rounded-xl border border-slate-600/70 bg-slate-950/90 p-3 text-[11px] text-slate-200 font-mono whitespace-pre leading-relaxed"></div>
 
   <!-- Top HUD Bar: Earth Vital Stats & Quick Toggles (No Menus, Direct Gameplay) -->
   <header class="fixed top-3 inset-x-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
@@ -767,6 +772,21 @@
         scene, lowQuality: lowImpactQuality,
         maxParticles: lowImpactQuality ? 92 : 220
       });
+      const qualityController = window.GodSmashPerformance.createController({
+        devicePixelRatio: window.devicePixelRatio || 1,
+        lowQuality: lowImpactQuality,
+        maxParticles: rocketFx.getMaxParticles(),
+        onChange: ({pixelRatio, particleBudget}) => {
+          // Renderer resizes its drawing buffer internally when DPR changes.
+          renderer.setPixelRatio(pixelRatio);
+          rocketFx.setBudget(particleBudget);
+        }
+      });
+      renderer.setPixelRatio(qualityController.getStats().pixelRatio);
+      const performanceOverlay = document.getElementById('performance-overlay');
+      const showPerformance = new URLSearchParams(window.location.search).get('perf') === '1';
+      performanceOverlay.hidden = !showPerformance;
+      let performanceOverlayClock = 0;
 
       // ==========================================
       // 5. CRATER DEFORMATION & MAGMA SCORCHING
@@ -1415,11 +1435,19 @@
       // ==========================================
       let lastTime = performance.now();
       let gameTime = 0;
+      // Reuse frame-local vectors instead of allocating new ones for every missile.
+      const frameTarget = new THREE.Vector3();
+      const framePosition = new THREE.Vector3();
+      const frameAhead = new THREE.Vector3();
+      const frameDirection = new THREE.Vector3();
+      const frameTrail = new THREE.Vector3();
 
       function animate(now) {
         requestAnimationFrame(animate);
-        const frameDt = Math.min(0.05, (now - lastTime) / 1000);
+        const realFrameDt = Math.max(0, (now - lastTime) / 1000);
+        const frameDt = Math.min(0.05, realFrameDt);
         lastTime = now;
+        qualityController.sample(realFrameDt, !document.hidden);
         const dt = frameDt * state.timeScale;
         gameTime += dt;
 
@@ -1459,30 +1487,28 @@
 
           // Quadratic Bézier interpolation toward moving point on rotating Earth
           const t = Math.min(1.0, m.progress);
-          const worldTarget = earthGroup.localToWorld(m.localTarget.clone());
-
           const p0 = m.startPos;
           const p1 = m.controlPos;
-          const p2 = worldTarget;
+          const p2 = earthGroup.localToWorld(frameTarget.copy(m.localTarget));
 
           const oneMinusT = 1 - t;
-          const pos = new THREE.Vector3()
+          const pos = framePosition.set(0, 0, 0)
             .addScaledVector(p0, oneMinusT * oneMinusT)
             .addScaledVector(p1, 2 * oneMinusT * t)
             .addScaledVector(p2, t * t);
 
-          // Tangent for missile orientation
+          // Tangent for missile orientation; all scratch vectors are reused.
           const nextT = Math.min(1.0, t + 0.02);
           const nextOneMinusT = 1 - nextT;
-          const nextPos = new THREE.Vector3()
+          const nextPos = frameAhead.set(0, 0, 0)
             .addScaledVector(p0, nextOneMinusT * nextOneMinusT)
             .addScaledVector(p1, 2 * nextOneMinusT * nextT)
             .addScaledVector(p2, nextT * nextT);
 
           m.mesh.position.copy(pos);
           m.mesh.lookAt(nextPos);
-          let flightDirection = nextPos.clone().sub(pos).normalize();
-          if (t >= 0.985) flightDirection = p2.clone().sub(p1).normalize();
+          const flightDirection = frameDirection.copy(nextPos).sub(pos).normalize();
+          if (t >= 0.985) flightDirection.copy(p2).sub(p1).normalize();
           if (m.plume) {
             // A small fuel burn-down and turbulence keep the exhaust from looking static.
             const fuel = m.weapon.kind === 'asteroid'
@@ -1504,9 +1530,9 @@
           if ((m.weapon.kind === 'missile' || m.weapon.kind === 'asteroid') &&
               m.trailClock >= emissionInterval) {
             m.trailClock %= emissionInterval;
-            const trailPos = m.mesh.localToWorld(new THREE.Vector3(
-              0, 0, m.mesh.userData.trailOffsetZ
-            ));
+            const trailPos = m.mesh.localToWorld(
+              frameTrail.set(0, 0, m.mesh.userData.trailOffsetZ)
+            );
             // Missiles leave a fading exhaust trail; incoming asteroids shed hot meteor fragments.
             rocketFx.trail(trailPos, flightDirection,
               m.weapon.kind === 'asteroid' ? 'asteroid' : (m.weapon.visualProfile || 'strategic'));
@@ -1573,6 +1599,29 @@
         }
 
         renderer.render(scene, camera);
+        if (showPerformance && !document.hidden) {
+          performanceOverlayClock += Math.min(realFrameDt, 0.1);
+          if (performanceOverlayClock >= 1) {
+            performanceOverlayClock = 0;
+            const stats = qualityController.getStats();
+            const gpu = renderer.info.memory;
+            const heap = performance.memory && performance.memory.usedJSHeapSize
+              ? (performance.memory.usedJSHeapSize / 1048576).toFixed(1) + ' MB'
+              : 'N/A';
+            performanceOverlay.textContent = [
+              'GodSmash performance (' + (lowImpactQuality ? 'mobile' : 'desktop') + ')',
+              'FPS: ' + stats.fps.toFixed(1) + ' | pixel ratio: ' + stats.pixelRatio.toFixed(2),
+              'Draw calls: ' + renderer.info.render.calls + ' | triangles: ' + renderer.info.render.triangles,
+              'GPU geometries: ' + gpu.geometries + ' | textures: ' + gpu.textures,
+              'Active missiles: ' + activeMissiles.length + '/' + maxActiveMissiles,
+              'Particles: ' + rocketFx.getParticleCount() + '/' + rocketFx.getBudget() +
+                ' | pooled slots: ' + rocketFx.getPoolSize(),
+              'Debris: ' + activeDebris.length + '/' + maxActiveDebris +
+                ' | blasts: ' + activeExplosions.length + '/' + (lowImpactQuality ? 4 : 8),
+              'JS heap (when available): ' + heap
+            ].join('\n');
+          }
+        }
       }
 
       window.onload = () => {

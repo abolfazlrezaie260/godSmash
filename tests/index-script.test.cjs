@@ -27,6 +27,13 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /GodSmashWeaponDock\.mount/);
   assert.match(match[1], /weaponDock\.setSelected/);
   assert.match(match[1], /weaponDock\.selectAt/);
+  assert.ok(html.includes('src="./src/performance/quality-controller.js"'));
+  assert.ok(html.includes('id="performance-overlay"'));
+  assert.match(match[1], /GodSmashPerformance\.createController/);
+  assert.match(match[1], /qualityController\.sample\(realFrameDt/);
+  assert.match(match[1], /rocketFx\.setBudget\(particleBudget\)/);
+  assert.match(match[1], /renderer\.setPixelRatio\(pixelRatio\)/);
+  assert.match(match[1], /framePosition\.set\(0, 0, 0\)/);
   assert.ok(html.includes('src="./src/render/rocket-fx.js"'));
   assert.ok(html.includes('src="./src/simulation/missile-physics.js"'));
   assert.ok(html.includes('id="surface-damage-val"'));

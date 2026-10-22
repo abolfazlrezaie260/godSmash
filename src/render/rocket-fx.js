@@ -53,42 +53,70 @@
     const smokeTexture = makeSpriteTexture(THREE, 'smoke');
     const emberTexture = makeSpriteTexture(THREE, 'ember');
     const particles = [];
+    // Each sprite needs its own opacity/material. Keep idle sprites for reuse,
+    // disposing their individual materials only when this system is destroyed.
+    const idleParticles = [];
+    let allocated = 0;
+    let budget = maxParticles;
     let trailCount = 0;
     let disposed = false;
 
-    function emit(position, type, direction, intensity = 1, tint, outward) {
-      if (disposed || particles.length >= maxParticles) return false;
+    function recycleAt(index) {
+      const p = particles[index];
+      scene.remove(p.sprite);
+      idleParticles.push(p);
+      particles.splice(index, 1);
+    }
+
+    function allocate(type) {
       const isSmoke = type === 'smoke';
-      const life = isSmoke ? 1.05 + Math.random() * 0.95 : 0.22 + Math.random() * 0.30;
-      const size = (isSmoke ? 0.18 + Math.random() * 0.25 : 0.045 + Math.random() * 0.075) * intensity;
+      if (idleParticles.length) return idleParticles.pop();
       const material = new THREE.SpriteMaterial({
         map: isSmoke ? smokeTexture : emberTexture,
-        color: tint || (isSmoke ? 0x78818d : 0xffa044),
+        color: isSmoke ? 0x78818d : 0xffa044,
         transparent: true,
         opacity: isSmoke ? 0.32 : 0.92,
         depthWrite: false,
-        blending: isSmoke ? THREE.NormalBlending : THREE.AdditiveBlending,
-        rotation: Math.random() * Math.PI * 2
+        blending: isSmoke ? THREE.NormalBlending : THREE.AdditiveBlending
       });
       const sprite = new THREE.Sprite(material);
-      sprite.position.copy(position);
-      sprite.scale.set(size, size, 1);
-      scene.add(sprite);
+      allocated++;
+      return {sprite, velocity: new THREE.Vector3(), type};
+    }
 
-      const velocity = new THREE.Vector3(
-        (Math.random() - 0.5) * (isSmoke ? 0.55 : 2.0),
-        (Math.random() - 0.5) * (isSmoke ? 0.55 : 2.0),
-        (Math.random() - 0.5) * (isSmoke ? 0.55 : 2.0)
-      );
+    function emit(position, type, direction, intensity = 1, tint, outward) {
+      if (disposed || particles.length >= budget) return false;
+      const isSmoke = type === 'smoke';
+      const life = isSmoke ? 1.05 + Math.random() * 0.95 : 0.22 + Math.random() * 0.30;
+      const size = (isSmoke ? 0.18 + Math.random() * 0.25 : 0.045 + Math.random() * 0.075) * intensity;
+      const p = allocate(type);
+      const material = p.sprite.material;
+      material.map = isSmoke ? smokeTexture : emberTexture;
+      material.blending = isSmoke ? THREE.NormalBlending : THREE.AdditiveBlending;
+      if (material.color && typeof material.color.set === 'function') {
+        material.color.set(tint || (isSmoke ? 0x78818d : 0xffa044));
+      } else {
+        material.color = tint || (isSmoke ? 0x78818d : 0xffa044);
+      }
+      material.opacity = isSmoke ? 0.32 : 0.92;
+      material.rotation = Math.random() * Math.PI * 2;
+      p.sprite.position.copy(position);
+      p.sprite.scale.set(size, size, 1);
+      scene.add(p.sprite);
+
+      const velocity = p.velocity;
+      velocity.x = (Math.random() - 0.5) * (isSmoke ? 0.55 : 2.0);
+      velocity.y = (Math.random() - 0.5) * (isSmoke ? 0.55 : 2.0);
+      velocity.z = (Math.random() - 0.5) * (isSmoke ? 0.55 : 2.0);
       if (direction) velocity.addScaledVector(direction, isSmoke ? -0.24 : -0.62);
       if (outward) velocity.addScaledVector(outward, isSmoke ? 0.28 + Math.random() * 0.8 : 1.1 + Math.random() * 4.0);
-      particles.push({
-        sprite, velocity, life, maxLife: life, baseSize: size,
-        growth: isSmoke ? 0.28 + Math.random() * 0.36 : 0.06,
-        spin: (Math.random() - 0.5) * (isSmoke ? 0.7 : 4.0),
-        baseOpacity: isSmoke ? 0.32 : 0.92,
-        type: isSmoke ? 'smoke' : 'ember'
-      });
+      p.life = life;
+      p.maxLife = life;
+      p.baseSize = size;
+      p.growth = isSmoke ? 0.28 + Math.random() * 0.36 : 0.06;
+      p.spin = (Math.random() - 0.5) * (isSmoke ? 0.7 : 4.0);
+      p.baseOpacity = isSmoke ? 0.32 : 0.92;
+      particles.push(p);
       return true;
     }
 
@@ -107,8 +135,8 @@
 
     function burst(position, outward, count = 12, tint = 0xff9b45) {
       if (disposed) return;
-      const budget = Math.min(Math.max(0, Math.floor(count)), maxParticles - particles.length);
-      for (let i = 0; i < budget; i++) {
+      const burstBudget = Math.min(Math.max(0, Math.floor(count)), budget - particles.length);
+      for (let i = 0; i < burstBudget; i++) {
         const type = i % 3 === 0 ? 'smoke' : 'ember';
         emit(position, type, null, type === 'smoke' ? 1.4 : 1, type === 'smoke' ? 0x555b64 : tint, outward);
       }
@@ -116,14 +144,12 @@
 
     function update(dt) {
       if (disposed) return;
-      const step = Math.max(0, Math.min(0.05, dt));
+      const step = Math.max(0, Math.min(0.10, dt));
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.life -= step;
         if (p.life <= 0) {
-          scene.remove(p.sprite);
-          p.sprite.material.dispose();
-          particles.splice(i, 1);
+          recycleAt(i);
           continue;
         }
         const age = 1 - p.life / p.maxLife;
@@ -137,12 +163,15 @@
       }
     }
 
+    function setBudget(nextBudget) {
+      if (!Number.isFinite(nextBudget)) return budget;
+      budget = Math.max(1, Math.min(maxParticles, Math.floor(nextBudget)));
+      while (particles.length > budget) recycleAt(particles.length - 1);
+      return budget;
+    }
+
     function clear() {
-      for (const p of particles) {
-        scene.remove(p.sprite);
-        p.sprite.material.dispose();
-      }
-      particles.length = 0;
+      while (particles.length) recycleAt(particles.length - 1);
       trailCount = 0;
     }
 
@@ -150,15 +179,21 @@
       if (disposed) return;
       clear();
       disposed = true;
+      for (const p of idleParticles) p.sprite.material.dispose();
+      idleParticles.length = 0;
       smokeTexture.dispose();
       emberTexture.dispose();
     }
 
     return Object.freeze({
-      trail, burst, update, clear, dispose,
+      trail, burst, update, clear, dispose, setBudget,
       getParticleCount: () => particles.length,
-      getMaxParticles: () => maxParticles
+      getMaxParticles: () => maxParticles,
+      getBudget: () => budget,
+      getPoolSize: () => allocated,
+      getIdleCount: () => idleParticles.length
     });
+
   }
 
   root.GodSmashRocketFX = Object.freeze({createSystem});
