@@ -1435,6 +1435,12 @@
       // ==========================================
       let lastTime = performance.now();
       let gameTime = 0;
+      // Reuse frame-local vectors instead of allocating new ones for every missile.
+      const frameTarget = new THREE.Vector3();
+      const framePosition = new THREE.Vector3();
+      const frameAhead = new THREE.Vector3();
+      const frameDirection = new THREE.Vector3();
+      const frameTrail = new THREE.Vector3();
 
       function animate(now) {
         requestAnimationFrame(animate);
@@ -1481,30 +1487,28 @@
 
           // Quadratic Bézier interpolation toward moving point on rotating Earth
           const t = Math.min(1.0, m.progress);
-          const worldTarget = earthGroup.localToWorld(m.localTarget.clone());
-
           const p0 = m.startPos;
           const p1 = m.controlPos;
-          const p2 = worldTarget;
+          const p2 = earthGroup.localToWorld(frameTarget.copy(m.localTarget));
 
           const oneMinusT = 1 - t;
-          const pos = new THREE.Vector3()
+          const pos = framePosition.set(0, 0, 0)
             .addScaledVector(p0, oneMinusT * oneMinusT)
             .addScaledVector(p1, 2 * oneMinusT * t)
             .addScaledVector(p2, t * t);
 
-          // Tangent for missile orientation
+          // Tangent for missile orientation; all scratch vectors are reused.
           const nextT = Math.min(1.0, t + 0.02);
           const nextOneMinusT = 1 - nextT;
-          const nextPos = new THREE.Vector3()
+          const nextPos = frameAhead.set(0, 0, 0)
             .addScaledVector(p0, nextOneMinusT * nextOneMinusT)
             .addScaledVector(p1, 2 * nextOneMinusT * nextT)
             .addScaledVector(p2, nextT * nextT);
 
           m.mesh.position.copy(pos);
           m.mesh.lookAt(nextPos);
-          let flightDirection = nextPos.clone().sub(pos).normalize();
-          if (t >= 0.985) flightDirection = p2.clone().sub(p1).normalize();
+          const flightDirection = frameDirection.copy(nextPos).sub(pos).normalize();
+          if (t >= 0.985) flightDirection.copy(p2).sub(p1).normalize();
           if (m.plume) {
             // A small fuel burn-down and turbulence keep the exhaust from looking static.
             const fuel = m.weapon.kind === 'asteroid'
@@ -1526,9 +1530,9 @@
           if ((m.weapon.kind === 'missile' || m.weapon.kind === 'asteroid') &&
               m.trailClock >= emissionInterval) {
             m.trailClock %= emissionInterval;
-            const trailPos = m.mesh.localToWorld(new THREE.Vector3(
-              0, 0, m.mesh.userData.trailOffsetZ
-            ));
+            const trailPos = m.mesh.localToWorld(
+              frameTrail.set(0, 0, m.mesh.userData.trailOffsetZ)
+            );
             // Missiles leave a fading exhaust trail; incoming asteroids shed hot meteor fragments.
             rocketFx.trail(trailPos, flightDirection,
               m.weapon.kind === 'asteroid' ? 'asteroid' : (m.weapon.visualProfile || 'strategic'));
