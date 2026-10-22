@@ -32,7 +32,7 @@
     const inner = new THREE.Mesh(
       new THREE.SphereGeometry(radius * 0.805, options.lowQuality ? 24 : 40, 20),
       new THREE.MeshStandardMaterial({
-        color: 0x381b18, emissive: 0xe35c17, emissiveIntensity: 1.0,
+        color: 0x292523, emissive: 0x30211a, emissiveIntensity: 0.12,
         roughness: 1, metalness: 0, side: THREE.DoubleSide
       })
     );
@@ -82,7 +82,7 @@
       const isCold = planet.id === 'moon';
       const shades = isCold
         ? ['#595b65', '#8a8c92', '#34343d', '#1e2026', '#282c33']
-        : ['#47413d', '#97715c', '#362b29', '#281515', '#a53614'];
+        : ['#46423e', '#806f62', '#363330', '#292523', '#453c36'];
       const randomScale = [];
       for (let s = 0; s <= segments; s++) {
         const angle = (s / segments) * Math.PI * 2;
