@@ -6,6 +6,8 @@
   <title>GodSmash v1.0 — شبیه‌ساز تخریب سیاره زمین</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="./src/content/catalog.js"></script>
+<script src="./src/render/planet-textures.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -83,7 +85,7 @@
         <div class="relative w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" id="planet-status-dot"></div>
         <div>
           <div class="flex items-center gap-2">
-            <span class="text-xs font-bold tracking-wide text-sky-400">سیاره زمین (EARTH)</span>
+            <span class="text-xs font-bold tracking-wide text-sky-400"><span id="planet-name">سیاره زمین (EARTH)</span></span>
             <span id="status-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium">پایدار</span>
           </div>
           <div class="flex items-center gap-3 mt-1">
@@ -129,7 +131,7 @@
 
       <button id="btn-reset" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-semibold text-sky-300 hover:text-white border-sky-500/30 flex items-center gap-1.5" title="بازسازی کامل سیاره زمین">
         <span>↺</span>
-        <span>بازسازی زمین</span>
+        <span>بازسازی سیاره</span>
       </button>
     </div>
   </header>
@@ -144,7 +146,7 @@
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-white">موشک هسته‌ای قاره‌پیما (ICBM-V1)</span>
+            <span class="text-xs font-bold text-white"><span id="weapon-title">موشک هسته‌ای قاره‌پیما (ICBM-V1)</span></span>
             <span class="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 num-mono">50 MT</span>
           </div>
           <p class="text-[11px] text-slate-400 mt-0.5">
@@ -154,8 +156,10 @@
       </div>
     </div>
 
-    <!-- Direct Fire Controls for Touch / Keyboard / Rapid Testing -->
+    <!-- Dynamic selectors -->
     <div class="glass-panel rounded-2xl px-3 py-2 flex items-center gap-2 pointer-events-auto w-full sm:w-auto justify-center">
+      <label for="planet-select" class="text-xs">سیاره</label><select id="planet-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="انتخاب سیاره"></select>
+      <label for="weapon-select" class="text-xs">سلاح</label><select id="weapon-select" class="rounded-lg bg-slate-800 border border-slate-600 p-2 text-xs" aria-label="انتخاب سلاح"></select>
       <button id="btn-mode-toggle" type="button" class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-200 border border-slate-600/60 flex items-center gap-1.5">
         <span>🎯</span>
         <span id="mode-label">حالت: تک‌موشک</span>
@@ -293,6 +297,10 @@
       // ==========================================
       // 2. GAME STATE & CONFIGURATION
       // ==========================================
+      const catalog = window.GodSmashCatalog;
+      let planet = catalog.getPlanet("earth");
+      let weapon = catalog.getWeapon("icbm");
+      let generation = 0;
       const EARTH_RADIUS = 10;
       const INITIAL_POPULATION = 8000000000;
 
@@ -563,7 +571,11 @@
         });
       }
 
-      paintPristineEarthTextures();
+      function paintPlanet() {
+        if (planet.surface === "earth") paintPristineEarthTextures();
+        else GodSmashTextures.paint(planet, surfaceCtx, emissiveCtx, TEX_W, TEX_H);
+      }
+      paintPlanet();
 
       const surfaceTexture = new THREE.CanvasTexture(surfaceCanvas);
       const emissiveTexture = new THREE.CanvasTexture(emissiveCanvas);
@@ -637,11 +649,13 @@
         `,
         fragmentShader: `
           varying vec3 vNormal;
+          uniform vec3 rimColor;
           void main() {
             float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.8);
-            gl_FragColor = vec4(0.22, 0.65, 1.0, 1.0) * intensity * 1.35;
+            gl_FragColor = vec4(rimColor, 1.0) * intensity * 1.35;
           }
         `,
+        uniforms: {rimColor: {value: new THREE.Color("#38a6ff")}},
         blending: THREE.AdditiveBlending,
         side: THREE.BackSide,
         transparent: true,
@@ -826,11 +840,12 @@
         return retGroup;
       }
 
-      function launchMissileAtWorldPoint(worldTargetPoint, delayMs = 0) {
+      function launchMissileAtWorldPoint(worldTargetPoint, delayMs = 0, selected = weapon) {
         if (state.shattered) return;
 
+        const issued = generation;
         setTimeout(() => {
-          if (state.shattered) return;
+          if (state.shattered || issued !== generation) return;
           SoundEngine.playLaunch();
 
           // Convert world target point into Earth's local space so it tracks Earth's rotation!
@@ -856,19 +871,24 @@
           const controlPos = midPoint.add(outwardDir.multiplyScalar(7 + Math.random() * 3));
 
           const { group, plume } = buildMissileMesh();
+          if (selected.kind === "asteroid") {
+            group.clear();
+            group.add(new THREE.Mesh(new THREE.DodecahedronGeometry(0.6, 1), new THREE.MeshStandardMaterial({color: 0x986244, emissive: 0x5a210b})));
+          }
           group.position.copy(startPos);
           scene.add(group);
 
           activeMissiles.push({
             mesh: group,
             plume,
+            weapon: selected,
             startPos,
             controlPos,
             localTarget,
             localNormal,
             reticle,
             progress: 0,
-            speed: 0.92 + Math.random() * 0.15
+            speed: selected.speed * (0.92 + Math.random() * 0.15)
           });
         }, delayMs);
       }
@@ -890,29 +910,29 @@
         });
       }
 
-      function triggerNuclearDetonation(localTarget, localNormal) {
+      function triggerNuclearDetonation(localTarget, localNormal, selected = weapon) {
         SoundEngine.playExplosion(1.0);
-        state.screenShake = Math.min(1.2, state.screenShake + 0.55);
+        state.screenShake = Math.min(1.8, state.screenShake + selected.shake);
 
         // 1. Deform 3D Earth Geometry & Scorch Magma Texture
-        const blastRadius = 1.65 + Math.random() * 0.45;
+        const blastRadius = selected.blastRadius * (0.9 + Math.random() * 0.2);
         carveCraterOnEarth(localTarget, blastRadius);
 
         // 2. Update Game Telemetry (Population & Core Integrity)
         state.impacts += 1;
-        const dmg = 4.2 + Math.random() * 1.8;
+        const dmg = (selected.damage + Math.random() * selected.damageVariance) / planet.resistance;
         state.integrity = Math.max(0, state.integrity - dmg);
 
         // Calculate casualties (higher near continental latitudes)
         const latFactor = 1.0 - Math.abs(localNormal.y) * 0.75;
         const casualties = Math.min(
           state.population,
-          Math.floor((180000000 + Math.random() * 290000000) * latFactor)
+          Math.floor((selected.casualties + Math.random() * selected.casualtiesVariance) * latFactor)
         );
         state.population = Math.max(0, state.population - casualties);
 
         const casMillions = Math.max(1, Math.round(casualties / 1000000));
-        showImpactToast(`انفجار ۵۰ مگاتنی! تلفات: ${casMillions} میلیون نفر`);
+        showImpactToast(`${selected.nameFa}؛ تلفات: ${casMillions} میلیون نفر`);
         updateHUD();
 
         // 3. Create 3D Fireball Dome & Expanding Shockwave Ring attached to Earth
@@ -925,7 +945,7 @@
         // Core Fireball
         const fireGeo = new THREE.SphereGeometry(0.45, 20, 20);
         const fireMat = new THREE.MeshBasicMaterial({
-          color: 0xfef08a,
+          color: selected.fireColor,
           transparent: true,
           opacity: 0.98
         });
@@ -935,7 +955,7 @@
         // Outer Plasma Shell
         const plasmaGeo = new THREE.SphereGeometry(0.6, 20, 20);
         const plasmaMat = new THREE.MeshBasicMaterial({
-          color: 0xf97316,
+          color: selected.plasmaColor,
           transparent: true,
           opacity: 0.8,
           blending: THREE.AdditiveBlending
@@ -946,7 +966,7 @@
         // Supersonic Shockwave Ring
         const waveGeo = new THREE.RingGeometry(0.35, 0.55, 36);
         const waveMat = new THREE.MeshBasicMaterial({
-          color: 0xfdba74,
+          color: selected.waveColor,
           side: THREE.DoubleSide,
           transparent: true,
           opacity: 0.95,
@@ -969,7 +989,7 @@
         const worldImpactPos = earthGroup.localToWorld(localTarget.clone());
         const worldNormal = localNormal.clone().applyQuaternion(earthGroup.quaternion).normalize();
 
-        for (let i = 0; i < 24; i++) {
+        for (let i = 0; i < selected.debrisCount; i++) {
           const debGeo = new THREE.DodecahedronGeometry(0.08 + Math.random() * 0.12, 0);
           const debMat = new THREE.MeshBasicMaterial({
             color: i % 2 === 0 ? 0xf97316 : 0xfacc15,
@@ -1008,7 +1028,7 @@
         SoundEngine.playExplosion(1.6);
         state.screenShake = 1.8;
         updateHUD();
-        showImpactToast('💥 هسته سیاره زمین متلاشی شد! برای شروع مجدد «بازسازی زمین» را بزنید.');
+        showImpactToast('هسته ' + planet.nameFa + ' متلاشی شد!');
 
         // Hide intact Earth & clouds, spawn glowing asteroid fragments
         earthMesh.visible = false;
@@ -1045,6 +1065,7 @@
       }
 
       function resetEarth() {
+        generation++;
         // Restore geometry vertices
         const posAttr = earthGeo.attributes.position;
         posAttr.array.set(basePositions);
@@ -1052,7 +1073,7 @@
         earthGeo.computeVertexNormals();
 
         // Restore pristine textures
-        paintPristineEarthTextures();
+        paintPlanet();
         surfaceTexture.needsUpdate = true;
         emissiveTexture.needsUpdate = true;
 
@@ -1061,10 +1082,18 @@
           const m = activeMissiles.pop();
           scene.remove(m.mesh);
           earthGroup.remove(m.reticle);
+          m.mesh.traverse(child => { if (child.geometry) child.geometry.dispose(); if (child.material) child.material.dispose(); });
+          m.reticle.traverse(child => { if (child.geometry) child.geometry.dispose(); if (child.material) child.material.dispose(); });
         }
         while (activeExplosions.length > 0) {
           const e = activeExplosions.pop();
           earthGroup.remove(e.group);
+        }
+        while (smokeParticles.length > 0) {
+          const particle = smokeParticles.pop();
+          scene.remove(particle.mesh);
+          particle.mesh.geometry.dispose();
+          particle.mesh.material.dispose();
         }
         while (activeDebris.length > 0) {
           const d = activeDebris.pop();
@@ -1072,17 +1101,67 @@
         }
 
         earthMesh.visible = true;
-        cloudMesh.visible = true;
-        atmosMesh.visible = true;
+        cloudMesh.visible = planet.cloudOpacity > 0;
+        atmosMesh.visible = !!planet.atmosphereColor;
 
-        state.population = INITIAL_POPULATION;
+        state.population = planet.population;
         state.impacts = 0;
         state.integrity = 100;
         state.shattered = false;
         updateHUD();
-        showImpactToast('سیاره زمین به حالت اولیه بازسازی شد.');
+        showImpactToast(planet.nameFa + ' بازسازی شد.');
       }
 
+      const planetSelect = document.getElementById("planet-select");
+      const weaponSelect = document.getElementById("weapon-select");
+      catalog.listPlanets().forEach(p => planetSelect.add(new Option(p.nameFa, p.id)));
+      catalog.listWeapons().forEach(w => weaponSelect.add(new Option(w.nameFa, w.id)));
+      function selectPlanet(id) {
+        const p = catalog.getPlanet(id);
+        if (!p) return;
+        planet = p;
+        resetEarth();
+        earthGroup.rotation.y = 0;
+        cloudMesh.visible = p.cloudOpacity > 0;
+        cloudMat.opacity = p.cloudOpacity;
+        cloudMat.color.set(p.cloudTint || "#ffffff");
+        atmosMesh.visible = !!p.atmosphereColor;
+        atmosMat.uniforms.rimColor.value.set(p.atmosphereColor || "#000000");
+        document.getElementById("planet-name").textContent = "سیاره " + p.nameFa + " (" + p.nameEn + ")";
+        document.querySelector("#btn-reset span:last-child").textContent = "بازسازی " + p.nameFa;
+        planetSelect.value = p.id;
+      }
+      planetSelect.addEventListener("change", () => selectPlanet(planetSelect.value));
+      weaponSelect.addEventListener("change", () => {
+        const next = catalog.getWeapon(weaponSelect.value);
+        if (!next) return;
+        weapon = next;
+        document.getElementById("weapon-title").textContent = next.nameFa;
+      });
+      weaponSelect.value = weapon.id;
+
+      function fireWeaponAtWorldPoint(point, delay = 0) {
+        const selected = weapon;
+        if (selected.kind !== "beam") return launchMissileAtWorldPoint(point, delay, selected);
+        const issued = generation;
+        setTimeout(() => {
+          if (issued !== generation || state.shattered) return;
+          const target = earthGroup.worldToLocal(point.clone()).normalize().multiplyScalar(EARTH_RADIUS);
+          const normal = target.clone().normalize();
+          const from = camera.position.clone().multiplyScalar(1.2);
+          const to = earthGroup.localToWorld(target.clone());
+          const delta = to.clone().sub(from);
+          const beam = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.08, 0.12, delta.length(), 8),
+            new THREE.MeshBasicMaterial({color: selected.plasmaColor, transparent: true, opacity: 0.8})
+          );
+          beam.position.copy(from).add(to).multiplyScalar(0.5);
+          beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
+          scene.add(beam);
+          setTimeout(() => {scene.remove(beam); beam.geometry.dispose(); beam.material.dispose();}, 200);
+          triggerNuclearDetonation(target, normal, selected);
+        }, delay);
+      }
       // ==========================================
       // 7. INPUT HANDLING: ORBIT CAMERA & CLICK-TO-FIRE
       // ==========================================
@@ -1115,11 +1194,11 @@
                 (Math.random() - 0.5) * 2.2,
                 (Math.random() - 0.5) * 2.2
               );
-              const targetPt = hitPoint.clone().add(jitter).normalize().multiplyScalar(EARTH_RADIUS);
-              launchMissileAtWorldPoint(targetPt, s * 130);
+              const targetPt = earthGroup.localToWorld(earthGroup.worldToLocal(hitPoint.clone()).add(jitter).normalize().multiplyScalar(EARTH_RADIUS));
+              fireWeaponAtWorldPoint(targetPt, s * 130);
             }
           } else {
-            launchMissileAtWorldPoint(hitPoint, 0);
+            fireWeaponAtWorldPoint(hitPoint, 0);
           }
         }
       }
@@ -1224,7 +1303,7 @@
 
         // 1. Rotate Earth & Clouds
         if (state.autoRotate && !state.shattered) {
-          earthGroup.rotation.y += 0.12 * dt;
+          earthGroup.rotation.y += planet.rotationSpeed * dt;
         }
         cloudMesh.rotation.y += 0.05 * dt;
 
@@ -1281,7 +1360,7 @@
           m.plume.scale.setScalar(0.85 + Math.random() * 0.35);
 
           // Spawn exhaust trail
-          if (Math.random() < 0.75) {
+          if (m.weapon.kind === "missile" && Math.random() < 0.75) {
             spawnSmokeParticle(pos);
           }
 
@@ -1289,7 +1368,7 @@
             scene.remove(m.mesh);
             earthGroup.remove(m.reticle);
             activeMissiles.splice(i, 1);
-            triggerNuclearDetonation(m.localTarget, m.localNormal);
+            triggerNuclearDetonation(m.localTarget, m.localNormal, m.weapon);
           }
         }
 
@@ -1356,6 +1435,7 @@
       }
 
       window.onload = () => {
+        selectPlanet("earth");
         updateHUD();
         requestAnimationFrame(animate);
       };
