@@ -649,11 +649,13 @@
         `,
         fragmentShader: `
           varying vec3 vNormal;
+          uniform vec3 rimColor;
           void main() {
             float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.8);
-            gl_FragColor = vec4(0.22, 0.65, 1.0, 1.0) * intensity * 1.35;
+            gl_FragColor = vec4(rimColor, 1.0) * intensity * 1.35;
           }
         `,
+        uniforms: {rimColor: {value: new THREE.Color("#38a6ff")}},
         blending: THREE.AdditiveBlending,
         side: THREE.BackSide,
         transparent: true,
@@ -1080,10 +1082,18 @@
           const m = activeMissiles.pop();
           scene.remove(m.mesh);
           earthGroup.remove(m.reticle);
+          m.mesh.traverse(child => { if (child.geometry) child.geometry.dispose(); if (child.material) child.material.dispose(); });
+          m.reticle.traverse(child => { if (child.geometry) child.geometry.dispose(); if (child.material) child.material.dispose(); });
         }
         while (activeExplosions.length > 0) {
           const e = activeExplosions.pop();
           earthGroup.remove(e.group);
+        }
+        while (smokeParticles.length > 0) {
+          const particle = smokeParticles.pop();
+          scene.remove(particle.mesh);
+          particle.mesh.geometry.dispose();
+          particle.mesh.material.dispose();
         }
         while (activeDebris.length > 0) {
           const d = activeDebris.pop();
@@ -1091,8 +1101,8 @@
         }
 
         earthMesh.visible = true;
-        cloudMesh.visible = true;
-        atmosMesh.visible = true;
+        cloudMesh.visible = planet.cloudOpacity > 0;
+        atmosMesh.visible = !!planet.atmosphereColor;
 
         state.population = planet.population;
         state.impacts = 0;
@@ -1116,6 +1126,7 @@
         cloudMat.opacity = p.cloudOpacity;
         cloudMat.color.set(p.cloudTint || "#ffffff");
         atmosMesh.visible = !!p.atmosphereColor;
+        atmosMat.uniforms.rimColor.value.set(p.atmosphereColor || "#000000");
         document.getElementById("planet-name").textContent = "سیاره " + p.nameFa + " (" + p.nameEn + ")";
         document.querySelector("#btn-reset span:last-child").textContent = "بازسازی " + p.nameFa;
         planetSelect.value = p.id;
