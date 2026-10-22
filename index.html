@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="./src/content/catalog.js"></script>
 <script src="./src/render/planet-textures.js"></script>
+<script src="./src/render/real-earth.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -442,8 +443,9 @@
       // ==========================================
       // 4. PROCEDURAL PLANET EARTH & DYNAMIC CRATER TEXTURES
       // ==========================================
-      const TEX_W = 1024;
-      const TEX_H = 512;
+      // Adaptive canvas resolution: photographic imagery with a smaller mobile footprint.
+      const TEX_W = Math.min(window.innerWidth, window.innerHeight) < 750 ? 1024 : 2048;
+      const TEX_H = TEX_W / 2;
 
       const surfaceCanvas = document.createElement('canvas');
       surfaceCanvas.width = TEX_W;
@@ -572,13 +574,21 @@
       }
 
       function paintPlanet() {
-        if (planet.surface === "earth") paintPristineEarthTextures();
-        else GodSmashTextures.paint(planet, surfaceCtx, emissiveCtx, TEX_W, TEX_H);
+        if (planet.id === "earth") {
+          if (!window.GodSmashRealEarth.paint(surfaceCtx, emissiveCtx, TEX_W, TEX_H)) {
+            paintPristineEarthTextures(); // Offline/loading fallback
+          }
+        } else {
+          GodSmashTextures.paint(planet, surfaceCtx, emissiveCtx, TEX_W, TEX_H);
+        }
       }
       paintPlanet();
 
       const surfaceTexture = new THREE.CanvasTexture(surfaceCanvas);
+      surfaceTexture.encoding = THREE.sRGBEncoding;
+      surfaceTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
       const emissiveTexture = new THREE.CanvasTexture(emissiveCanvas);
+      emissiveTexture.encoding = THREE.sRGBEncoding;
 
       // Cloud Layer Texture
       function createCloudTexture() {
@@ -627,8 +637,9 @@
 
       // Clouds Mesh
       const cloudGeo = new THREE.SphereGeometry(EARTH_RADIUS * 1.018, 64, 64);
+      const fallbackCloudTexture = createCloudTexture();
       const cloudMat = new THREE.MeshStandardMaterial({
-        map: createCloudTexture(),
+        map: fallbackCloudTexture,
         transparent: true,
         opacity: 0.65,
         depthWrite: false,
@@ -703,7 +714,7 @@
 
         const cx = u * TEX_W;
         const cy = vCoord * TEX_H;
-        const rPx = 22 + Math.random() * 10;
+        const rPx = (22 + Math.random() * 10) * (TEX_W / 1024);
 
         // Paint charred crust on surfaceCanvas
         const charGrad = surfaceCtx.createRadialGradient(cx, cy, rPx * 0.1, cx, cy, rPx * 1.6);
@@ -1125,6 +1136,9 @@
         cloudMesh.visible = p.cloudOpacity > 0;
         cloudMat.opacity = p.cloudOpacity;
         cloudMat.color.set(p.cloudTint || "#ffffff");
+        window.GodSmashRealEarth.configure(
+          THREE, earthMat, cloudMat, fallbackCloudTexture, p.id === "earth"
+        );
         atmosMesh.visible = !!p.atmosphereColor;
         atmosMat.uniforms.rimColor.value.set(p.atmosphereColor || "#000000");
         document.getElementById("planet-name").textContent = "سیاره " + p.nameFa + " (" + p.nameEn + ")";
@@ -1435,9 +1449,24 @@
       }
 
       window.onload = () => {
+        // Start immediately with the procedural fallback, upgrade as assets arrive.
         selectPlanet("earth");
         updateHUD();
         requestAnimationFrame(animate);
+        window.GodSmashRealEarth.preload().then(() => {
+          if (planet.id !== "earth") return;
+          window.GodSmashRealEarth.configure(
+            THREE, earthMat, cloudMat, fallbackCloudTexture, true
+          );
+          // Never silently erase the player's craters during asynchronous loading.
+          if (state.impacts === 0 && !state.shattered) {
+            paintPlanet();
+            surfaceTexture.needsUpdate = true;
+            emissiveTexture.needsUpdate = true;
+          }
+        }).catch(error => {
+          console.warn(error.message + '. Using generated Earth textures.');
+        });
       };
     })();
   </script>
