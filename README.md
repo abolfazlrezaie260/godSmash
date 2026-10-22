@@ -137,3 +137,13 @@ Projectile motion is integrated in small fixed substeps by `src/simulation/missi
 The impact engine records bounded damage sites and estimates surface coverage from spherical caps. Hits near an existing site merge into it, while hits elsewhere create a separate site until the quality-specific cap is reached. Planet reset clears the site history, restores the original mesh and textures, and disposes persistent crater rims.
 
 For a repeatable manual performance check, use the same browser and viewport, select the lowest and highest quality modes (narrow viewport/save-data versus desktop), fire 20+ consecutive missiles including asteroid breaches, leave effects running for 30 seconds, then reset twice. Check for missing HUD updates, lingering effects and steadily growing GPU memory. Record browser/device, viewport, device-pixel ratio, quality mode and average FPS; automated tests do not replace this profiling.
+
+
+## Adaptive rendering and profiling (Issue #14)
+
+- Rocket smoke/ember sprites are **pooled**, with one live `SpriteMaterial` per particle. Individual materials and shared atlas textures are retained across resets and disposed only when the particle system itself is destroyed. Pool allocations never exceed the configured maximum.
+- The adaptive quality controller samples **unscaled** wall-clock frame durations (unaffected by 0.5×/1×/2× game speed). After sustained low FPS it gradually reduces device-pixel ratio and sprite capacity; recovery is slower and guarded by a cooldown to avoid oscillation. Browser background periods are excluded.
+- Quality caps remain in force: 8/20 live projectiles, 96/210 debris chunks, 4/8 explosions, 92/220 sprites for low/high base quality, further reduced adaptively under load.
+- CPU frame allocations were reduced by reusing `THREE.Vector3` scratch instances for flight interpolation and crater vertex updates.
+- Open the game with `?perf=1` to display a small diagnostic panel with estimated FPS, active particle budgets, draw calls, geometries, textures and optional JS heap.
+- Follow the [repeatable Mac and Android benchmark checklist](docs/performance-benchmark.md). Do not mark Issue #14 fully complete until measurements from both real device classes are posted. Automated unit tests establish resource correctness but are not a substitute for GPU profiling.
