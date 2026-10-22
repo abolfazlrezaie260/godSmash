@@ -262,7 +262,7 @@
 
   <!-- Fixed left-corner weapon inventory. The planet selector stays in the HUD. -->
   <aside id="weapon-dock" class="weapon-dock glass-panel" aria-label="انتخاب سلاح">
-    <div class="weapon-dock-heading"><span>سلاح‌ها</span><small>کلیدهای ۱ تا ۵</small></div>
+    <div class="weapon-dock-heading"><span>سلاح‌ها</span><small id="weapon-shortcuts">کلیدهای ۱ تا ۵</small></div>
     <div id="weapon-dock-items" class="weapon-dock-items" role="group" aria-label="فهرست سلاح‌ها"></div>
   </aside>
 
@@ -1183,6 +1183,8 @@
 
       const planetSelect = document.getElementById("planet-select");
       catalog.listPlanets().forEach(p => planetSelect.add(new Option(p.nameFa, p.id)));
+      document.getElementById('weapon-shortcuts').textContent =
+        'کلیدهای ۱ تا ' + Math.min(9, catalog.listWeapons().length);
       function selectWeapon(id) {
         const next = catalog.getWeapon(id);
         if (!next) return;
