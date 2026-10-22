@@ -1,0 +1,55 @@
+name: Vendor photographic Earth textures
+on:
+  push:
+    branches:
+      - feature/bundle-earth-textures
+    paths:
+      - .github/workflows/vendor-earth-textures.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  copy-earth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download pinned planet imagery into repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets/textures/earth
+          root="https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/textures/planets"
+          fetch() {
+            name="$1"
+            blob="$2"
+            dest="assets/textures/earth/$name"
+            curl --fail --location --retry 5 --connect-timeout 15 --max-time 120 \
+              --silent --show-error "$root/$name" -o "$dest"
+            actual="$(git hash-object "$dest")"
+            if [ "$actual" != "$blob" ]; then
+              echo "File checksum mismatch for $name ($actual != $blob)" >&2
+              exit 1
+            fi
+            du -h "$dest"
+          }
+          fetch earth_atmos_4096.jpg 56df0a84d9316546c45b16e5083ac94161f31bff
+          fetch earth_clouds_1024.png 5c6b17b74ce05f1c589d60a92a9d66635a5e4990
+          fetch earth_lights_2048.png 8c470501ad9999888fff0bbaf774b2edf2715d82
+          fetch earth_normal_2048.jpg 5bf40df630d9ae7cb8ae026c930b8f3421bbec54
+          fetch earth_specular_2048.jpg 06e03a3bfc7fe64f711175fe2c66bfb76b61cd0d
+      - name: Commit photographic assets to feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/textures/earth/
+          if git diff --cached --quiet; then
+            echo "Earth assets already committed"
+          else
+            git commit -m "assets: vendor pinned Earth imagery for offline Pages rendering"
+            git push origin HEAD:feature/bundle-earth-textures
+          fi
