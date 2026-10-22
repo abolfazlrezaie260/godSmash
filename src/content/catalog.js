@@ -73,11 +73,27 @@
 
   registerWeapon({
     id: 'icbm', nameFa: 'موشک هسته‌ای', subtitle: 'ICBM · 50 MT',
-    kind: 'missile', icon: '🚀', blastRadius: 1.9,
+    kind: 'missile', icon: '🚀', visualProfile: 'strategic', blastRadius: 1.9,
     damage: 4.2, damageVariance: 1.8,
     casualties: 180000000, casualtiesVariance: 290000000,
     speed: 0.95, shake: 0.55, debrisCount: 24,
     fireColor: '#fef08a', plasmaColor: '#f97316', waveColor: '#fdba74'
+  });
+  registerWeapon({
+    id: 'swift', nameFa: 'موشک سبک', subtitle: 'GS-02 · SWIFT',
+    kind: 'missile', icon: '🚀', visualProfile: 'interceptor', blastRadius: 1.05,
+    damage: 1.8, damageVariance: 0.9,
+    casualties: 55000000, casualtiesVariance: 110000000,
+    speed: 1.32, shake: 0.28, debrisCount: 12,
+    fireColor: '#fef9c3', plasmaColor: '#fb923c', waveColor: '#fcd34d'
+  });
+  registerWeapon({
+    id: 'winged', nameFa: 'موشک بالدار', subtitle: 'GS-03 · WINGED',
+    kind: 'missile', icon: '🚀', visualProfile: 'cruise', blastRadius: 1.35,
+    damage: 2.7, damageVariance: 1.1,
+    casualties: 80000000, casualtiesVariance: 130000000,
+    speed: 0.83, shake: 0.35, debrisCount: 16,
+    fireColor: '#fff7ed', plasmaColor: '#fb923c', waveColor: '#fda4af'
   });
   registerWeapon({
     id: 'asteroid', nameFa: 'شهاب‌سنگ', subtitle: 'KINETIC IMPACT',
