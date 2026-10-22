@@ -8,7 +8,7 @@ Serve the repository root through a static server or GitHub Pages. Open `index.h
 
 ```sh
 npx serve .
-node --test tests/catalog.test.cjs
+node --test tests/*.test.cjs
 ```
 
 ## Structure
@@ -44,3 +44,14 @@ Planets: Earth, Mars, Venus, Moon. Weapons: ICBM missile, kinetic asteroid, orbi
 ## Limitations
 
 The core game still lives in a long HTML script. Selecting another planet resets the active simulation instead of retaining multiple worlds simultaneously. Stats use arcade values, not astronomical or demographic simulation. The test suite covers catalog and procedural painter but **does not** substitute for browser/WebGL playtesting.
+
+
+## Photographic Earth rendering
+
+Earth now upgrades automatically from the original painted globe to real equirectangular imagery: daytime surface (4096-wide source), night city lights, atmospheric clouds, terrain normal map and an ocean reflectance/roughness approximation. Deformation, craters and reset reuse the original dynamic canvas. Mars, Venus and the Moon retain their procedural appearances. On a failed image request, the original playable Earth remains visible.
+
+Image assets are loaded from a version-pinned public CDN and are **not bundled** with the repository. The browser needs network access for the high-fidelity layer, even on GitHub Pages. Canvas images are requested with CORS enabled. On first load the original surface is shown before the upgrade. Late image completion does not overwrite a planet after impacts.
+
+Sources and upstream files: [Three.js r128 examples planet textures](https://github.com/mrdoob/three.js/tree/r128/examples/textures/planets). These sample image files must be checked for any relevant individual asset license or attribution obligations before commercial redistribution; do not assume the code's MIT license automatically covers each image. Consult the [NASA image usage policy](https://www.nasa.gov/nasa-brand-center/images-and-media/) for NASA-derived imagery. This build links to them at runtime, rather than redistributing image bytes.
+
+Next quality improvements: physically accurate day/night masking for city lights, higher quality Earth normals, source-verified local textures for fully offline Android packaging and a dedicated cloud shadow shader. Browser visual QA is required after deployment.
