@@ -4,7 +4,7 @@ Browser-based 3D planet destruction game, built with Three.js. The game uses mod
 
 ## Run
 
-Serve the repository root through a static server or GitHub Pages. Open `index.html`. The default choice is **Earth + ICBM**. The planet selector remains a dropdown; weapons are selected from a fixed bottom-left icon dock supporting mouse, touch and keyboard. No compilation step is needed. The Three.js runtime, Tailwind and fonts CDNs still require network access; **Earth imagery itself is served locally by the same site**.
+Serve the repository root through a static server or GitHub Pages. Open `index.html`. The default choice is **Earth + ICBM**. The planet and game-speed selectors are dropdowns; choose 0.5× slow motion, 1× normal speed or 2× fast mode without reloading. The time scale applies to missile flight, planet/cloud rotation, smoke and impact effects, debris, camera transitions and salvo spacing. Weapons are selected from a fixed bottom-left icon dock supporting mouse, touch and keyboard. No compilation step is needed. The Three.js runtime, Tailwind and fonts CDNs still require network access; **Earth imagery itself is served locally by the same site**.
 
 ```sh
 npx serve .
