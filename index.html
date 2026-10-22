@@ -9,6 +9,7 @@
 <script src="./src/content/catalog.js"></script>
 <script src="./src/render/planet-textures.js"></script>
 <script src="./src/render/real-earth.js"></script>
+<script src="./src/render/projectile-models.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -143,15 +144,15 @@
     <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-3 pointer-events-auto w-full sm:w-auto justify-between sm:justify-start">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/30 to-rose-600/30 border border-orange-500/50 flex items-center justify-center text-lg shadow-inner">
-          🚀
+          <span id="active-weapon-icon">🚀</span>
         </div>
         <div>
           <div class="flex items-center gap-2">
             <span class="text-xs font-bold text-white"><span id="weapon-title">موشک هسته‌ای قاره‌پیما (ICBM-V1)</span></span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 num-mono">50 MT</span>
+            <span id="active-weapon-subtitle" class="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 num-mono">50 MT</span>
           </div>
           <p class="text-[11px] text-slate-400 mt-0.5">
-            روی هر نقطه از کره زمین کلیک/لمس کنید تا موشک به همان مختصات شلیک شود
+            سلاح و سیاره را انتخاب کنید؛ سپس روی سطح سیاره لمس کنید
           </p>
         </div>
       </div>
@@ -763,62 +764,14 @@
       // ==========================================
       // 6. SINGLE WEAPON SYSTEM: ORBITAL THERMONUCLEAR MISSILE
       // ==========================================
+      // Geometry and materials are allocated by the independent projectile visual factory.
+      const projectileModels = window.GodSmashProjectiles;
+      const projectileQuality = (Math.min(window.innerWidth, window.innerHeight) < 750 ||
+        (navigator.connection && navigator.connection.saveData)) ? 'low' : 'high';
       const activeMissiles = [];
       const activeExplosions = [];
       const activeDebris = [];
       const smokeParticles = [];
-
-      function buildMissileMesh() {
-        const group = new THREE.Group();
-
-        // Missile fuselage (sleek metallic white/slate cylinder)
-        const bodyGeo = new THREE.CylinderGeometry(0.14, 0.18, 1.35, 12);
-        bodyGeo.rotateX(Math.PI / 2);
-        const bodyMat = new THREE.MeshStandardMaterial({
-          color: 0xe2e8f0,
-          metalness: 0.7,
-          roughness: 0.25
-        });
-        const body = new THREE.Mesh(bodyGeo, bodyMat);
-        group.add(body);
-
-        // Warhead nosecone (crimson/orange hazard cone)
-        const noseGeo = new THREE.ConeGeometry(0.14, 0.55, 12);
-        noseGeo.rotateX(Math.PI / 2);
-        noseGeo.translate(0, 0, 0.95);
-        const noseMat = new THREE.MeshStandardMaterial({
-          color: 0xef4444,
-          emissive: 0x991b1b,
-          emissiveIntensity: 0.4,
-          roughness: 0.3
-        });
-        const nose = new THREE.Mesh(noseGeo, noseMat);
-        group.add(nose);
-
-        // 4 Stabilizer Fins
-        const finGeo = new THREE.BoxGeometry(0.62, 0.04, 0.38);
-        finGeo.translate(0, 0, -0.5);
-        const finMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.6 });
-        const fin1 = new THREE.Mesh(finGeo, finMat);
-        const fin2 = fin1.clone();
-        fin2.rotation.z = Math.PI / 2;
-        group.add(fin1);
-        group.add(fin2);
-
-        // Glowing Rocket Plume at Tail
-        const plumeGeo = new THREE.ConeGeometry(0.16, 0.75, 10);
-        plumeGeo.rotateX(-Math.PI / 2);
-        plumeGeo.translate(0, 0, -1.0);
-        const plumeMat = new THREE.MeshBasicMaterial({
-          color: 0xfb923c,
-          transparent: true,
-          opacity: 0.92
-        });
-        const plume = new THREE.Mesh(plumeGeo, plumeMat);
-        group.add(plume);
-
-        return { group, plume };
-      }
 
       function createTargetReticle(localPos, localNormal) {
         const retGroup = new THREE.Group();
@@ -871,9 +824,10 @@
           const camUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
           const sideSign = Math.random() > 0.5 ? 1 : -1;
 
-          const startPos = camera.position.clone()
-            .add(camRight.multiplyScalar(sideSign * (8 + Math.random() * 5)))
-            .add(camUp.multiplyScalar(4 + Math.random() * 4));
+          // Starts inside the field of view for more legible close-up detail.
+          const startPos = camera.position.clone().multiplyScalar(0.81)
+            .add(camRight.multiplyScalar(sideSign * (4.0 + Math.random() * 1.4)))
+            .add(camUp.multiplyScalar(1.3 + Math.random() * 0.9));
 
           // Control point for a high curved ballistic arc
           const currentWorldTarget = earthGroup.localToWorld(localTarget.clone());
@@ -881,17 +835,18 @@
           const outwardDir = midPoint.clone().normalize();
           const controlPos = midPoint.add(outwardDir.multiplyScalar(7 + Math.random() * 3));
 
-          const { group, plume } = buildMissileMesh();
-          if (selected.kind === "asteroid") {
-            group.clear();
-            group.add(new THREE.Mesh(new THREE.DodecahedronGeometry(0.6, 1), new THREE.MeshStandardMaterial({color: 0x986244, emissive: 0x5a210b})));
-          }
+          const model = selected.kind === 'asteroid'
+            ? projectileModels.createAsteroid(THREE, projectileQuality)
+            : projectileModels.createMissile(THREE, selected.visualProfile || 'strategic', projectileQuality);
+          const { group, plume } = model;
           group.position.copy(startPos);
           scene.add(group);
 
           activeMissiles.push({
             mesh: group,
             plume,
+            dispose: model.dispose,
+            trailClock: 0,
             weapon: selected,
             startPos,
             controlPos,
@@ -1093,8 +1048,11 @@
           const m = activeMissiles.pop();
           scene.remove(m.mesh);
           earthGroup.remove(m.reticle);
-          m.mesh.traverse(child => { if (child.geometry) child.geometry.dispose(); if (child.material) child.material.dispose(); });
-          m.reticle.traverse(child => { if (child.geometry) child.geometry.dispose(); if (child.material) child.material.dispose(); });
+          m.dispose();
+          m.reticle.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+          });
         }
         while (activeExplosions.length > 0) {
           const e = activeExplosions.pop();
@@ -1151,8 +1109,12 @@
         if (!next) return;
         weapon = next;
         document.getElementById("weapon-title").textContent = next.nameFa;
+        document.getElementById("active-weapon-icon").textContent = next.icon || '🚀';
+        document.getElementById("active-weapon-subtitle").textContent = next.subtitle || '';
       });
       weaponSelect.value = weapon.id;
+      document.getElementById("weapon-title").textContent = weapon.nameFa;
+      document.getElementById("active-weapon-subtitle").textContent = weapon.subtitle || '';
 
       function fireWeaponAtWorldPoint(point, delay = 0) {
         const selected = weapon;
@@ -1371,16 +1333,33 @@
 
           m.mesh.position.copy(pos);
           m.mesh.lookAt(nextPos);
-          m.plume.scale.setScalar(0.85 + Math.random() * 0.35);
+          if (m.plume) {
+            m.plume.scale.setScalar(0.83 + Math.random() * 0.29);
+            m.plume.children.forEach((flame, k) => {
+              flame.material.opacity = (k === 0 ? 0.66 : 0.84) + Math.random() * 0.12;
+            });
+          }
 
-          // Spawn exhaust trail
-          if (m.weapon.kind === "missile" && Math.random() < 0.75) {
-            spawnSmokeParticle(pos);
+          // Emission follows elapsed time rather than FPS; capped for mobile.
+          m.trailClock += dt;
+          const emissionInterval = projectileQuality === 'low' ? 0.09 : 0.05;
+          if (m.weapon.kind === 'missile' && smokeParticles.length < 140 &&
+              m.trailClock >= emissionInterval) {
+            m.trailClock %= emissionInterval;
+            const trailPos = m.mesh.localToWorld(new THREE.Vector3(
+              0, 0, m.mesh.userData.trailOffsetZ
+            ));
+            spawnSmokeParticle(trailPos);
           }
 
           if (m.progress >= 1.0) {
             scene.remove(m.mesh);
             earthGroup.remove(m.reticle);
+            m.dispose();
+            m.reticle.traverse(child => {
+              if (child.geometry) child.geometry.dispose();
+              if (child.material) child.material.dispose();
+            });
             activeMissiles.splice(i, 1);
             triggerNuclearDetonation(m.localTarget, m.localNormal, m.weapon);
           }
@@ -1392,6 +1371,8 @@
           p.life -= p.decay * dt;
           if (p.life <= 0) {
             scene.remove(p.mesh);
+            p.mesh.geometry.dispose();
+            p.mesh.material.dispose();
             smokeParticles.splice(i, 1);
           } else {
             p.mesh.material.opacity = p.life * 0.65;
