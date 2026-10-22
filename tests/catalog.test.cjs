@@ -6,8 +6,20 @@ const textures = require('../src/render/planet-textures.js');
 
 test('default planets and weapons are accessible', () => {
   assert.deepEqual(catalog.listPlanets().map(x => x.id), ['earth', 'mars', 'venus', 'moon']);
-  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser']);
+  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser', 'titan', 'viper', 'nova']);
 });
+test('new missiles have distinct balanced stats and visual profiles', () => {
+  const titan = catalog.getWeapon('titan');
+  const viper = catalog.getWeapon('viper');
+  const nova = catalog.getWeapon('nova');
+  assert.equal(titan.visualProfile, 'siege');
+  assert.equal(viper.visualProfile, 'hypersonic');
+  assert.equal(nova.visualProfile, 'plasma');
+  assert.ok(titan.blastRadius > nova.blastRadius && nova.blastRadius > viper.blastRadius);
+  assert.ok(viper.speed > nova.speed && nova.speed > titan.speed);
+  assert.ok([titan, viper, nova].every(w => w.kind === 'missile'));
+});
+
 test('unique IDs and required configuration are enforced', () => {
   assert.throws(() => catalog.registerPlanet({...catalog.getPlanet('earth')}), /unique/i);
   assert.throws(() => catalog.registerWeapon({...catalog.getWeapon('icbm')}), /unique/i);
