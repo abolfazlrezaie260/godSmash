@@ -30,7 +30,8 @@ test('loader paints real images and wires optional normal, roughness and cloud m
       set fillStyle(value) {}
     };
     assert.equal(earth.paint(ctx, ctx, 1024, 512), true);
-    assert.ok(drawn.some(x => x.includes('earth_lights_2048.png')));
+    assert.ok(drawn.some(x => x.includes('earth_atmos_4096.jpg')));
+    assert.ok(!drawn.some(x => x.includes('earth_lights_2048.png')), 'night lights are rendered on a separate sun-masked sphere');
 
     const oldDocument = global.document;
     global.document = {
