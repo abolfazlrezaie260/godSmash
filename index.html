@@ -1125,6 +1125,7 @@
         earthMesh.visible = true;
         cloudMesh.visible = planet.cloudOpacity > 0;
         atmosMesh.visible = !!planet.atmosphereColor;
+        if (nightMesh) nightMesh.visible = planet.id === "earth";
 
         state.population = planet.population;
         state.impacts = 0;
