@@ -55,24 +55,28 @@
 
   registerPlanet({
     id: 'earth', nameFa: 'زمین', nameEn: 'EARTH', surface: 'earth',
+    descriptionFa: 'اقیانوس، قاره و ابرهای واقعی',
     population: 8000000000, rotationSpeed: 0.12, resistance: 1,
     cloudOpacity: 0.65, cloudTint: '#ffffff', atmosphereColor: '#38a6ff',
     palette: ['#0c2d48', '#1f6f43', '#e2e8f0']
   });
   registerPlanet({
     id: 'mars', nameFa: 'مریخ', nameEn: 'MARS', surface: 'rocky',
+    descriptionFa: 'سطح سنگی سرخ و جو رقیق',
     population: 0, rotationSpeed: 0.10, resistance: 0.85,
     cloudOpacity: 0, cloudTint: '#ffffff', atmosphereColor: '#b85731',
     palette: ['#692f20', '#b85f39', '#e09d6e']
   });
   registerPlanet({
     id: 'venus', nameFa: 'زهره', nameEn: 'VENUS', surface: 'bands',
+    descriptionFa: 'ابرهای متراکم و رنگ‌های گرم',
     population: 0, rotationSpeed: 0.03, resistance: 1.25,
     cloudOpacity: 0.55, cloudTint: '#e7be74', atmosphereColor: '#eec47b',
     palette: ['#95704a', '#d5ad72', '#f3d5a5']
   });
   registerPlanet({
     id: 'moon', nameFa: 'ماه', nameEn: 'MOON', surface: 'rocky',
+    descriptionFa: 'سطح پرگودال و فاقد جو',
     population: 0, rotationSpeed: 0.04, resistance: 0.7,
     cloudOpacity: 0, cloudTint: '#ffffff', atmosphereColor: null,
     palette: ['#454b57', '#898d93', '#c0c3c7']
