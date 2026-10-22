@@ -41,7 +41,8 @@ test('satellites detect approaching weapons and intercept before planetary impac
 
 test('disabled or zero satellites never shoot, while configuration takes effect immediately',()=>{
   const engine=setUp({enabled:false});
-  let t=guaranteedTarget(engine);
+  let t=target('ignored',{x:17,y:0,z:0});
+  assert.equal(engine.getUnits().length,0);
   assert.equal(engine.step(1,[t]).length,0);
   engine.configure({enabled:true,count:0});
   assert.equal(engine.getUnits().length,0);
