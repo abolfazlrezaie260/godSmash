@@ -144,7 +144,7 @@
 
     function update(dt) {
       if (disposed) return;
-      const step = Math.max(0, Math.min(0.05, dt));
+      const step = Math.max(0, Math.min(0.10, dt));
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.life -= step;
