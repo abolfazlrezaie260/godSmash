@@ -21,7 +21,8 @@ node --test tests/*.test.cjs
 | `src/render/real-earth.js` | Photographic maps, normal/roughness/cloud maps and night-side city-light shader |
 | `assets/textures/earth/` | Five bundled day/night/cloud/normal/specular maps |
 | `src/render/projectile-models.js` | Detailed fictional missile silhouettes, metal panels, nozzle, thermal exhaust layers and shock diamonds |
-| `src/render/impact-effects.js` | Turbulent procedural fireball shader and expanding surface shockwave rings |\n| `src/render/rocket-fx.js` | Reusable soft smoke sprites, incandescent trail fragments and impact bursts |
+| `src/render/impact-effects.js` | Turbulent procedural fireball shader and expanding surface shockwave rings |
+| `src/render/rocket-fx.js` | Reusable soft smoke sprites, incandescent trail fragments and impact bursts |
 | `src/ui/weapon-dock.js` | Accessible fixed weapon inventory, catalog-driven tiles and keyboard navigation |
 | `tests/catalog.test.cjs` | Registry and texture-painting smoke tests |
 
