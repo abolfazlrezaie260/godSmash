@@ -13,6 +13,14 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /projectileModels\.createMissile/);
   assert.match(match[1], /projectileModels\.createAsteroid/);
   assert.match(match[1], /m\.dispose\(\)/);
+  assert.ok(html.includes('id="game-speed-select"'));
+  assert.match(html, /<option value="0\.5">۰٫۵× اسلوموشن<\/option>/);
+  assert.match(html, /<option value="1" selected>۱× عادی<\/option>/);
+  assert.match(html, /<option value="2">۲× سریع<\/option>/);
+  assert.match(match[1], /timeScale:\s*1/);
+  assert.match(match[1], /gameSpeedSelect\.addEventListener\('change'/);
+  assert.match(match[1], /const dt = frameDt \* state\.timeScale/);
+  assert.match(match[1], /gameTime \+= dt/);
   assert.ok(html.includes('id="weapon-dock-items"'));
   assert.ok(html.includes('src="./src/ui/weapon-dock.js"'));
   assert.doesNotMatch(html, /id="weapon-select"/);
