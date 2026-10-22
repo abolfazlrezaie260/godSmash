@@ -1435,12 +1435,15 @@
           // Wispy, camera-facing smoke and occasional incandescent particles; capped for mobile.
           m.trailClock += dt;
           const emissionInterval = projectileQuality === 'low' ? 0.09 : 0.05;
-          if (m.weapon.kind === 'missile' && m.trailClock >= emissionInterval) {
+          if ((m.weapon.kind === 'missile' || m.weapon.kind === 'asteroid') &&
+              m.trailClock >= emissionInterval) {
             m.trailClock %= emissionInterval;
             const trailPos = m.mesh.localToWorld(new THREE.Vector3(
               0, 0, m.mesh.userData.trailOffsetZ
             ));
-            rocketFx.trail(trailPos, flightDirection, m.weapon.visualProfile || 'strategic');
+            // Missiles leave a fading exhaust trail; incoming asteroids shed hot meteor fragments.
+            rocketFx.trail(trailPos, flightDirection,
+              m.weapon.kind === 'asteroid' ? 'asteroid' : (m.weapon.visualProfile || 'strategic'));
           }
 
           if (m.progress >= 1.0) {
