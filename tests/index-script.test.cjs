@@ -13,5 +13,10 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /projectileModels\.createMissile/);
   assert.match(match[1], /projectileModels\.createAsteroid/);
   assert.match(match[1], /m\.dispose\(\)/);
-  assert.match(match[1], /weaponSelect\.addEventListener/);
+  assert.ok(html.includes('id="weapon-dock-items"'));
+  assert.ok(html.includes('src="./src/ui/weapon-dock.js"'));
+  assert.doesNotMatch(html, /id="weapon-select"/);
+  assert.match(match[1], /GodSmashWeaponDock\.mount/);
+  assert.match(match[1], /weaponDock\.setSelected/);
+  assert.match(match[1], /weaponDock\.selectAt/);
 });
