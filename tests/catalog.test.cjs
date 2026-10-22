@@ -6,7 +6,7 @@ const textures = require('../src/render/planet-textures.js');
 
 test('default planets and weapons are accessible', () => {
   assert.deepEqual(catalog.listPlanets().map(x => x.id), ['earth', 'mars', 'venus', 'moon']);
-  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'asteroid', 'laser']);
+  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser']);
 });
 test('unique IDs and required configuration are enforced', () => {
   assert.throws(() => catalog.registerPlanet({...catalog.getPlanet('earth')}), /unique/i);
