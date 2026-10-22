@@ -79,3 +79,48 @@ test('particle count never exceeds configured budget',()=>{
     assert.equal(scene.children.length,0);
   } finally { global.document=originalDocument; }
 });
+
+test('sprite reuse bounds allocations and defers shared resource disposal until shutdown', () => {
+  const previousDocument = global.document;
+  global.document = fakeDocument();
+  try {
+    const scene = new Node();
+    const THREE = mockThree();
+    const fx = rocketFx.createSystem(THREE, {scene, maxParticles:24});
+    const vec = new Vector3(0,0,1);
+    const origin = new Vector3(1,0,0);
+
+    // Fill the entire budget, then clear while retaining those materials.
+    fx.burst(origin, vec, 24);
+    const firstMaterials = new Set(scene.children.map(x => x.material));
+    const sharedMaps = new Set(scene.children.map(x => x.material.map));
+    assert.equal(fx.getParticleCount(),24);
+    assert.equal(fx.getPoolSize(),24);
+    assert.equal(firstMaterials.size,24);
+    assert.equal(sharedMaps.size,2);
+    fx.clear();
+    assert.equal(scene.children.length,0);
+    assert.equal(fx.getIdleCount(),24);
+    for (const material of firstMaterials) assert.equal(material.disposals,0);
+    for (const texture of sharedMaps) assert.equal(texture.disposals,0);
+
+    // Switch the particle mixture and reuse exactly the same sprite slots.
+    for (let n=0;n<24;n++)fx.trail(origin,vec,'strategic');
+    assert.equal(fx.getPoolSize(),24, 'switching profiles must not increase the allocation cap');
+    assert.ok(scene.children.every(x=>firstMaterials.has(x.material)));
+    assert.equal(fx.setBudget(7),7);
+    assert.equal(fx.getParticleCount(),7);
+    assert.equal(scene.children.length,7);
+    assert.equal(fx.getIdleCount(),17);
+    fx.burst(origin,vec,100);
+    assert.equal(fx.getParticleCount(),7);
+
+    fx.dispose();
+    fx.dispose();
+    assert.equal(scene.children.length,0);
+    for (const material of firstMaterials) assert.equal(material.disposals,1);
+    for (const texture of sharedMaps) assert.equal(texture.disposals,1);
+  } finally {
+    global.document = previousDocument;
+  }
+});
