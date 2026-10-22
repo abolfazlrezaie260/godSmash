@@ -92,8 +92,8 @@
         if(!candidate)continue;
         candidate.health=Math.max(0,candidate.health-type.damage);
         if(candidate.health===0){candidate.destroyed=true;interceptions++;}
-        u.cooldown=type.cooldown;
-        u.shots++;totalShots++;
+        unit.cooldown=type.cooldown;
+        unit.shots++;totalShots++;
         const evt={
           unitId:unit.id, targetId:candidate.id,
           from:{...unit.position}, to:{...candidate.position},
