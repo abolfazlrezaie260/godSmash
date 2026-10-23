@@ -1,141 +1,189 @@
-/* Pure, graphics-free orbital defence simulation.
- * Unit positions and shots are gameplay abstractions, not satellite dynamics.
+/* Graphics-free planetary defence simulation.
+ * Player picks each orbit's starting position and unit type. Orbits, detection,
+ * shield coverage and interception are bounded arcade approximations.
  */
-(function(root) {
+(function (root) {
   'use strict';
   const TAU = Math.PI * 2;
-  const lengthSquared = p => p.x*p.x + p.y*p.y + p.z*p.z;
-  const distanceSquared = (a,b) => (a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2;
-  const clamp = (x,min,max) => Math.max(min,Math.min(max,x));
-
-  function visibleLine(from,to,planetRadius) {
-    // Segment closest approach to planet origin; avoid shooting through the globe.
-    const dx=to.x-from.x, dy=to.y-from.y, dz=to.z-from.z;
-    const segmentSq=dx*dx+dy*dy+dz*dz;
-    if (segmentSq < 1e-8) return true;
-    const t=clamp(-(from.x*dx+from.y*dy+from.z*dz)/segmentSq,0,1);
-    const qx=from.x+t*dx,qy=from.y+t*dy,qz=from.z+t*dz;
-    return qx*qx+qy*qy+qz*qz >= planetRadius*planetRadius;
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const lenSq = p => p.x*p.x + p.y*p.y + p.z*p.z;
+  const distSq = (a,b) => (a.x-b.x)**2+(a.y-b.y)**2+(a.z-b.z)**2;
+  const dot = (a,b) => a.x*b.x+a.y*b.y+a.z*b.z;
+  const scale = (p,k) => ({x:p.x*k,y:p.y*k,z:p.z*k});
+  function normalized(p) {
+    if (!p || ![p.x,p.y,p.z].every(Number.isFinite)) throw new TypeError('Invalid orbit anchor');
+    const mag = Math.sqrt(lenSq(p));
+    if (mag<1e-6) throw new RangeError('Orbit anchor must not be zero');
+    return {x:p.x/mag,y:p.y/mag,z:p.z/mag};
   }
+  function visibleLine(from,to,planetRadius) {
+    const dx=to.x-from.x,dy=to.y-from.y,dz=to.z-from.z;
+    const d=dx*dx+dy*dy+dz*dz;
+    if (d<1e-8) return true;
+    const t=clamp(-(from.x*dx+from.y*dy+from.z*dz)/d,0,1);
+    return (from.x+t*dx)**2+(from.y+t*dy)**2+(from.z+t*dz)**2 >= planetRadius*planetRadius;
+  }
+  const policies = Object.freeze(['nearest','fastest','strongest']);
+  function createSystem(options={}) {
+    const defaultType=options.type;
+    const supplied=options.types || (defaultType ? [defaultType] : []);
+    const types=new Map(supplied.map(t=>[t.id,t]));
+    const radius=options.planetRadius||10;
+    if (!types.size || !Number.isFinite(radius) || radius<=0 ||
+      supplied.some(t=>!(t.orbitRadius>radius)||!(t.range>0)||!(t.cooldown>0)||!(t.damage>0))) {
+      throw new TypeError('Orbital defence requires valid unit types and planet radius');
+    }
+    const initialType=defaultType&&types.has(defaultType.id)?defaultType:supplied[0];
+    const maxCount=Math.min(6,Math.max(...supplied.flatMap(t=>t.allowedCounts||[6])));
+    let enabled=options.enabled!==false, priority='nearest';
+    let counter=0, shots=0, interceptions=0, elapsed=0;
+    const units=[];
 
-  function createSystem(options) {
-    const type = options && options.type;
-    const radius = options && options.planetRadius || 10;
-    if (!type || !(type.orbitRadius > radius) || !(type.range > 0) ||
-        !(type.cooldown > 0) || !(type.damage > 0)) {
-      throw new TypeError('Orbital defence requires a supported type and planet radius');
+    function orbitalPosition(u) {
+      const a=u.anchor;
+      // Orbit's first point equals the exact surface direction picked by the player.
+      const ref=Math.abs(a.y)>.9 ? {x:1,y:0,z:0} : {x:0,y:1,z:0};
+      let tangent={x:ref.y*a.z-ref.z*a.y,y:ref.z*a.x-ref.x*a.z,z:ref.x*a.y-ref.y*a.x};
+      tangent=normalized(tangent);
+      const theta=u.phase;
+      const r=u.type.orbitRadius;
+      u.position.x=r*(a.x*Math.cos(theta)+tangent.x*Math.sin(theta));
+      u.position.y=r*(a.y*Math.cos(theta)+tangent.y*Math.sin(theta));
+      u.position.z=r*(a.z*Math.cos(theta)+tangent.z*Math.sin(theta));
     }
-    const maxCount = Math.max(...type.allowedCounts);
-    let enabled = options.enabled !== false;
-    let count = type.allowedCounts.includes(options.count) ? options.count : 0;
-    let elapsed=0, totalShots=0, interceptions=0;
-    const units=Array.from({length:maxCount}, (_,i)=>({
-      id:'defence-'+i, phase:0, cooldown:0, position:{x:0,y:0,z:0},
-      active:false, shots:0
-    }));
-    function reposition() {
-      for (let i=0;i<units.length;i++){
-        const u=units[i];
-        u.active=i<count;
-        const phase=u.phase;
-        // Two inclined orbital families, rather than one flat ring.
-        const tilt = i%2===0 ? 0.33 : -0.53;
-        const lane = Math.floor(i/2);
-        const angle = phase + (lane/Math.ceil(maxCount/2))*TAU + (i%2)*Math.PI;
-        u.position.x=type.orbitRadius*Math.cos(angle);
-        u.position.y=type.orbitRadius*Math.sin(angle)*Math.sin(tilt);
-        u.position.z=type.orbitRadius*Math.sin(angle)*Math.cos(tilt);
-      }
+    function addSatellite(input={}) {
+      if(units.length>=maxCount)return false;
+      const typeId=input.typeId||initialType.id;
+      const type=types.get(typeId);
+      if(!type)throw new RangeError('Unknown defence type: '+typeId);
+      const n=units.length;
+      const fallback={x:Math.cos(n*TAU/maxCount),y:(n%2?-.28:.28),z:Math.sin(n*TAU/maxCount)};
+      const anchor=normalized(input.anchor||fallback);
+      const id='defence-'+(++counter);
+      const unit={id,typeId,type,anchor,phase:0,cooldown:0,shots:0,
+        position:{x:0,y:0,z:0}};
+      orbitalPosition(unit);
+      units.push(unit);
+      return id;
     }
-    function configure(next) {
-      if (next && typeof next.enabled === 'boolean') enabled=next.enabled;
-      if (next && next.count !== undefined) {
-        if (!type.allowedCounts.includes(next.count)) throw new RangeError('Unsupported satellite count');
-        count=next.count;
-      }
-      reposition();
-    }
-    function addSatellite() {
-      if(count>=maxCount) return false;
-      if(!type.allowedCounts.includes(count+1)) return false;
-      count++;
-      reposition();
+    function removeSatellite(id) {
+      if(!units.length)return false;
+      const index=id===undefined?units.length-1:units.findIndex(u=>u.id===id);
+      if(index<0)return false;
+      units.splice(index,1);
       return true;
     }
-    function removeSatellite() {
-      if(count<=0) return false;
-      if(!type.allowedCounts.includes(count-1)) return false;
-      count--;
-      // A removed satellite may be redeployed later without old cooldown or history.
-      const unused=units[count];
-      unused.cooldown=0;
-      unused.shots=0;
-      unused.phase=0;
-      reposition();
-      return true;
+    function setPriority(next) {
+      if(!policies.includes(next))throw new RangeError('Unknown target priority');
+      priority=next;
+    }
+    function configure(next={}) {
+      if(typeof next.enabled==='boolean')enabled=next.enabled;
+      if(next.priority!==undefined)setPriority(next.priority);
+      if(next.count!==undefined) {
+        const count=next.count;
+        if(!Number.isInteger(count)||count<0||count>maxCount)throw new RangeError('Unsupported satellite count');
+        while(units.length>count)removeSatellite();
+        while(units.length<count)addSatellite();
+      }
+    }
+    if(options.count)configure({count:options.count});
+    if(options.priority)setPriority(options.priority);
+    function exportDeployment() {
+      return units.map(u=>({typeId:u.typeId,anchor:{...u.anchor},phase:u.phase}));
+    }
+    function loadDeployment(items) {
+      if(!Array.isArray(items)||items.length>maxCount)throw new RangeError('Invalid defence fleet');
+      // Validate all entries before replacing an existing fleet.
+      const checked=items.map(item=>{
+        if(!item||!types.has(item.typeId))throw new RangeError('Unsupported fleet type');
+        return {typeId:item.typeId,anchor:normalized(item.anchor),
+          phase:Number.isFinite(item.phase)?item.phase:0};
+      });
+      units.length=0;
+      for(const item of checked){
+        addSatellite(item);
+        const u=units[units.length-1];
+        u.phase=item.phase;
+        orbitalPosition(u);
+      }
     }
     function reset() {
-      elapsed=0;totalShots=0;interceptions=0;
-      units.forEach((u,i)=>{u.phase=0;u.cooldown=0;u.shots=0;});
-      reposition();
+      elapsed=0;shots=0;interceptions=0;
+      for(const u of units){u.cooldown=0;u.shots=0;orbitalPosition(u);}
     }
-
-    function step(dt, targets, onShot) {
-      if (!Number.isFinite(dt)||dt<0) throw new TypeError('Invalid simulation delta');
-      const stepTime=Math.min(dt,0.2);
-      elapsed+=stepTime;
+    const activeTarget=t => !!t&&!t.destroyed&&t.health>0&&t.position&&
+      t.incoming!==false&&t.progress<1.001&&lenSq(t.position)>=radius*radius*.98;
+    const speed=t=>Number.isFinite(t.flight?.velocity)?t.flight.velocity:
+      Number.isFinite(t.weapon?.speed)?t.weapon.speed:0;
+    const strength=t=>Number.isFinite(t.weapon?.damage)?t.weapon.damage:0;
+    function score(t) {
+      if(priority==='fastest')return -speed(t);
+      if(priority==='strongest')return -strength(t);
+      return lenSq(t.position);
+    }
+    function getRadar(targets=[]) {
+      return targets.filter(activeTarget).sort((a,b)=>score(a)-score(b)||
+        String(a.id).localeCompare(String(b.id))).slice(0,12).map(t=>({
+        id:t.id,position:{x:t.position.x,y:t.position.y,z:t.position.z},
+        label:t.weapon?.nameFa||'جسم مهاجم',progress:t.progress||0,
+        distance:Math.max(0,Math.sqrt(lenSq(t.position))-radius),
+        speed:speed(t),damage:strength(t),
+        eta:Math.max(0,(1-(t.progress||0))/Math.max(0.001,speed(t)))
+      }));
+    }
+    function step(dt,targets=[],onShot) {
+      if(!Number.isFinite(dt)||dt<0)throw new TypeError('Invalid simulation delta');
+      // Integration follows simulation time; capped to avoid giant background-tab leaps.
+      const delta=Math.min(.2,dt);
+      elapsed+=delta;
+      for(const u of units){
+        u.phase+=u.type.angularSpeed*delta;
+        u.cooldown=Math.max(0,u.cooldown-delta);
+        orbitalPosition(u);
+      }
       const events=[];
-      units.forEach((u,i)=> {
-        u.phase += type.angularSpeed*stepTime*(i%2 ? -1 : 1);
-        u.cooldown=Math.max(0,u.cooldown-stepTime);
-      });
-      reposition();
-      if (!enabled||count===0||!Array.isArray(targets)||!targets.length) return events;
-
-      const shotsCap=Math.min(type.maxShotsPerStep||maxCount,maxCount);
-      const rangeSq=type.range*type.range;
-      // One target cannot be shot after being marked destroyed in the same frame.
-      for(const unit of units){
-        if(!unit.active || unit.cooldown>0 || events.length>=shotsCap)continue;
-        let candidate=null, priority=Infinity;
-        for(const target of targets){
-          if(!target || target.destroyed || !(target.health>0) ||
-             !target.position || target.progress>=1 || target.incoming===false)continue;
-          if (lengthSquared(target.position)<=radius*radius)continue;
-          const separation=distanceSquared(unit.position,target.position);
-          if(separation>rangeSq || !visibleLine(unit.position,target.position,radius*1.02))continue;
-          // The closest threat to the planet takes priority.
-          const threat=lengthSquared(target.position)+separation*0.08;
-          if (threat<priority){priority=threat;candidate=target;}
+      if(!enabled||!Array.isArray(targets)||!targets.length)return events;
+      const ordered=targets.filter(activeTarget).sort((a,b)=>score(a)-score(b)||
+        String(a.id).localeCompare(String(b.id)));
+      for(const u of units) {
+        if(u.cooldown>0||events.length>=maxCount)continue;
+        const rangeSq=u.type.range*u.type.range;
+        for(const target of ordered) {
+          if(!activeTarget(target))continue;
+          if(distSq(u.position,target.position)>rangeSq)continue;
+          if(!visibleLine(u.position,target.position,radius*.975))continue;
+          if(u.type.mode==='shield') {
+            const radial=normalized(target.position);
+            const emitter=normalized(u.position);
+            const coverage=dot(radial,emitter);
+            // Coverage is localized; only projectiles very close to the atmosphere qualify.
+            if(coverage<.84||Math.sqrt(lenSq(target.position))>radius+2.4)continue;
+          }
+          target.health=Math.max(0,target.health-u.type.damage);
+          if(target.health<=0){target.destroyed=true;interceptions++;}
+          u.cooldown=u.type.cooldown;u.shots++;shots++;
+          const event={unitId:u.id,typeId:u.typeId,mode:u.type.mode,
+            color:u.type.beamColor,targetId:target.id,
+            from:{...u.position},to:{...target.position},destroyed:!!target.destroyed,
+            remainingHealth:target.health};
+          events.push(event);
+          if(typeof onShot==='function')onShot(event);
+          break;
         }
-        if(!candidate)continue;
-        candidate.health=Math.max(0,candidate.health-type.damage);
-        if(candidate.health===0){candidate.destroyed=true;interceptions++;}
-        unit.cooldown=type.cooldown;
-        unit.shots++;totalShots++;
-        const evt={
-          unitId:unit.id, targetId:candidate.id,
-          from:{...unit.position}, to:{...candidate.position},
-          destroyed:candidate.destroyed, remainingHealth:candidate.health
-        };
-        events.push(evt);
-        if(typeof onShot==='function')onShot(evt);
       }
       return events;
     }
-
-    reposition();
     return Object.freeze({
-      step,reset,configure,addSatellite,removeSatellite,visibleLine,
-      getUnits:()=>units.filter(u=>u.active&&enabled).map(u=>({id:u.id,position:{...u.position}})),
-      getState:()=>Object.freeze({
-        typeId:type.id, enabled, count, totalShots, interceptions,
-        maxCount, elapsed
-      })
+      step,reset,configure,addSatellite,removeSatellite,loadDeployment,
+      exportDeployment,setPriority,getRadar,visibleLine,
+      getUnits:()=>enabled?units.map(u=>({id:u.id,typeId:u.typeId,
+        position:{...u.position},anchor:{...u.anchor}})):[],
+      getState:()=>Object.freeze({typeId:initialType.id,enabled,count:units.length,
+        maxCount,totalShots:shots,interceptions,elapsed,priority})
     });
   }
-
-  const api=Object.freeze({createSystem,visibleLine});
+  const api=Object.freeze({createSystem,visibleLine,policies});
   root.GodSmashOrbitalDefense=api;
-  if(typeof module!=='undefined' && module.exports)module.exports=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
