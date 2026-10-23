@@ -42,6 +42,17 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /projectileModels\.createMissile/);
   assert.match(match[1], /projectileModels\.createAsteroid/);
   assert.match(match[1], /m\.dispose\(\)/);
+  assert.ok(html.includes('href="./manifest.webmanifest"'));
+  assert.ok(html.includes('src="./src/ui/landscape.js"'));
+  assert.ok(html.includes('id="game-shell"'));
+  assert.ok(html.includes('#game-shell.is-rotated'));
+  assert.ok(html.includes('#game-shell.is-rotated.is-counterclockwise'));
+  assert.match(match[1], /GodSmashLandscape\.mount/);
+  assert.match(match[1], /landscape\.point\(clientX,clientY,rect\)/);
+  assert.match(match[1], /landscape\.delta\(physicalDx,physicalDy\)/);
+  assert.match(match[1], /landscape\.getViewport\(\)/);
+  assert.match(match[1], /footerControls\.offsetHeight/);
+  assert.doesNotMatch(match[1], /camera.aspect = window.innerWidth/);
   assert.ok(html.includes('src="./src/ui/planet-picker.js"'));
   assert.ok(html.includes('id="planet-modal"'));
   assert.ok(html.includes('id="planet-options"'));
@@ -100,4 +111,11 @@ test('impact scorch is dark and non-emissive rather than giant red magma discs',
   assert.match(body, /surfaceCtx\.strokeStyle = 'rgba\(24,23,23,0\.34\)'/);
   assert.doesNotMatch(body, /lavaGrad|emissiveCtx\.fill|emissiveCtx\.stroke/);
   assert.doesNotMatch(body, /#dc2626|#f97316|#fb923c/);
+});
+
+test('installed web-app metadata asks the host platform for landscape', () => {
+  const manifest=JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.webmanifest'), 'utf8'));
+  assert.equal(manifest.orientation,'landscape');
+  assert.equal(manifest.display,'fullscreen');
+  assert.equal(manifest.start_url,'./');
 });

@@ -1,0 +1,13 @@
+{
+  "name": "GodSmash — Planetary Destruction and Defense",
+  "short_name": "GodSmash",
+  "description": "Mobile-first planetary attack and orbital defense sandbox",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "lang": "fa",
+  "dir": "rtl"
+}
