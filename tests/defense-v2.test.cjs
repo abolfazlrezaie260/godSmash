@@ -138,3 +138,24 @@ test('capped six-unit fleet, no default units and disabled mode never fires',()=
   engine.configure({enabled:true});
   assert.equal(engine.getUnits().length,6);
 });
+
+test('laser tracks visibly, then deals repeated smaller hits separated by cooldown',()=>{
+  const engine=build();
+  engine.addSatellite({typeId:'orbital-laser',anchor:{x:1,y:0,z:0}});
+  const incoming=target('tracked',{x:17,y:0,z:0},1.9,{damage:3,speed:.8});
+  assert.equal(engine.step(.05,[incoming]).length,0,'cannot instantly explode new target');
+  assert.ok(engine.getUnits()[0].lockProgress>0,'charge stage is observable');
+  let elapsed=.05;
+  const hitTimes=[];
+  while(elapsed<6 && !incoming.destroyed){
+    const events=engine.step(.05,[incoming]);
+    elapsed+=.05;
+    if(events.length)hitTimes.push(elapsed);
+  }
+  assert.ok(hitTimes.length>=4,'one defensive laser needs several bursts');
+  assert.ok(hitTimes[0]>=.85,'initial target acquisition takes noticeable time');
+  for(let i=1;i<hitTimes.length;i++)
+    assert.ok(hitTimes[i]-hitTimes[i-1]>=.8,'cooldown separates visual laser bursts');
+  assert.equal(incoming.destroyed,true);
+  assert.equal(engine.getState().interceptions,1);
+});
