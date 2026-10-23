@@ -134,7 +134,10 @@
         label:t.weapon?.nameFa||'جسم مهاجم',progress:t.progress||0,
         distance:Math.max(0,Math.sqrt(lenSq(t.position))-radius),
         speed:speed(t),damage:strength(t),
-        eta:Math.max(0,(1-(t.progress||0))/Math.max(0.001,speed(t)))
+        // Approximate game-time ETA: flight pace slows path progress, even
+        // though the physical/arcade impact-speed scalar remains unchanged.
+        eta:Math.max(0,(1-(t.progress||0))/
+          Math.max(0.001,speed(t)*(t.flight?.pace||t.weapon?.flightPace||1)))
       }));
     }
     function step(dt,targets=[],onShot) {
