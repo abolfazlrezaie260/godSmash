@@ -27,7 +27,7 @@
     }
     const maxCount = Math.max(...type.allowedCounts);
     let enabled = options.enabled !== false;
-    let count = type.allowedCounts.includes(options.count) ? options.count : type.defaultCount;
+    let count = type.allowedCounts.includes(options.count) ? options.count : 0;
     let elapsed=0, totalShots=0, interceptions=0;
     const units=Array.from({length:maxCount}, (_,i)=>({
       id:'defence-'+i, phase:0, cooldown:0, position:{x:0,y:0,z:0},
@@ -54,6 +54,25 @@
         count=next.count;
       }
       reposition();
+    }
+    function addSatellite() {
+      if(count>=maxCount) return false;
+      if(!type.allowedCounts.includes(count+1)) return false;
+      count++;
+      reposition();
+      return true;
+    }
+    function removeSatellite() {
+      if(count<=0) return false;
+      if(!type.allowedCounts.includes(count-1)) return false;
+      count--;
+      // A removed satellite may be redeployed later without old cooldown or history.
+      const unused=units[count];
+      unused.cooldown=0;
+      unused.shots=0;
+      unused.phase=0;
+      reposition();
+      return true;
     }
     function reset() {
       elapsed=0;totalShots=0;interceptions=0;
@@ -107,7 +126,7 @@
 
     reposition();
     return Object.freeze({
-      step,reset,configure,visibleLine,
+      step,reset,configure,addSatellite,removeSatellite,visibleLine,
       getUnits:()=>units.filter(u=>u.active&&enabled).map(u=>({id:u.id,position:{...u.position}})),
       getState:()=>Object.freeze({
         typeId:type.id, enabled, count, totalShots, interceptions,
