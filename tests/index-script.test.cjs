@@ -14,7 +14,15 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.ok(html.includes('src="./src/defense/orbital-defense-renderer.js"'));
   assert.ok(html.includes('id="defense-modal"'));
   assert.ok(html.includes('id="btn-defenses"'));
-  assert.ok(html.includes('id="defense-counts"'));
+  assert.ok(html.includes('id="defense-add"'));
+  assert.ok(html.includes('id="defense-remove"'));
+  assert.ok(html.includes('id="defense-count"'));
+  assert.doesNotMatch(html, /id="defense-counts"/);
+  assert.match(match[1], /count: 0/);
+  assert.match(match[1], /orbitalDefense\.addSatellite\(\)/);
+  assert.match(match[1], /orbitalDefense\.removeSatellite\(\)/);
+  assert.match(match[1], /defenseCountsByPlanet\.set/);
+  assert.match(match[1], /defenseCountsByPlanet\.get\(p\.id\)/);
   assert.match(match[1], /GodSmashOrbitalDefense\.createSystem/);
   assert.match(match[1], /GodSmashOrbitalDefenseRenderer\.createRenderer/);
   assert.match(match[1], /orbitalDefense\.step\(dt, activeMissiles/);
