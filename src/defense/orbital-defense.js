@@ -62,6 +62,7 @@
       const anchor=normalized(input.anchor||fallback);
       const id='defence-'+(++counter);
       const unit={id,typeId,type,anchor,phase:0,cooldown:0,shots:0,
+        lockTargetId:null,lockElapsed:0,
         position:{x:0,y:0,z:0}};
       orbitalPosition(unit);
       units.push(unit);
@@ -111,7 +112,10 @@
     }
     function reset() {
       elapsed=0;shots=0;interceptions=0;
-      for(const u of units){u.cooldown=0;u.shots=0;orbitalPosition(u);}
+      for(const u of units){
+        u.cooldown=0;u.shots=0;u.lockTargetId=null;u.lockElapsed=0;
+        orbitalPosition(u);
+      }
     }
     const activeTarget=t => !!t&&!t.destroyed&&t.health>0&&t.position&&
       t.incoming!==false&&t.progress<1.001&&lenSq(t.position)>=radius*radius*.98;
@@ -148,30 +152,46 @@
       const ordered=targets.filter(activeTarget).sort((a,b)=>score(a)-score(b)||
         String(a.id).localeCompare(String(b.id)));
       for(const u of units) {
-        if(u.cooldown>0||events.length>=maxCount)continue;
+        if(events.length>=maxCount)break;
         const rangeSq=u.type.range*u.type.range;
-        for(const target of ordered) {
-          if(!activeTarget(target))continue;
-          if(distSq(u.position,target.position)>rangeSq)continue;
-          if(!visibleLine(u.position,target.position,radius*.975))continue;
-          if(u.type.mode==='shield') {
-            const radial=normalized(target.position);
-            const emitter=normalized(u.position);
-            const coverage=dot(radial,emitter);
-            // Coverage is localized; only projectiles very close to the atmosphere qualify.
-            if(coverage<.84||Math.sqrt(lenSq(target.position))>radius+2.4)continue;
+        // Hold a visible target through acquisition even if another threat passes.
+        // Invalid/occluded targets cancel lock rather than receiving phantom hits.
+        const eligible=target=>{
+          if(!activeTarget(target) || distSq(u.position,target.position)>rangeSq ||
+             !visibleLine(u.position,target.position,radius*.975))return false;
+          if(u.type.mode==='shield'){
+            const radial=normalized(target.position),emitter=normalized(u.position);
+            if(dot(radial,emitter)<.84 || Math.sqrt(lenSq(target.position))>radius+2.4)
+              return false;
           }
-          target.health=Math.max(0,target.health-u.type.damage);
-          if(target.health<=0){target.destroyed=true;interceptions++;}
-          u.cooldown=u.type.cooldown;u.shots++;shots++;
-          const event={unitId:u.id,typeId:u.typeId,mode:u.type.mode,
-            color:u.type.beamColor,targetId:target.id,
-            from:{...u.position},to:{...target.position},destroyed:!!target.destroyed,
-            remainingHealth:target.health};
-          events.push(event);
-          if(typeof onShot==='function')onShot(event);
-          break;
+          return true;
+        };
+        const locked=ordered.find(t=>t.id===u.lockTargetId && eligible(t));
+        const target=locked||ordered.find(eligible);
+        if(!target){
+          u.lockTargetId=null;
+          u.lockElapsed=0;
+          continue;
         }
+        if(target.id!==u.lockTargetId){
+          u.lockTargetId=target.id;
+          u.lockElapsed=0;
+        }
+        if(u.cooldown>0)continue;
+        u.lockElapsed+=delta;
+        if(u.lockElapsed+1e-9<u.type.lockTime)continue;
+        target.health=Math.max(0,target.health-u.type.damage);
+        if(target.health<=0){target.destroyed=true;interceptions++;}
+        u.cooldown=u.type.cooldown;
+        u.lockTargetId=null;
+        u.lockElapsed=0;
+        u.shots++;shots++;
+        const event={unitId:u.id,typeId:u.typeId,mode:u.type.mode,
+          color:u.type.beamColor,targetId:target.id,
+          from:{...u.position},to:{...target.position},destroyed:!!target.destroyed,
+          remainingHealth:target.health};
+        events.push(event);
+        if(typeof onShot==='function')onShot(event);
       }
       return events;
     }
@@ -179,7 +199,8 @@
       step,reset,configure,addSatellite,removeSatellite,loadDeployment,
       exportDeployment,setPriority,getRadar,visibleLine,
       getUnits:()=>enabled?units.map(u=>({id:u.id,typeId:u.typeId,
-        position:{...u.position},anchor:{...u.anchor}})):[],
+        position:{...u.position},anchor:{...u.anchor},
+        lockProgress:clamp(u.lockElapsed/u.type.lockTime,0,1)})):[],
       getState:()=>Object.freeze({typeId:initialType.id,enabled,count:units.length,
         maxCount,totalShots:shots,interceptions,elapsed,priority})
     });
