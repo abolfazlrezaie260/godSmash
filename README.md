@@ -233,3 +233,20 @@ Protective satellites have distinct `lockTime`, `cooldown` and `damage` settings
 The explosion renderer now uses staged envelopes from `src/render/impact-timing.js`: short ignition flash, growing hot fireball, outward pressure rings, delayed dark swirling ash and a slow fade. A typical impact lasts **4.8 seconds in low-detail mode or 6.0 seconds in high-detail mode**; large planetary ruptures last longer. Pressure rings are subtle rather than gigantic bright red disks, and detached rock is largely charcoal-coloured instead of neon orange. Pooled, dark dust sprites rise after the first combustion in two short bursts and persist for several seconds without exceeding adaptive particle caps.
 
 This is deliberately a cinematic arcade treatment, **not a scientifically correct explosion or orbital-interception simulation**. Unit tests cover target-lock waiting, multi-hit interception, per-weapon flight time, 0.5×/2× scaling, phase timing, dust lifetime/pooling and resource cleanup. Browser visual inspection and real-device Android/tablet FPS profiling remain required to validate the subjective realism and performance.
+
+
+### Default cinematic flight timings at 1× (tuned October 2026)
+
+The deterministic model now yields the following **approximate simulated game durations** when stepping at 60 FPS; individual frame timing and live targeting can vary with environment. This is an arcade pacing target, not a real-world travel calculation.
+
+| Weapon | Flight duration |
+| --- | ---: |
+| ICBM | 5.07 s |
+| Swift | 5.13 s |
+| Winged | 6.12 s |
+| Asteroid | 7.07 s |
+| Titan | 6.95 s |
+| Viper | 4.85 s |
+| Nova | 4.63 s |
+
+Laser satellites begin with an approximately **0.86 s acquisition period**, then keep the lock on a surviving, still-visible target and fire follow-up bursts after an approximately **0.88 s cooldown**; each laser hit deals a limited `0.58` points of arcade durability damage. The first shot and subsequent pulses are therefore visually separate instead of instantly destroying most missiles. Other defence classes retain distinct timing, range and strength characteristics. At 0.5× game speed these game events take approximately twice as long in real time; at 2× they take roughly half as long.
