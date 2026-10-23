@@ -104,7 +104,7 @@ test('zero defenders at launch: only player add actions deploy orbiting intercep
   assert.equal(engine.getState().count,0);
   assert.deepEqual(engine.getUnits(),[]);
   assert.equal(engine.step(0.05,[target('hostile',{x:16,y:0,z:0})]).length,0);
-  assert.equal(engine.addSatellite(),true);
+  assert.match(engine.addSatellite(),/^defence-\\d+$/);
   assert.equal(engine.getState().count,1);
   assert.equal(engine.getUnits().length,1);
   const hostile=guaranteedTarget(engine);
@@ -122,7 +122,7 @@ test('deployment never exceeds a six-unit capacity and removal is incremental',(
   const type=catalog.getType('orbital-laser');
   const engine=createSystem({type,planetRadius:10,enabled:true,count:0});
   for(let n=1;n<=6;n++){
-    assert.equal(engine.addSatellite(),true);
+    assert.match(engine.addSatellite(),/^defence-\\d+$/);
     assert.equal(engine.getState().count,n);
     assert.equal(engine.getUnits().length,n);
   }
@@ -130,7 +130,7 @@ test('deployment never exceeds a six-unit capacity and removal is incremental',(
   assert.equal(engine.getState().count,6);
   assert.equal(engine.removeSatellite(),true);
   assert.equal(engine.getState().count,5);
-  assert.equal(engine.addSatellite(),true);
+  assert.match(engine.addSatellite(),/^defence-\\d+$/);
   assert.equal(engine.getState().count,6);
   engine.configure({enabled:false});
   assert.equal(engine.getUnits().length,0);
