@@ -86,7 +86,7 @@ test('touch targeting coordinates map correctly after clockwise CSS rotation',()
 test('native landscape lock is best effort and does not prevent fallback',async()=>{
   const h=harness();
   h.listeners.get('pointerdown')();
-  await Promise.resolve();
+  await new Promise(resolve=>setImmediate(resolve));
   assert.deepEqual(h.calls,['landscape']);
   h.controller.tryNativeLock();
   assert.equal(h.calls.length,1);
@@ -102,4 +102,40 @@ test('rotation utility validates input and unrotated landscape dimensions',()=>{
   assert.equal(landscape.wantsRotation(390,844,false),false);
   assert.equal(landscape.wantsRotation(0,0,true),false);
   assert.throws(()=>landscape.mount({}),TypeError);
+});
+
+test('upside-down portrait updates CSS direction and preserves touch coordinates',()=>{
+  const h=harness();
+  h.view.screen.orientation.type='portrait-secondary';
+  h.rotate();
+  assert.equal(h.classes.has('is-counterclockwise'),true);
+  assert.equal(h.controller.isRotated(),true);
+  const rect={left:0,top:0,right:390,bottom:844,width:390,height:844};
+  assert.deepEqual(h.controller.point(0,844,rect),{x:0,y:0});
+  assert.deepEqual(h.controller.point(390,0,rect),{x:1,y:1});
+  assert.deepEqual(h.controller.delta(20,10),{x:-10,y:20});
+  h.view.screen.orientation.type='portrait-primary';
+  h.rotate();
+  assert.equal(h.classes.has('is-counterclockwise'),false);
+});
+
+test('native orientation lock can enter fullscreen after user interaction',async()=>{
+  const h=harness();
+  h.controller.dispose();
+  const calls=[];
+  const document={fullscreenElement:null,documentElement:{
+    requestFullscreen(){
+      calls.push('fullscreen');
+      document.fullscreenElement=this;
+      return Promise.resolve();
+    }
+  }};
+  h.view.screen.orientation.lock=async mode=>{calls.push(mode);};
+  const controller=landscape.mount({
+    view:h.view,document,shell:h.shell,onResize:()=>{}
+  });
+  h.listeners.get('pointerdown')();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(calls,['fullscreen','landscape']);
+  controller.dispose();
 });
