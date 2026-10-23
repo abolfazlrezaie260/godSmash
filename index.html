@@ -1774,6 +1774,21 @@
 
         if (hits.length > 0) {
           const hitPoint = hits[0].point;
+          if(awaitingDefensePlacement){
+            const anchor=hitPoint.clone().normalize();
+            const id=orbitalDefense.addSatellite({
+              typeId:selectedDefenseTypeId,
+              anchor:{x:anchor.x,y:anchor.y,z:anchor.z}
+            });
+            if(id){
+              saveDefenseFleet();
+              configureDefense({enabled:true});
+              showImpactToast('ماهواره '+defenseCatalog.getType(selectedDefenseTypeId).nameFa+
+                ' در مدار '+planet.nameFa+' مستقر شد.');
+            }
+            cancelDefensePlacement();
+            return;
+          }
           if (state.salvoMode) {
             // Fire 3 missiles of the exact same ICBM type in a tight cluster
             for (let s = 0; s < 3; s++) {
@@ -2013,13 +2028,9 @@
               m.weapon.kind === 'asteroid' ? 'asteroid' : (m.weapon.visualProfile || 'strategic'));
           }
 
-          if (m.progress >= 1.0) {
-            removeMissile(m);
-            activeMissiles.splice(i, 1);
-            triggerNuclearDetonation(m.localTarget, m.localNormal, m.weapon, {
-              speed: m.flight.velocity, direction: flightDirection
-            });
-          }
+          // Delay the physical impact until after defence systems have had their
+          // current simulated frame to intercept this arriving projectile.
+          if (m.progress >= 1.0) m.impactDirection = flightDirection.clone();
         }
 
         // Orbital defenders fire only at still-incoming physical projectiles.
@@ -2027,7 +2038,7 @@
         let defenseShotsCount = 0;
         if (!state.shattered) {
           orbitalDefense.step(dt, activeMissiles, evt => {
-            defenseVisuals.fire(evt.from, evt.to);
+            defenseVisuals.fire(evt.from, evt.to, evt.mode, evt.color);
             defenseShotsCount++;
           });
           defenseVisuals.sync(orbitalDefense.getUnits());
@@ -2041,8 +2052,24 @@
             activeMissiles.splice(i,1);
           }
         }
+        // Surviving targets reaching the surface now complete their impact.
+        // Destroyed projectiles were removed above, so damage is not applied.
+        for(let i=activeMissiles.length-1;i>=0;i--){
+          const m=activeMissiles[i];
+          if(m.progress<1)continue;
+          removeMissile(m);
+          activeMissiles.splice(i,1);
+          triggerNuclearDetonation(m.localTarget,m.localNormal,m.weapon,{
+            speed:m.flight.velocity,
+            direction:m.impactDirection || new THREE.Vector3(0,0,-1)
+          });
+        }
         defenseVisuals.update(dt);
         if (defenseShotsCount) refreshDefenseHUD();
+        if(!defenceModal.hidden){
+          radarClock+=dt;
+          if(radarClock>=.28){radarClock=0;updateDefenseRadar();}
+        }
 
         // 4. Update soft smoke sprites and short-lived hot exhaust fragments.
         rocketFx.update(dt);
