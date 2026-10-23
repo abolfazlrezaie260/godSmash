@@ -11,6 +11,14 @@ function target(id,position,health=1,weapon={damage:4,speed:1}){
   return {id,position:{...position},health,progress:.6,incoming:true,
     destroyed:false,weapon,flight:{velocity:weapon.speed}};
 }
+function advanceShot(engine,contacts,limit=100){
+  for(let i=0;i<limit;i++){
+    const events=engine.step(.05,contacts);
+    if(events.length)return events;
+  }
+  return [];
+}
+
 test('all three defence categories are implemented and differ in cost/behavior',()=>{
   assert.deepEqual(types.map(t=>t.mode),['laser','interceptor','shield']);
   assert.ok(types[1].damage>types[0].damage);
@@ -57,10 +65,12 @@ test('heavy interceptor destroys armoured threat faster than laser',()=>{
   const laser=build(),heavy=build();
   laser.addSatellite({typeId:'orbital-laser',anchor:{x:1,y:0,z:0}});
   heavy.addSatellite({typeId:'orbital-interceptor',anchor:{x:1,y:0,z:0}});
-  const one=target('one',{x:17,y:0,z:0},2.6);
-  const two=target('two',{x:17,y:0,z:0},2.6);
-  const resultLaser=laser.step(.01,[one]);
-  const resultHeavy=heavy.step(.01,[two]);
+  const one=target('one',{x:17,y:0,z:0},1.6);
+  const two=target('two',{x:17,y:0,z:0},1.6);
+  assert.equal(laser.step(.01,[one]).length,0);
+  assert.equal(heavy.step(.01,[two]).length,0);
+  const resultLaser=advanceShot(laser,[one]);
+  const resultHeavy=advanceShot(heavy,[two]);
   assert.equal(resultLaser[0].mode,'laser');
   assert.equal(resultHeavy[0].mode,'interceptor');
   assert.equal(one.destroyed,false);
@@ -76,7 +86,8 @@ test('shield only protects a local near-surface zone, with recharge time',()=>{
   const wrongSide=target('back',{x:-10.2,y:0,z:0},5);
   assert.equal(engine.step(.01,[wrongSide]).length,0);
   const near=target('near',{x:10.7,y:0,z:0},3);
-  assert.equal(engine.step(.01,[near]).length,1);
+  assert.equal(engine.step(.01,[near]).length,0,'shield first detects the local threat');
+  assert.equal(advanceShot(engine,[near]).length,1);
   assert.equal(near.destroyed,true);
   assert.equal(engine.step(.01,[target('new',{x:10.8,y:0,z:0},3)]).length,0,
     'shield requires recharge');
@@ -96,7 +107,7 @@ test('radar priorities change which in-range threat is intercepted first',()=>{
     engine.setPriority(policy);
     const contacts=data.map(t=>target(t.id,t.position,1,t.weapon));
     assert.equal(engine.getRadar(contacts)[0].id,expected);
-    assert.equal(engine.step(.01,contacts)[0].targetId,expected);
+    assert.equal(advanceShot(engine,contacts)[0].targetId,expected);
     assert.equal(engine.getState().priority,policy);
   }
   assert.throws(()=>build().setPriority('invalid'),RangeError);
