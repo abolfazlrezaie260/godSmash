@@ -14,6 +14,7 @@
     if (!p || ![p.x,p.y,p.z].every(Number.isFinite)) throw new TypeError('Invalid orbit anchor');
     const mag = Math.sqrt(lenSq(p));
     if (mag<1e-6) throw new RangeError('Orbit anchor must not be zero');
+    if(Math.abs(mag-1)<1e-12)return {x:p.x,y:p.y,z:p.z};
     return {x:p.x/mag,y:p.y/mag,z:p.z/mag};
   }
   function visibleLine(from,to,planetRadius) {
