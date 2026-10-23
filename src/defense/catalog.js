@@ -27,12 +27,31 @@
 
   registerType({
     id: 'orbital-laser', category: 'satellites',
-    nameFa: 'رهگیر مداری', nameEn: 'Orbital Interceptor',
+    nameFa: 'ماهواره لیزری', nameEn: 'Orbital Laser',
     descriptionFa: 'شناسایی پرتابه‌های ورودی و انهدام آن‌ها با لیزر دفاعی',
     orbitRadius: 13.3, range: 19, damage: 0.95,
     cooldown: 0.42, angularSpeed: 0.19, maxShotsPerStep: 6,
     allowedCounts: [0, 1, 2, 3, 4, 5, 6], defaultCount: 0,
-    beamColor: '#38e8ff'
+    beamColor: '#38e8ff', mode: 'laser'
+  });
+
+  registerType({
+    id: 'orbital-interceptor', category: 'satellites',
+    nameFa: 'رهگیر موشکی', nameEn: 'Interceptor',
+    descriptionFa: 'ضربه سنگین به شهاب‌سنگ‌ها و پرتابه‌های زرهی؛ شلیک کندتر',
+    orbitRadius: 13.5, range: 21, damage: 2.8,
+    cooldown: 1.55, angularSpeed: 0.15, maxShotsPerStep: 4,
+    allowedCounts: [0,1,2,3,4,5,6], defaultCount: 0,
+    beamColor: '#ffae65', mode: 'interceptor'
+  });
+  registerType({
+    id: 'orbital-shield', category: 'satellites',
+    nameFa: 'ماهواره سپرساز', nameEn: 'Shield Projector',
+    descriptionFa: 'حفاظت منطقه‌ای نزدیک سطح سیاره با سپر انرژی قابل شارژ',
+    orbitRadius: 12.6, range: 7.5, damage: 12,
+    cooldown: 2.65, angularSpeed: 0.085, maxShotsPerStep: 3,
+    allowedCounts: [0,1,2,3,4,5,6], defaultCount: 0,
+    beamColor: '#91ffba', mode: 'shield'
   });
 
   const api = Object.freeze({
