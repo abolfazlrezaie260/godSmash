@@ -79,7 +79,7 @@ test('catalogued weapons have longer, distinct visible flight durations', () => 
     }
     results[weapon.id]=wallSeconds;
     assert.ok(flight.finished,weapon.id+' must still reach its target');
-    assert.ok(wallSeconds>=2.9,weapon.id+' should be visible for several seconds');
+    assert.ok(wallSeconds>=4.5,weapon.id+' should be visible for at least several seconds');
     assert.ok(wallSeconds<20,weapon.id+' should not take excessively long');
     assert.ok(flight.pace>0 && flight.pace<1);
   }
