@@ -262,6 +262,45 @@
     #defense-add:disabled, #defense-remove:disabled {
       opacity: .42; cursor: not-allowed; transform: none;
     }
+    #defense-types { grid-template-columns: repeat(3,minmax(0,1fr)); }
+    .defense-type { min-height: 80px; text-align: center; display: flex;
+      flex-direction: column; gap: 5px; align-items: center; justify-content: center;
+      font-size: 12px; line-height: 1.6; padding: 9px 6px; }
+    .defense-type small { font-size: 10px; color: #94a3b8; }
+    .defense-priority {
+      flex: 1; min-height: 44px; padding: 8px 5px; font-size: 12px;
+      border: 1px solid #334155; color: #e2e8f0;
+      background: #172238; border-radius: 10px;
+    }
+    .defense-priority[aria-pressed="true"] { border-color: #67e8f9;
+      background: rgba(14,116,144,.4); color: #e0f2fe; }
+    .defense-radar { width: 122px; height: 122px; flex-shrink: 0;
+      border-radius: 50%; position: relative; overflow: hidden;
+      border: 1px solid rgba(34,211,238,.4);
+      background: radial-gradient(circle at center,rgba(6,78,97,.25) 0 18%,
+        transparent 19% 35%,rgba(8,145,178,.17) 36% 37%,
+        transparent 38% 65%,rgba(8,145,178,.3) 66% 67%,
+        rgba(2,6,23,.9) 68%);
+    }
+    .defense-radar::before { content: ''; position: absolute;
+      inset: 0; top: 50%; height: 1px; background: rgba(34,211,238,.25); }
+    .defense-radar::after { content: ''; position: absolute;
+      width: 1px; left: 50%; top: 0; bottom: 0; background: rgba(34,211,238,.25); }
+    .defense-radar-dot { position: absolute; width: 8px; height: 8px;
+      border: 1px solid #fb923c; background: #f97316; border-radius: 50%;
+      transform: translate(-50%,-50%); box-shadow: 0 0 7px #ea580c; }
+    #defense-placement-banner[hidden] { display: none; }
+    #defense-placement-banner { z-index: 75; position: fixed; top: max(82px,env(safe-area-inset-top));
+      left: 50%; transform: translateX(-50%); width: min(94vw,430px);
+      display: flex; gap: 9px; align-items: center; justify-content: space-between;
+      background: #0c2735; border: 1px solid #22d3ee; padding: 10px;
+      color: #e0f2fe; border-radius: 14px; box-shadow: 0 6px 22px #000a; }
+    #defense-placement-cancel { min-width: 58px; min-height: 44px; border-radius: 10px;
+      border: 1px solid #64748b; padding: 8px; }
+    @media (max-width: 420px) {
+      .defense-panel { padding: 14px; }
+      #defense-types { grid-template-columns: repeat(3,minmax(0,1fr)); }
+    }
     /* Mobile and tablet are primary targets: large tap controls and safe-area padding. */
     button, select { touch-action: manipulation; }
     #planet-modal[hidden] { display: none; }
@@ -484,18 +523,33 @@
         <input id="defense-enabled" type="checkbox" checked class="accent-cyan-400 w-4 h-4" />
         فعال‌سازی سامانه دفاعی
       </label>
-      <h3 class="text-xs font-bold mb-2 text-cyan-300">دسته سامانه دفاعی</h3>
-      <div id="defense-types" class="grid gap-2 mb-4"></div>
+      <h3 class="text-xs font-bold mb-2 text-cyan-300">نوع ماهواره دفاعی</h3>
+      <div id="defense-types" class="grid gap-2 mb-4" role="group" aria-label="انتخاب نوع ماهواره"></div>
       <h3 class="text-xs font-bold mb-2 text-cyan-300">استقرار ماهواره‌ها</h3>
       <div class="flex items-center justify-between gap-2 mb-2 p-3 rounded-xl bg-slate-900/80 border border-slate-700">
         <span class="text-sm">مستقر شده: <strong id="defense-count" class="num-mono text-cyan-300" aria-live="polite">۰ / ۶</strong></span>
         <span class="text-xs text-slate-400">حداکثر ۶ رهگیر</span>
       </div>
       <div class="grid grid-cols-2 gap-2 mb-3">
-        <button id="defense-add" type="button" class="hud-btn rounded-xl border border-cyan-500/60 bg-cyan-900/40 text-cyan-100 font-bold text-sm min-h-[52px] px-3" aria-label="افزودن یک ماهواره دفاعی به مدار">+ افزودن ماهواره</button>
+        <button id="defense-add" type="button" class="hud-btn rounded-xl border border-cyan-500/60 bg-cyan-900/40 text-cyan-100 font-bold text-sm min-h-[52px] px-3" aria-label="انتخاب محل استقرار ماهواره روی سیاره">+ انتخاب محل استقرار</button>
         <button id="defense-remove" type="button" class="hud-btn rounded-xl border border-slate-500/60 bg-slate-800 text-slate-200 font-semibold text-sm min-h-[52px] px-3" aria-label="حذف یک ماهواره دفاعی از مدار">− حذف ماهواره</button>
       </div>
-      <p class="text-xs text-slate-400 mb-4">هر سیاره ماهواره‌های مخصوص خود را دارد؛ انتخاب سیاره دیگر تعداد آن‌ها را تغییر نمی‌دهد.</p>
+      <p class="text-xs text-slate-400 mb-4">نوع ماهواره را مشخص کنید، سپس «انتخاب محل استقرار» را بزنید و یک نقطه روی سیاره لمس کنید. هر سیاره آرایش دفاعی خود را حفظ می‌کند.</p>
+      <h3 class="text-xs font-bold mb-2 text-cyan-300">اولویت هدف‌گیری خودکار</h3>
+      <div id="defense-priorities" class="flex gap-2 mb-3" role="group" aria-label="اولویت هدف‌های رادار">
+        <button class="defense-priority" type="button" data-priority="nearest">نزدیک‌ترین</button>
+        <button class="defense-priority" type="button" data-priority="fastest">سریع‌ترین</button>
+        <button class="defense-priority" type="button" data-priority="strongest">مخرب‌ترین</button>
+      </div>
+      <h3 class="text-xs font-bold mb-2 text-cyan-300">رادار تهدیدهای ورودی</h3>
+      <div class="flex gap-3 items-center mb-3">
+        <div class="defense-radar" id="defense-radar" aria-hidden="true"></div>
+        <div class="flex-1 text-xs text-slate-300 min-w-0">
+          <div>تهدیدهای شناسایی‌شده: <b id="defense-radar-count" class="text-cyan-300">۰</b></div>
+          <div id="defense-threat-list" class="mt-2 flex flex-col gap-1 text-slate-400"
+            aria-live="off">در حال حاضر تهدیدی وجود ندارد</div>
+        </div>
+      </div>
       <div class="text-xs text-slate-400 border-t border-slate-700 pt-3">
         شلیک‌های دفاعی: <strong id="defense-shots" class="text-cyan-200">۰</strong>
         <span class="mx-2">|</span> رهگیری موفق: <strong id="defense-intercepts" class="text-cyan-200">۰</strong>
@@ -503,6 +557,10 @@
     </section>
   </div>
 
+  <div id="defense-placement-banner" hidden dir="rtl" role="status">
+    <span id="defense-placement-instruction" class="text-sm">برای استقرار ماهواره روی سیاره لمس کنید</span>
+    <button id="defense-placement-cancel" type="button">لغو</button>
+  </div>
   <div id="planet-modal" class="planet-modal" hidden>
     <section class="planet-sheet" role="dialog" aria-modal="true"
       aria-labelledby="planet-modal-title" dir="rtl" tabindex="-1">
