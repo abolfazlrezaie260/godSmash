@@ -35,7 +35,7 @@ class Mesh extends Node {
 }
 const THREE={
  Group:Node,Mesh,Vector3,
- CylinderGeometry:Geometry,BoxGeometry:Geometry,
+ CylinderGeometry:Geometry,BoxGeometry:Geometry,TorusGeometry:Geometry,
  MeshStandardMaterial:Material,MeshBasicMaterial:Material,
  AdditiveBlending:2
 };
@@ -47,8 +47,8 @@ test('satellite and beam visuals share geometry and dispose owned resources exac
  assert.equal(scene.children.length,5,'satellite root plus four pooled beams');
  const count=allocated.geometries.length;
  const mats=allocated.materials.length;
- assert.equal(count,9,'eight armoured defensive structures plus one shared beam geometry');
- assert.equal(mats,11,'seven armoured-satellite materials and four independent beam materials');
+ assert.equal(count,10,'nine shared defence geometries plus the beam geometry');
+ assert.equal(mats,13,'nine shared defence materials plus four independent beam materials');
 
  const units=[
   {id:'d0',position:{x:13,y:0,z:0}},
