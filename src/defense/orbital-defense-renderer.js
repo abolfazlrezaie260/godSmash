@@ -21,7 +21,8 @@
     const podGeo=new THREE.BoxGeometry(0.21,0.35,0.46);
     const braceGeo=new THREE.BoxGeometry(0.54,0.10,0.13);
     const sensorGeo=new THREE.BoxGeometry(0.19,0.14,0.19);
-    const geometries=[hullGeo,armourGeo,turretGeo,barrelGeo,muzzleGeo,podGeo,braceGeo,sensorGeo];
+    const ringGeo=new THREE.TorusGeometry(0.59,0.057,6,24);
+    const geometries=[hullGeo,armourGeo,turretGeo,barrelGeo,muzzleGeo,podGeo,braceGeo,sensorGeo,ringGeo];
 
     const hullMat=new THREE.MeshStandardMaterial({color:0x475569,metalness:0.75,roughness:0.32});
     const armourMat=new THREE.MeshStandardMaterial({color:0x1f2937,metalness:0.62,roughness:0.43,flatShading:true});
@@ -35,8 +36,17 @@
       color:0xf59e0b,emissive:0x92400e,emissiveIntensity:0.45,roughness:0.3
     });
     const detailMat=new THREE.MeshStandardMaterial({color:0x0c4a6e,metalness:0.74,roughness:0.35});
-    const materials=[hullMat,armourMat,turretMat,gunMat,lensMat,sensorMat,detailMat];
+    const shieldMat=new THREE.MeshBasicMaterial({
+      color:0x8dffc0,transparent:true,opacity:.67,depthWrite:false,
+      blending:THREE.AdditiveBlending
+    });
+    const interceptorMat=new THREE.MeshStandardMaterial({
+      color:0xc18c57,metalness:.72,roughness:.35
+    });
+    const materials=[hullMat,armourMat,turretMat,gunMat,lensMat,sensorMat,detailMat,
+      shieldMat,interceptorMat];
     const models=[];
+    const variants=[];
     for(let i=0;i<maxUnits;i++){
       const drone=new THREE.Group();
       drone.name='Armoured defence interceptor '+(i+1);
@@ -74,6 +84,26 @@
         lens.position.set(sign*0.48,0.07,0.73);
         drone.add(lens);
       }
+      const interceptorParts=new THREE.Group();
+      interceptorParts.name='Heavy interceptor launchers';
+      for(const sign of [-1,1]){
+        const pod=new THREE.Mesh(podGeo,interceptorMat);
+        pod.name='Armoured missile launcher';
+        pod.scale.set(.92,1.24,1.45);
+        pod.position.set(sign*.57,.02,-.2);
+        interceptorParts.add(pod);
+      }
+      drone.add(interceptorParts);
+      const shieldParts=new THREE.Group();
+      shieldParts.name='Energy shield emitters';
+      const ring=new THREE.Mesh(ringGeo,shieldMat);
+      ring.name='Defence energy ring';
+      ring.rotation.x=Math.PI/2;
+      shieldParts.add(ring);
+      drone.add(shieldParts);
+      variants.push({interceptorParts,shieldParts,gunParts:drone.children.filter(
+        x=>x.name==='Forward laser cannon'||x.name==='Cyan laser emitter'
+      )});
       const sensor=new THREE.Mesh(sensorGeo,sensorMat);
       sensor.name='Threat detection sensor';
       sensor.position.set(0,0.67,-0.08);
@@ -112,11 +142,17 @@
         const m=models[i];
         m.visible=!!unit;
         if(!unit)continue;
+        const v=variants[i];
+        const heavy=unit.typeId==='orbital-interceptor';
+        const shield=unit.typeId==='orbital-shield';
+        v.interceptorParts.visible=heavy;
+        v.shieldParts.visible=shield;
+        for(const p of v.gunParts)p.visible=!shield;
         m.position.set(unit.position.x,unit.position.y,unit.position.z);
         m.lookAt(0,0,0);
       }
     }
-    function fire(from,to) {
+    function fire(from,to,mode='laser',color) {
       if(disposed)return;
       const slot=beams[cursor];
       cursor=(cursor+1)%beams.length;
@@ -128,7 +164,12 @@
       slot.mesh.position.copy(midpoint.copy(start).add(finish).multiplyScalar(0.5));
       slot.mesh.quaternion.setFromUnitVectors(axis,direction.multiplyScalar(1/len));
       slot.mesh.scale.set(1,len,1);
-      slot.mesh.material.opacity=0.94;
+      const beamColors={laser:0x38e8ff,interceptor:0xffaa64,shield:0x8dffc0};
+      const tint=beamColors[mode]||beamColors.laser;
+      if(slot.mesh.material.color && typeof slot.mesh.material.color.set==='function')
+        slot.mesh.material.color.set(color||tint);
+      else slot.mesh.material.color=tint;
+      slot.mesh.material.opacity=mode==='shield'?.68:.94;
       slot.remaining=slot.life;
       slot.mesh.visible=true;
     }
