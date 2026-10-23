@@ -21,7 +21,8 @@ test('catalog supports future defence categories with strict validation',()=>{
   assert.equal(catalog.listTypes().length>=1,true);
   const d=catalog.getType('orbital-laser');
   assert.equal(d.category,'satellites');
-  assert.deepEqual(d.allowedCounts,[0,2,4,6]);
+  assert.deepEqual(d.allowedCounts,[0,1,2,3,4,5,6]);
+  assert.equal(d.defaultCount,0);
   assert.throws(()=>catalog.registerType({...d}),/already registered/);
   assert.throws(()=>catalog.registerType({id:'bad',category:'future',nameFa:'x',range:-1}),TypeError);
 });
@@ -50,7 +51,7 @@ test('disabled or zero satellites never shoot, while configuration takes effect 
   engine.configure({count:4});
   t=guaranteedTarget(engine);
   assert.ok(engine.step(0.016,[t]).length>0);
-  assert.throws(()=>engine.configure({count:5}),RangeError);
+  assert.throws(()=>engine.configure({count:7}),RangeError);
 });
 
 test('orbital movement respects simulation delta and cooldown prevents unlimited lasers',()=>{
@@ -95,4 +96,45 @@ test('simultaneous shots and active satellites stay inside capped budgets',()=>{
   assert.ok(engine.getState().totalShots<=6*40);
   engine.reset();
   assert.equal(engine.getState().totalShots,0);
+});
+
+test('zero defenders at launch: only player add actions deploy orbiting interceptors',()=>{
+  const type=catalog.getType('orbital-laser');
+  const engine=createSystem({type,planetRadius:10});
+  assert.equal(engine.getState().count,0);
+  assert.deepEqual(engine.getUnits(),[]);
+  assert.equal(engine.step(0.05,[target('hostile',{x:16,y:0,z:0})]).length,0);
+  assert.equal(engine.addSatellite(),true);
+  assert.equal(engine.getState().count,1);
+  assert.equal(engine.getUnits().length,1);
+  const hostile=guaranteedTarget(engine);
+  assert.equal(engine.step(0.01,[hostile]).length,1,'manually deployed drone can intercept');
+  assert.ok(hostile.destroyed);
+  engine.reset();
+  assert.equal(engine.getState().count,1,'planet repair must keep deployed fleet');
+  assert.equal(engine.getState().interceptions,0);
+  assert.equal(engine.removeSatellite(),true);
+  assert.equal(engine.getUnits().length,0);
+  assert.equal(engine.removeSatellite(),false);
+});
+
+test('deployment never exceeds a six-unit capacity and removal is incremental',()=>{
+  const type=catalog.getType('orbital-laser');
+  const engine=createSystem({type,planetRadius:10,enabled:true,count:0});
+  for(let n=1;n<=6;n++){
+    assert.equal(engine.addSatellite(),true);
+    assert.equal(engine.getState().count,n);
+    assert.equal(engine.getUnits().length,n);
+  }
+  assert.equal(engine.addSatellite(),false);
+  assert.equal(engine.getState().count,6);
+  assert.equal(engine.removeSatellite(),true);
+  assert.equal(engine.getState().count,5);
+  assert.equal(engine.addSatellite(),true);
+  assert.equal(engine.getState().count,6);
+  engine.configure({enabled:false});
+  assert.equal(engine.getUnits().length,0);
+  assert.equal(engine.getState().count,6,'turning off system must not delete fleet');
+  engine.configure({enabled:true});
+  assert.equal(engine.getUnits().length,6);
 });

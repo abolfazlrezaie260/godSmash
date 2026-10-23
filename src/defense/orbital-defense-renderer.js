@@ -1,5 +1,7 @@
-/* Lightweight orbital defence visuals, independent from combat logic.
- * Model geometries and beam meshes are shared/reused; all owned resources are disposed.
+/* Armoured orbital interceptor visuals, independent from defence combat logic.
+ * Compact faceted hull, sensor turret and paired forward laser emitters.
+ * No solar panels: this is a purpose-built fictional defensive drone.
+ * Shared geometry/materials and pooled beams bound GPU allocations on phones.
  */
 (function(root) {
   'use strict';
@@ -8,36 +10,78 @@
     const maxUnits=options.maxUnits||6;
     const maxBeams=options.maxBeams||12;
     const satelliteRoot=new THREE.Group();
-    satelliteRoot.name='Planetary defence satellites';
+    satelliteRoot.name='Planetary defence interceptors';
     scene.add(satelliteRoot);
 
-    const bodyGeometry=new THREE.CylinderGeometry(0.20,0.22,0.68,10);
-    const panelGeometry=new THREE.BoxGeometry(0.96,0.035,0.42);
-    const finGeometry=new THREE.BoxGeometry(0.12,0.12,0.58);
-    const hubMaterial=new THREE.MeshStandardMaterial({color:0x8898aa,metalness:0.78,roughness:0.28});
-    const panelMaterial=new THREE.MeshStandardMaterial({
-      color:0x124e78,metalness:0.45,roughness:0.27,
-      emissive:0x12517b,emissiveIntensity:0.18
+    const hullGeo=new THREE.CylinderGeometry(0.27,0.32,0.80,8);
+    const armourGeo=new THREE.CylinderGeometry(0.35,0.31,0.43,6);
+    const turretGeo=new THREE.CylinderGeometry(0.19,0.24,0.24,8);
+    const barrelGeo=new THREE.CylinderGeometry(0.073,0.095,0.49,8);
+    const muzzleGeo=new THREE.CylinderGeometry(0.089,0.089,0.055,10);
+    const podGeo=new THREE.BoxGeometry(0.21,0.35,0.46);
+    const braceGeo=new THREE.BoxGeometry(0.54,0.10,0.13);
+    const sensorGeo=new THREE.BoxGeometry(0.19,0.14,0.19);
+    const geometries=[hullGeo,armourGeo,turretGeo,barrelGeo,muzzleGeo,podGeo,braceGeo,sensorGeo];
+
+    const hullMat=new THREE.MeshStandardMaterial({color:0x475569,metalness:0.75,roughness:0.32});
+    const armourMat=new THREE.MeshStandardMaterial({color:0x1f2937,metalness:0.62,roughness:0.43,flatShading:true});
+    const turretMat=new THREE.MeshStandardMaterial({color:0x64748b,metalness:0.76,roughness:0.28});
+    const gunMat=new THREE.MeshStandardMaterial({color:0x111827,metalness:0.88,roughness:0.24});
+    const lensMat=new THREE.MeshStandardMaterial({
+      color:0x67e8f9,emissive:0x0891b2,emissiveIntensity:1.2,
+      metalness:0.38,roughness:0.18
     });
-    const finMaterial=new THREE.MeshStandardMaterial({color:0x475569,metalness:0.6,roughness:0.32});
+    const sensorMat=new THREE.MeshStandardMaterial({
+      color:0xf59e0b,emissive:0x92400e,emissiveIntensity:0.45,roughness:0.3
+    });
+    const detailMat=new THREE.MeshStandardMaterial({color:0x0c4a6e,metalness:0.74,roughness:0.35});
+    const materials=[hullMat,armourMat,turretMat,gunMat,lensMat,sensorMat,detailMat];
     const models=[];
     for(let i=0;i<maxUnits;i++){
-      const model=new THREE.Group();
-      model.name='Laser satellite '+(i+1);
-      const hub=new THREE.Mesh(bodyGeometry,hubMaterial);
-      model.add(hub);
+      const drone=new THREE.Group();
+      drone.name='Armoured defence interceptor '+(i+1);
+      const hull=new THREE.Mesh(hullGeo,hullMat);
+      hull.name='Armoured central hull';
+      drone.add(hull);
+      const shell=new THREE.Mesh(armourGeo,armourMat);
+      shell.name='Faceted protective plating';
+      shell.position.y=0.04;
+      drone.add(shell);
+
+      const turret=new THREE.Mesh(turretGeo,turretMat);
+      turret.name='Target tracking turret';
+      turret.position.y=0.50;
+      drone.add(turret);
+
+      // Short compact protection pods instead of civilian solar arrays.
       for(const sign of [-1,1]){
-        const panel=new THREE.Mesh(panelGeometry,panelMaterial);
-        panel.position.x=sign*0.71;
-        model.add(panel);
-        const mount=new THREE.Mesh(finGeometry,finMaterial);
-        mount.rotation.y=Math.PI/2;
-        mount.position.x=sign*0.32;
-        model.add(mount);
+        const brace=new THREE.Mesh(braceGeo,detailMat);
+        brace.position.set(sign*0.30,0.10,0);
+        drone.add(brace);
+        const pod=new THREE.Mesh(podGeo,armourMat);
+        pod.name='Armoured defensive pod';
+        pod.position.set(sign*0.48,0.04,0.12);
+        pod.rotation.z=sign*0.17;
+        drone.add(pod);
+        const gun=new THREE.Mesh(barrelGeo,gunMat);
+        gun.name='Forward laser cannon';
+        gun.rotation.x=Math.PI/2;
+        gun.position.set(sign*0.48,0.07,0.46);
+        drone.add(gun);
+        const lens=new THREE.Mesh(muzzleGeo,lensMat);
+        lens.name='Cyan laser emitter';
+        lens.rotation.x=Math.PI/2;
+        lens.position.set(sign*0.48,0.07,0.73);
+        drone.add(lens);
       }
-      model.scale.setScalar(0.86);
-      satelliteRoot.add(model);
-      models.push(model);
+      const sensor=new THREE.Mesh(sensorGeo,sensorMat);
+      sensor.name='Threat detection sensor';
+      sensor.position.set(0,0.67,-0.08);
+      drone.add(sensor);
+      drone.scale.setScalar(1.12);
+      drone.visible=false; // Deployed only by the player.
+      satelliteRoot.add(drone);
+      models.push(drone);
     }
 
     const beamGeometry=new THREE.CylinderGeometry(0.024,0.024,1,6,1,true);
@@ -49,7 +93,7 @@
         blending:THREE.AdditiveBlending
       });
       const mesh=new THREE.Mesh(beamGeometry,material);
-      mesh.name='Satellite defence laser beam';
+      mesh.name='Orbital interceptor laser';
       mesh.visible=false;
       scene.add(mesh);
       beams.push({mesh,remaining:0,life:0.19});
@@ -105,17 +149,16 @@
       disposed=true;
       clear();
       scene.remove(satelliteRoot);
-      bodyGeometry.dispose();
-      panelGeometry.dispose();
-      finGeometry.dispose();
+      geometries.forEach(g=>g.dispose());
+      materials.forEach(m=>m.dispose());
       beamGeometry.dispose();
-      hubMaterial.dispose();
-      panelMaterial.dispose();
-      finMaterial.dispose();
       beams.forEach(b=>{scene.remove(b.mesh);b.mesh.material.dispose();});
       models.length=0;beams.length=0;
     }
-    return Object.freeze({sync,fire,update,clear,dispose,getBeamCount:()=>beams.filter(b=>b.remaining>0).length});
+    return Object.freeze({
+      sync,fire,update,clear,dispose,
+      getBeamCount:()=>beams.filter(b=>b.remaining>0).length
+    });
   }
 
   const api=Object.freeze({createRenderer});
