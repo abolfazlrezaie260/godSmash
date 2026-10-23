@@ -186,8 +186,9 @@
         target.health=Math.max(0,target.health-u.type.damage);
         if(target.health<=0){target.destroyed=true;interceptions++;}
         u.cooldown=u.type.cooldown;
-        u.lockTargetId=null;
-        u.lockElapsed=0;
+        // Maintain an established lock for paced follow-up bursts.
+        u.lockTargetId=target.destroyed ? null : target.id;
+        u.lockElapsed=target.destroyed ? 0 : u.type.lockTime;
         u.shots++;shots++;
         const event={unitId:u.id,typeId:u.typeId,mode:u.type.mode,
           color:u.type.beamColor,targetId:target.id,
