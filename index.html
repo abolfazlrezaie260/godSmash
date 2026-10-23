@@ -49,6 +49,9 @@
       width: 100dvh; height: 100dvw;
       transform: rotate(90deg);
     }
+    #game-shell.is-rotated.is-counterclockwise {
+      left: 0; top: 100dvh; transform: rotate(-90deg);
+    }
     #game-shell.is-rotated #game-header { flex-wrap: nowrap; }
     #game-shell.is-rotated #planet-status-card {
       width: auto; max-width: 54%; flex-shrink: 1; min-width: 0;
