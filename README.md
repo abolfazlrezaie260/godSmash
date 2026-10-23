@@ -184,3 +184,28 @@ Speed selection no longer uses an HTML select: a single stopwatch-style button c
 For viewports up to **1024px**, the weapon dock is a horizontally scrollable, touch-friendly strip; the bottom controls are compact and wrap when necessary. Touch targets are at least 44px, safe-area insets are respected, and redundant desktop-specific active-weapon cards are hidden. The primary target is mobile/tablet, with desktop UI retained as a fallback.
 
 After deployment, test landscape/portrait phones and tablets with the defence modal, planet modal, changing the active planet, 0.5×/1×/2× time scale and repeated heavy impacts. Automated JS/DOM tests do not replace visual WebGL checks on a physical phone.
+
+
+## Planetary defence v2 — player-selected orbital placement, 3 unit classes and radar
+
+The planetary defence dialog is now a mobile/tablet-friendly control center with three selectable **fictional** defence types:
+
+| Type | Tactic | Arcade limitations |
+| --- | --- | --- |
+| **ماهواره لیزری — Orbital Laser** | Fast, frequent cyan precision shots against lighter missiles | Low damage per burst, line-of-sight check and finite range |
+| **رهگیر موشکی — Heavy Interceptor** | Slow, powerful amber strikes against heavy projectiles | Longer reload and slower orbital movement |
+| **ماهواره سپرساز — Shield Projector** | Green localized energy interception near the planet surface | Works only within the satellite's local coverage and close to the planet; requires recharge |
+
+**How to deploy:** Tap **دفاع** → select a unit type → **انتخاب محل استقرار**. The dialog closes and a placement prompt appears. Tap a **visible spot on the planet** to deploy a satellite in an orbit starting above that spot; tap **لغو** to cancel without adding anything. A tap in placement mode **does not fire a missile**. Each planet starts with zero defenders, has a maximum six total satellites across all types, and retains the selected unit types and orbital placements during the current game session. Return to another planet to restore its stored fleet. Planet rebuild resets shot counters, not the fleet.
+
+The **radar** lists a bounded set of incoming projectiles and projects their live positions into a compact 2D display. The player can choose target priority:
+
+- **نزدیک‌ترین** — nearest to the planet surface (default).
+- **سریع‌ترین** — highest instantaneous game-space velocity.
+- **مخرب‌ترین** — greatest weapon damage.
+
+An orbital unit only fires when its cooldown, coverage, range and planet line-of-sight checks all pass. A successful interception removes the threat before the planet damage handler runs, including when the threat reaches the surface in the current update frame. Each type has a dedicated low-poly model variant and an individual beam color. Projectile targeting and orbit calculations use the existing 0.5×/1×/2× simulation clock, not real time.
+
+Architecture: `src/defense/catalog.js` defines the unit registry, `src/defense/orbital-defense.js` implements pure combat/placement/radar logic, and `src/defense/orbital-defense-renderer.js` owns visual models and pooled laser effects. Unit counts remain capped at six, active beam meshes at 6–12 depending on graphics quality and threat radar entries at twelve.
+
+**Scope and limitations:** These systems are gameplay approximations, not actual spacecraft, weapon engineering, or ballistic-defense calculations. Orbital placement establishes the initial orbital direction rather than permanently station-keeping over a fixed country. The energy shield only intercepts eligible projectiles near its current orbital coverage; it is not a permanent invulnerable planet-wide shield. Orbital configurations persist across planet changes during the session, but not across browser reloads. For UI regression testing see `tests/index-script.test.cjs`; the behavioural coverage is in `tests/defense-v2.test.cjs`. Real mobile browser render/FPS verification is still needed.
