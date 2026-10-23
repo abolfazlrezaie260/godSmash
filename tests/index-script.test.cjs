@@ -42,6 +42,16 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /projectileModels\.createMissile/);
   assert.match(match[1], /projectileModels\.createAsteroid/);
   assert.match(match[1], /m\.dispose\(\)/);
+  assert.ok(html.includes('src="./src/ui/landscape.js"'));
+  assert.ok(html.includes('id="game-shell"'));
+  assert.ok(html.includes('#game-shell.is-rotated'));
+  assert.ok(html.includes('#game-shell.is-rotated.is-counterclockwise'));
+  assert.match(match[1], /GodSmashLandscape\.mount/);
+  assert.match(match[1], /landscape\.point\(clientX,clientY,rect\)/);
+  assert.match(match[1], /landscape\.delta\(physicalDx,physicalDy\)/);
+  assert.match(match[1], /landscape\.getViewport\(\)/);
+  assert.match(match[1], /footerControls\.offsetHeight/);
+  assert.doesNotMatch(match[1], /camera.aspect = window.innerWidth/);
   assert.ok(html.includes('src="./src/ui/planet-picker.js"'));
   assert.ok(html.includes('id="planet-modal"'));
   assert.ok(html.includes('id="planet-options"'));
