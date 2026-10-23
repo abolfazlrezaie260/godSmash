@@ -17,6 +17,7 @@
 <script src="./src/performance/quality-controller.js"></script>
   <script src="./src/ui/weapon-dock.js"></script>
   <script src="./src/ui/planet-picker.js"></script>
+  <script src="./src/ui/landscape.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -36,6 +37,25 @@
       font-family: 'Vazirmatn', 'Inter', sans-serif;
       color: #f8fafc;
     }
+    #game-shell {
+      position: fixed; inset: 0; width: 100%; height: 100dvh;
+      overflow: hidden; transform-origin: top left;
+      background: #030712; touch-action: none;
+    }
+    /* In portrait touch viewports, the complete game—not just the canvas—
+       is turned into a logical landscape viewport. This also rotates modals. */
+    #game-shell.is-rotated {
+      inset: auto; top: 0; left: 100vw;
+      width: 100dvh; height: 100dvw;
+      transform: rotate(90deg);
+    }
+    #game-shell.is-rotated #game-header { flex-wrap: nowrap; }
+    #game-shell.is-rotated #planet-status-card {
+      width: auto; max-width: 54%; flex-shrink: 1; min-width: 0;
+    }
+    #game-shell.is-rotated #game-controls { flex-direction: row; }
+    #game-shell.is-rotated #weapon-dock { max-height: 105px; }
+    #game-shell.is-rotated .active-weapon-card { display: none !important; }
     #canvas-container {
       position: fixed;
       inset: 0;
@@ -425,6 +445,7 @@
   </style>
 </head>
 <body class="relative w-full h-full overflow-hidden select-none">
+  <main id="game-shell" aria-label="بازی GodSmash" data-landscape-mode="native">
 
   <div id="earth-loading" role="status" aria-live="polite" aria-atomic="true">
     <div class="earth-loading-content">
@@ -641,6 +662,7 @@
     </div>
   </footer>
 
+  </main>
   <script src="./src/defense/catalog.js"></script>
   <script src="./src/defense/orbital-defense.js"></script>
   <script src="./src/defense/orbital-defense-renderer.js"></script>
@@ -864,11 +886,27 @@
       // ==========================================
       // 3. THREE.JS SCENE, CAMERA & LIGHTING
       // ==========================================
+      const gameShell = document.getElementById('game-shell');
+      const landscape = window.GodSmashLandscape.mount({
+        view: window, document, shell: gameShell,
+        onResize: ({width,height}) => {
+          // During initial mount Three.js is not yet initialized.
+          if (!gameRendererReady) return;
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+          renderer.setSize(width,height);
+          if (typeof positionWeaponDock === 'function') positionWeaponDock();
+        }
+      });
+      let gameRendererReady = false;
+      const initialView = landscape.getViewport();
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const camera = new THREE.PerspectiveCamera(45,
+        initialView.width / initialView.height, 0.1, 1000);
 
       const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(initialView.width, initialView.height);
+      gameRendererReady = true;
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.15;
@@ -1695,7 +1733,9 @@
       // Prevent the dock from covering the fixed footer across viewport sizes.
       const footerControls = document.getElementById('game-controls');
       function positionWeaponDock() {
-        const height = Math.ceil(footerControls.getBoundingClientRect().height);
+        // getBoundingClientRect() is transformed in CSS-rotated portrait mode.
+        // offsetHeight always measures the actual logical landscape footer.
+        const height = Math.ceil(footerControls.offsetHeight);
         document.documentElement.style.setProperty('--footer-clearance', (height + 24) + 'px');
       }
       if (typeof ResizeObserver !== 'undefined') {
@@ -1766,8 +1806,9 @@
       function fireMissileAtRay(clientX, clientY) {
         if (state.shattered) return;
         const rect = renderer.domElement.getBoundingClientRect();
-        pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-        pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        const point = landscape.point(clientX,clientY,rect);
+        pointerNDC.x = point.x * 2 - 1;
+        pointerNDC.y = 1 - point.y * 2;
 
         raycaster.setFromCamera(pointerNDC, camera);
         const hits = raycaster.intersectObject(earthMesh, false);
@@ -1820,8 +1861,9 @@
 
       window.addEventListener('pointermove', (e) => {
         if (!isDragging) return;
-        const dx = e.clientX - prevX;
-        const dy = e.clientY - prevY;
+        const physicalDx = e.clientX - prevX;
+        const physicalDy = e.clientY - prevY;
+        const {x:dx,y:dy} = landscape.delta(physicalDx,physicalDy);
         prevX = e.clientX;
         prevY = e.clientY;
 
@@ -1914,11 +1956,8 @@
         }
       });
 
-      window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
+      // The landscape controller owns resize/orientation changes and keeps
+      // the camera aspect aligned with the rotated logical game viewport.
 
       // ==========================================
       // 8. MAIN ANIMATION & PHYSICS LOOP
