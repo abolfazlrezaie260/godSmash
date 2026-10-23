@@ -51,13 +51,23 @@ test('satellite and beam visuals share geometry and dispose owned resources exac
  assert.equal(mats,13,'nine shared defence materials plus four independent beam materials');
 
  const units=[
-  {id:'d0',position:{x:13,y:0,z:0}},
-  {id:'d1',position:{x:-13,y:0,z:0}}
+  {id:'d0',typeId:'orbital-laser',position:{x:13,y:0,z:0}},
+  {id:'d1',typeId:'orbital-interceptor',position:{x:-13,y:0,z:0}},
+  {id:'d2',typeId:'orbital-shield',position:{x:0,y:13,z:0}}
  ];
  system.sync(units);
  const group=scene.children[0];
- assert.equal(group.children.filter(x=>x.visible).length,2);
- for(let i=0;i<40;i++){
+ assert.equal(group.children.filter(x=>x.visible).length,3);
+ const variant = (idx,name)=>group.children[idx].children.find(x=>x.name===name);
+ assert.equal(variant(0,'Heavy interceptor launchers').visible,false);
+ assert.equal(variant(1,'Heavy interceptor launchers').visible,true);
+ assert.equal(variant(2,'Energy shield emitters').visible,true);
+ assert.equal(variant(2,'Forward laser cannon').visible,false);
+ system.fire({x:13,y:0,z:0},{x:17,y:1,z:2},'interceptor');
+ assert.equal(scene.children[1].material.color,0xffaa64);
+ system.fire({x:13,y:0,z:0},{x:17,y:1,z:2},'shield');
+ assert.equal(scene.children[2].material.color,0x8dffc0);
+ for(let i=0;i<38;i++){
    system.fire({x:13,y:0,z:0},{x:17,y:1,z:2});
  }
  assert.equal(system.getBeamCount(),4,'rendered shots are capped by pool');
