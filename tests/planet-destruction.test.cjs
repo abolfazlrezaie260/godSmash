@@ -137,12 +137,14 @@ test('blast factory animates and safely disposes of all unique resources',()=>{
   const eff=effects.createEffect(THREE,{
     plasmaColor:'#f97316',fireColor:'#fff4b4',waveColor:'#ffaa72'
   },2.3,false);
-  assert.equal(eff.duration,2.65);
-  assert.ok(eff.group.children.length>=4, 'fireball, plasma and two surface shock rings');
+  assert.equal(eff.duration,6,'bright fire must settle into a longer cinematic ash plume');
+  assert.ok(eff.group.children.length>=5, 'fireball, plasma, dust and two subtle shock rings');
   const shaderFire = eff.group.children[0].material;
   assert.ok(shaderFire.uniforms.uTime);
   assert.ok(shaderFire.fragmentShader.includes('fbm'), 'fireball uses a turbulent procedural shader');
   assert.doesNotThrow(()=>eff.update(0.5));
+  assert.ok(eff.group.children[2].material.uniforms.uOpacity.value > 0,
+    'later frames retain an ash cloud after the initial flash');
   assert.ok(shaderFire.uniforms.uTime.value > 0);
   assert.doesNotThrow(()=>eff.update(1));
   const mats=new Set(),geos=new Set();

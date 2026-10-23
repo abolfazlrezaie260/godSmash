@@ -5,6 +5,9 @@
 (function (root) {
   'use strict';
 
+  const timing = root.GodSmashImpactTiming ||
+    (typeof module !== 'undefined' && module.exports ? require('./impact-timing.js') : null);
+
   const vertexShader = `
     varying vec2 vUv;
     void main() {
@@ -81,19 +84,31 @@
       side: THREE.DoubleSide
     });
     const shellMaterial = new THREE.MeshBasicMaterial({
-      color: outerColor, transparent: true, opacity: 0.42,
-      depthWrite: false, blending: THREE.AdditiveBlending,
+      color: outerColor, transparent: true, opacity: 0.2,
+      depthWrite: false, blending: THREE.NormalBlending,
       side: THREE.DoubleSide
     });
     const waveMaterial = new THREE.MeshBasicMaterial({
       color: weapon.waveColor || '#ffbb6e', transparent: true,
-      opacity: 0.8, depthWrite: false,
-      blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+      opacity: 0.24, depthWrite: false,
+      blending: THREE.NormalBlending, side: THREE.DoubleSide
     });
     const innerWaveMaterial = new THREE.MeshBasicMaterial({
-      color: hotColor, transparent: true, opacity: 0.54,
-      depthWrite: false, blending: THREE.AdditiveBlending,
+      color: hotColor, transparent: true, opacity: 0.15,
+      depthWrite: false, blending: THREE.NormalBlending,
       side: THREE.DoubleSide
+    });
+
+    const dustMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: {value: 0},
+        uOpacity: {value: 0},
+        uHotColor: {value: new THREE.Color('#55504a')},
+        uOuterColor: {value: new THREE.Color('#272c32')}
+      },
+      vertexShader, fragmentShader,
+      transparent: true, depthWrite: false,
+      blending: THREE.NormalBlending, side: THREE.DoubleSide
     });
 
     const fireball = new THREE.Mesh(
@@ -109,6 +124,16 @@
     );
     plasma.position.z = span * 0.12;
     group.add(plasma);
+
+    // Transparent turbulence creates a delayed ash cloud, without a red glow
+    // or the abrupt solid sphere of the previous fireball-only animation.
+    const dust = new THREE.Mesh(
+      new THREE.SphereGeometry(span * 0.62,
+        lowQuality ? 12 : 20, lowQuality ? 8 : 12),
+      dustMaterial
+    );
+    dust.position.z = span * 0.11;
+    group.add(dust);
 
     // The shock front expands along the surface as rings, rather than a clean sphere.
     const ringSegments = lowQuality ? 28 : 56;
@@ -138,18 +163,24 @@
     function update(progress) {
       if (disposed) return;
       const t = Math.max(0, Math.min(1, progress));
-      const bloom = Math.sin(Math.PI * Math.min(1, t * 1.55));
-      fireball.scale.setScalar(Math.max(0.001, 0.22 + bloom * 1.75));
-      fireMaterial.uniforms.uTime.value = t * 8.5;
-      fireMaterial.uniforms.uOpacity.value = Math.max(0, 1 - t * 2.05);
-      plasma.scale.setScalar(0.18 + Math.pow(t, 0.62) * 2.2);
-      shellMaterial.opacity = Math.max(0, 0.52 * (1 - t * 1.75));
-      const expanding = span * (0.18 + t * 3.9);
-      shockFront.scale.setScalar(expanding);
-      innerWave.scale.setScalar(expanding * 0.78);
-      waveMaterial.opacity = Math.max(0, 0.68 * (1 - t));
-      innerWaveMaterial.opacity = Math.max(0, 0.46 * (1 - t * 1.25));
-      if (flash) flash.intensity = 5.5 * Math.pow(1 - t, 3);
+      const phase = timing.sample(t);
+
+      // (1) Very short ignition, (2) expanding fire and pressure front,
+      // (3) an ash/dust plume lingering after the bright combustion fades.
+      fireball.scale.setScalar(phase.fireScale);
+      fireMaterial.uniforms.uTime.value = t * 5.0;
+      fireMaterial.uniforms.uOpacity.value = phase.flame * 0.84;
+      plasma.scale.setScalar(phase.shellScale);
+      shellMaterial.opacity = phase.plasma * 0.27;
+      shockFront.scale.setScalar(span * phase.shockScale);
+      innerWave.scale.setScalar(span * phase.shockScale * 0.78);
+      waveMaterial.opacity = phase.shock * 0.22;
+      innerWaveMaterial.opacity = phase.shock * 0.12;
+
+      dust.scale.setScalar(phase.dustScale);
+      dustMaterial.uniforms.uTime.value = t * 3.1;
+      dustMaterial.uniforms.uOpacity.value = phase.dust * 0.49;
+      if (flash) flash.intensity = 2.9 * phase.flash;
     }
 
     function dispose() {
@@ -167,7 +198,8 @@
       materials.forEach(m => m.dispose());
     }
 
-    return {group, update, dispose, duration: lowQuality ? 1.85 : 2.65};
+    update(0);
+    return {group, update, dispose, duration: timing.duration(span, lowQuality)};
   }
 
   root.GodSmashImpactEffects = Object.freeze({createEffect});

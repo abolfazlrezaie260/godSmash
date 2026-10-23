@@ -81,6 +81,11 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /rocketFx\.setBudget\(particleBudget\)/);
   assert.match(match[1], /renderer\.setPixelRatio\(pixelRatio\)/);
   assert.match(match[1], /framePosition\.set\(0, 0, 0\)/);
+  assert.ok(html.includes('src="./src/render/impact-timing.js"'));
+  assert.match(match[1], /rocketFx\.burstDust/);
+  assert.match(match[1], /dustWorldPosition/);
+  assert.match(match[1], /selected\.interceptHealth/);
+  assert.doesNotMatch(match[1], /const worldNormal = blastWorldNormal/);
   assert.ok(html.includes('src="./src/render/rocket-fx.js"'));
   assert.ok(html.includes('src="./src/simulation/missile-physics.js"'));
   assert.ok(html.includes('id="surface-damage-val"'));

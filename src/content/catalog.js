@@ -40,7 +40,7 @@
       finiteNumber(config[key], 0, 'weapon.' + key);
     }
     if (!Number.isInteger(config.debrisCount)) throw new TypeError('debrisCount must be an integer');
-    for (const key of ['launchSpeed', 'acceleration', 'maxSpeed', 'fuelDuration', 'drag']) {
+    for (const key of ['launchSpeed', 'acceleration', 'maxSpeed', 'fuelDuration', 'drag', 'flightPace', 'interceptHealth']) {
       if (config[key] !== undefined) finiteNumber(config[key], 0, 'weapon.' + key);
     }
     if (config.launchSpeed !== undefined && config.maxSpeed !== undefined &&
@@ -48,6 +48,12 @@
       throw new Error('weapon.maxSpeed must be >= weapon.launchSpeed');
     }
     if (config.kind !== 'beam' && config.speed <= 0) throw new Error('Projectile speed must be positive');
+    if (config.kind !== 'beam' && config.flightPace !== undefined &&
+        (config.flightPace <= 0 || config.flightPace > 1)) {
+      throw new RangeError('weapon.flightPace must be in (0, 1]');
+    }
+    if (config.kind !== 'beam' && config.interceptHealth !== undefined &&
+        config.interceptHealth <= 0) throw new RangeError('interceptHealth must be positive');
     const weapon = Object.freeze({ ...config });
     weapons.set(weapon.id, weapon);
     return weapon;
@@ -87,7 +93,7 @@
     kind: 'missile', icon: '🚀', visualProfile: 'strategic', blastRadius: 1.9,
     damage: 4.2, damageVariance: 1.8,
     casualties: 180000000, casualtiesVariance: 290000000,
-    speed: 0.95, launchSpeed: 0.18, acceleration: 1.05, maxSpeed: 1.55, fuelDuration: 0.72, drag: 0.035, shake: 0.55, debrisCount: 24,
+    flightPace: 0.27, interceptHealth: 2.7, speed: 0.95, launchSpeed: 0.18, acceleration: 1.05, maxSpeed: 1.55, fuelDuration: 0.72, drag: 0.035, shake: 0.55, debrisCount: 24,
     fireColor: '#fef08a', plasmaColor: '#f97316', waveColor: '#fdba74'
   });
   registerWeapon({
@@ -95,7 +101,7 @@
     kind: 'missile', icon: '🚀', visualProfile: 'interceptor', blastRadius: 1.05,
     damage: 1.8, damageVariance: 0.9,
     casualties: 55000000, casualtiesVariance: 110000000,
-    speed: 1.32, launchSpeed: 0.30, acceleration: 1.8, maxSpeed: 2.15, fuelDuration: 0.46, drag: 0.12, shake: 0.28, debrisCount: 12,
+    flightPace: 0.21, interceptHealth: 1.9, speed: 1.32, launchSpeed: 0.30, acceleration: 1.8, maxSpeed: 2.15, fuelDuration: 0.46, drag: 0.12, shake: 0.28, debrisCount: 12,
     fireColor: '#fef9c3', plasmaColor: '#fb923c', waveColor: '#fcd34d'
   });
   registerWeapon({
@@ -103,7 +109,7 @@
     kind: 'missile', icon: '🚀', visualProfile: 'cruise', blastRadius: 1.35,
     damage: 2.7, damageVariance: 1.1,
     casualties: 80000000, casualtiesVariance: 130000000,
-    speed: 0.83, launchSpeed: 0.22, acceleration: 0.75, maxSpeed: 1.05, fuelDuration: 0.80, drag: 0.04, shake: 0.35, debrisCount: 16,
+    flightPace: 0.25, interceptHealth: 2.25, speed: 0.83, launchSpeed: 0.22, acceleration: 0.75, maxSpeed: 1.05, fuelDuration: 0.80, drag: 0.04, shake: 0.35, debrisCount: 16,
     fireColor: '#fff7ed', plasmaColor: '#fb923c', waveColor: '#fda4af'
   });
   registerWeapon({
@@ -111,7 +117,7 @@
     kind: 'asteroid', icon: '☄️', blastRadius: 2.8,
     damage: 7, damageVariance: 2,
     casualties: 230000000, casualtiesVariance: 390000000,
-    speed: 0.65, launchSpeed: 0.65, acceleration: 0, maxSpeed: 0.65, fuelDuration: 0, drag: 0.008, shake: 0.85, debrisCount: 40,
+    flightPace: 0.22, interceptHealth: 5.3, speed: 0.65, launchSpeed: 0.65, acceleration: 0, maxSpeed: 0.65, fuelDuration: 0, drag: 0.008, shake: 0.85, debrisCount: 40,
     fireColor: '#ffcb6b', plasmaColor: '#ff4d2d', waveColor: '#ff8855'
   });
   registerWeapon({
@@ -128,7 +134,7 @@
     kind: 'missile', icon: '🚀', visualProfile: 'siege', blastRadius: 2.45,
     damage: 5.7, damageVariance: 1.25,
     casualties: 210000000, casualtiesVariance: 205000000,
-    speed: 0.72, launchSpeed: 0.15, acceleration: 0.82, maxSpeed: 1.25, fuelDuration: 0.78, drag: 0.03, shake: 0.68, debrisCount: 32,
+    flightPace: 0.23, interceptHealth: 4.7, speed: 0.72, launchSpeed: 0.15, acceleration: 0.82, maxSpeed: 1.25, fuelDuration: 0.78, drag: 0.03, shake: 0.68, debrisCount: 32,
     fireColor: '#fff0c2', plasmaColor: '#ef4444', waveColor: '#fb923c'
   });
   registerWeapon({
@@ -136,7 +142,7 @@
     kind: 'missile', icon: '🚀', visualProfile: 'hypersonic', blastRadius: 1.15,
     damage: 2.35, damageVariance: 0.65,
     casualties: 42000000, casualtiesVariance: 65000000,
-    speed: 1.75, launchSpeed: 0.5, acceleration: 2.5, maxSpeed: 3.0, fuelDuration: 0.45, drag: 0.12, shake: 0.24, debrisCount: 10,
+    flightPace: 0.16, interceptHealth: 2.4, speed: 1.75, launchSpeed: 0.5, acceleration: 2.5, maxSpeed: 3.0, fuelDuration: 0.45, drag: 0.12, shake: 0.24, debrisCount: 10,
     fireColor: '#ecfeff', plasmaColor: '#0ea5e9', waveColor: '#67e8f9'
   });
   registerWeapon({
@@ -144,7 +150,7 @@
     kind: 'missile', icon: '🚀', visualProfile: 'plasma', blastRadius: 1.72,
     damage: 3.6, damageVariance: 1.0,
     casualties: 95000000, casualtiesVariance: 145000000,
-    speed: 1.08, launchSpeed: 0.28, acceleration: 1.35, maxSpeed: 1.85, fuelDuration: 0.66, drag: 0.07, shake: 0.42, debrisCount: 20,
+    flightPace: 0.24, interceptHealth: 3.1, speed: 1.08, launchSpeed: 0.28, acceleration: 1.35, maxSpeed: 1.85, fuelDuration: 0.66, drag: 0.07, shake: 0.42, debrisCount: 20,
     fireColor: '#cffafe', plasmaColor: '#7c3aed', waveColor: '#22d3ee'
   });
 

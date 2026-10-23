@@ -15,6 +15,10 @@
     }
     const asteroid = weapon.kind === 'asteroid';
     const baseSpeed = weapon.speed;
+    // Progress and fuel-burn integrate in game time scaled by the weapon pace.
+    // Velocity remains a weapon's intrinsic speed for impact-energy balancing.
+    const pace = Number.isFinite(weapon.flightPace) &&
+      weapon.flightPace > 0 && weapon.flightPace <= 1 ? weapon.flightPace : 1;
     const launchSpeed = positive(weapon.launchSpeed,
       asteroid ? baseSpeed : Math.max(0.08, baseSpeed * 0.24));
     const acceleration = positive(weapon.acceleration,
@@ -24,6 +28,7 @@
     const fuelDuration = asteroid ? 0 : positive(weapon.fuelDuration, 0.68);
     return {
       baseSpeed,
+      pace,
       velocity: launchSpeed,
       launchSpeed,
       acceleration,
@@ -52,7 +57,7 @@
     }
 
     // Small fixed integration steps reduce differences between 30/60/120 FPS.
-    let remaining = Math.min(1, deltaSeconds);
+    let remaining = Math.min(1, deltaSeconds) * (flight.pace || 1);
     let progressDelta = 0;
     while (remaining > 1e-8) {
       const step = Math.min(remaining, 1 / 120);

@@ -84,12 +84,14 @@
       return {sprite, velocity: new THREE.Vector3(), type};
     }
 
-    function emit(position, type, direction, intensity = 1, tint, outward) {
+    function emit(position, type, direction, intensity = 1, tint, outward, lifeMultiplier = 1) {
       if (disposed || particles.length >= budget) return false;
       const isSmoke = type === 'smoke';
-      const life = isSmoke ? 1.05 + Math.random() * 0.95 : 0.22 + Math.random() * 0.30;
+      const life = (isSmoke ? 1.05 + Math.random() * 0.95 : 0.22 + Math.random() * 0.30) *
+        Math.max(0.6, Math.min(3.5, lifeMultiplier));
       const size = (isSmoke ? 0.18 + Math.random() * 0.25 : 0.045 + Math.random() * 0.075) * intensity;
       const p = allocate(type);
+      p.type = type; // A pooled sprite may have previously been smoke or an ember.
       const material = p.sprite.material;
       material.map = isSmoke ? smokeTexture : emberTexture;
       material.blending = isSmoke ? THREE.NormalBlending : THREE.AdditiveBlending;
@@ -142,6 +144,15 @@
       }
     }
 
+    function burstDust(position, outward, count = 7) {
+      if (disposed) return;
+      const amount = Math.min(Math.max(0, Math.floor(count)), budget - particles.length);
+      for (let i = 0; i < amount; i++) {
+        emit(position, 'smoke', null, 1.5 + Math.random() * 0.45,
+          0x827d76, outward, 2.5);
+      }
+    }
+
     function update(dt) {
       if (disposed) return;
       const step = Math.max(0, Math.min(0.10, dt));
@@ -186,7 +197,7 @@
     }
 
     return Object.freeze({
-      trail, burst, update, clear, dispose, setBudget,
+      trail, burst, burstDust, update, clear, dispose, setBudget,
       getParticleCount: () => particles.length,
       getMaxParticles: () => maxParticles,
       getBudget: () => budget,

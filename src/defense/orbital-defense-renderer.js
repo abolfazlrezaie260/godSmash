@@ -126,7 +126,7 @@
       mesh.name='Orbital interceptor laser';
       mesh.visible=false;
       scene.add(mesh);
-      beams.push({mesh,remaining:0,life:0.19});
+      beams.push({mesh,remaining:0,life:0.56});
     }
     const direction=new THREE.Vector3();
     const start=new THREE.Vector3();
@@ -147,7 +147,12 @@
         const shield=unit.typeId==='orbital-shield';
         v.interceptorParts.visible=heavy;
         v.shieldParts.visible=shield;
-        for(const p of v.gunParts)p.visible=!shield;
+        for(const p of v.gunParts) {
+          p.visible=!shield;
+          // Charging muzzle remains visible while the target is being acquired.
+          if(p.name==='Cyan laser emitter')
+            p.scale.setScalar(1+0.38*(unit.lockProgress||0));
+        }
         m.position.set(unit.position.x,unit.position.y,unit.position.z);
         m.lookAt(0,0,0);
       }

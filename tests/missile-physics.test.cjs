@@ -65,3 +65,41 @@ test('invalid flight state and negative delta time are rejected', () => {
   assert.throws(() => physics.createFlight({kind:'beam',speed:0}), /positive-speed/);
   assert.throws(() => physics.stepFlight(physics.createFlight(titan), -0.1), /non-negative/);
 });
+
+test('catalogued weapons have longer, distinct visible flight durations', () => {
+  const catalog=require('../src/content/catalog.js');
+  const all=catalog.listWeapons().filter(w=>w.kind!=='beam');
+  const results={};
+  for(const weapon of all){
+    const flight=physics.createFlight(weapon);
+    let wallSeconds=0;
+    while(!flight.finished && wallSeconds<30){
+      physics.stepFlight(flight,1/60);
+      wallSeconds+=1/60;
+    }
+    results[weapon.id]=wallSeconds;
+    assert.ok(flight.finished,weapon.id+' must still reach its target');
+    assert.ok(wallSeconds>=4.5,weapon.id+' should be visible for at least several seconds');
+    assert.ok(wallSeconds<20,weapon.id+' should not take excessively long');
+    assert.ok(flight.pace>0 && flight.pace<1);
+  }
+  assert.ok(results.titan>results.viper,'heavy missile should arrive later than hypersonic');
+  assert.ok(results.asteroid>results.viper);
+});
+
+test('0.5x and 2x game time correctly multiply the new weapon flight pace', () => {
+  const catalog=require('../src/content/catalog.js');
+  const selected=catalog.getWeapon('icbm');
+  function simulate(timeScale){
+    const flight=physics.createFlight(selected);
+    let real=0;
+    while(!flight.finished && real<30){
+      physics.stepFlight(flight,(1/120)*timeScale);
+      real+=1/120;
+    }
+    return real;
+  }
+  const slow=simulate(.5),normal=simulate(1),fast=simulate(2);
+  assert.ok(Math.abs(slow/normal-2)<.05);
+  assert.ok(Math.abs(fast/normal-.5)<.05);
+});

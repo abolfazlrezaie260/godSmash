@@ -24,6 +24,10 @@ test('new missiles have distinct balanced stats and visual profiles', () => {
     w.launchSpeed > 0 && w.fuelDuration > 0 && w.drag >= 0
   ));
   assert.equal(catalog.getWeapon('asteroid').fuelDuration, 0);
+  assert.ok(catalog.listWeapons().filter(w=>w.kind!=='beam')
+    .every(w=>w.flightPace>0 && w.flightPace<1 && w.interceptHealth>=1.8));
+  assert.ok(catalog.getWeapon('titan').interceptHealth>
+    catalog.getWeapon('swift').interceptHealth);
 });
 
 test('unique IDs and required configuration are enforced', () => {

@@ -13,6 +13,7 @@
         !Number.isFinite(config.range) || config.range <= 0 ||
         !Number.isFinite(config.damage) || config.damage <= 0 ||
         !Number.isFinite(config.cooldown) || config.cooldown <= 0 ||
+        !Number.isFinite(config.lockTime) || config.lockTime <= 0 ||
         !Number.isFinite(config.angularSpeed) || config.angularSpeed < 0) {
       throw new TypeError('Invalid planetary defence type');
     }
@@ -29,8 +30,8 @@
     id: 'orbital-laser', category: 'satellites',
     nameFa: 'ماهواره لیزری', nameEn: 'Orbital Laser',
     descriptionFa: 'شناسایی پرتابه‌های ورودی و انهدام آن‌ها با لیزر دفاعی',
-    orbitRadius: 13.3, range: 19, damage: 0.95,
-    cooldown: 0.42, angularSpeed: 0.19, maxShotsPerStep: 6,
+    orbitRadius: 13.3, range: 17, damage: 0.58,
+    lockTime: 0.86, cooldown: 0.88, angularSpeed: 0.19, maxShotsPerStep: 6,
     allowedCounts: [0, 1, 2, 3, 4, 5, 6], defaultCount: 0,
     beamColor: '#38e8ff', mode: 'laser'
   });
@@ -39,8 +40,8 @@
     id: 'orbital-interceptor', category: 'satellites',
     nameFa: 'رهگیر موشکی', nameEn: 'Interceptor',
     descriptionFa: 'ضربه سنگین به شهاب‌سنگ‌ها و پرتابه‌های زرهی؛ شلیک کندتر',
-    orbitRadius: 13.5, range: 21, damage: 2.8,
-    cooldown: 1.55, angularSpeed: 0.15, maxShotsPerStep: 4,
+    orbitRadius: 13.5, range: 19, damage: 1.9,
+    lockTime: 1.05, cooldown: 1.75, angularSpeed: 0.15, maxShotsPerStep: 4,
     allowedCounts: [0,1,2,3,4,5,6], defaultCount: 0,
     beamColor: '#ffae65', mode: 'interceptor'
   });
@@ -48,8 +49,8 @@
     id: 'orbital-shield', category: 'satellites',
     nameFa: 'ماهواره سپرساز', nameEn: 'Shield Projector',
     descriptionFa: 'حفاظت منطقه‌ای نزدیک سطح سیاره با سپر انرژی قابل شارژ',
-    orbitRadius: 12.6, range: 7.5, damage: 12,
-    cooldown: 2.65, angularSpeed: 0.085, maxShotsPerStep: 3,
+    orbitRadius: 12.6, range: 7.5, damage: 5.5,
+    lockTime: 0.16, cooldown: 3.0, angularSpeed: 0.085, maxShotsPerStep: 3,
     allowedCounts: [0,1,2,3,4,5,6], defaultCount: 0,
     beamColor: '#91ffba', mode: 'shield'
   });

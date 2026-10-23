@@ -14,6 +14,7 @@
 <script src="./src/render/projectile-models.js"></script>
 <script src="./src/render/planet-damage.js"></script>
 <script src="./src/simulation/missile-physics.js"></script>
+<script src="./src/render/impact-timing.js"></script>
 <script src="./src/render/impact-effects.js"></script>
 <script src="./src/render/rocket-fx.js"></script>
 <script src="./src/performance/quality-controller.js"></script>
@@ -1294,7 +1295,7 @@
 
           activeMissiles.push({
             id: 'projectile-' + (++missileSequence),
-            health: Math.max(0.75, selected.damage * 0.33),
+            health: selected.interceptHealth || Math.max(1.8, selected.damage * 0.5),
             destroyed: false,
             incoming: true,
             position: group.position,
@@ -1374,14 +1375,20 @@
           earthGroup.remove(expired.group);
           expired.dispose();
         }
-        activeExplosions.push({ ...blast, age: 0, maxAge: blast.duration });
+        activeExplosions.push({
+          ...blast, age: 0, maxAge: blast.duration,
+          dustStage: 0,
+          dustWorldPosition: blastWorldPosition.clone(),
+          dustWorldNormal: worldImpactNormal.clone()
+        });
 
-        // 4. Eject Molten Rock Debris into Low Orbit
+        // Initial impact: muted fragments and sparks; ash rises as the bloom
+        // develops instead of flashing a giant orange screen-filling sphere.
         const worldImpactPos = blastWorldPosition;
-        const worldNormal = blastWorldNormal;
+        const worldNormal = worldImpactNormal;
         rocketFx.burst(worldImpactPos, worldNormal,
-          damageResult.breached ? (lowImpactQuality ? 14 : 30) : (lowImpactQuality ? 8 : 16),
-          selected.plasmaColor || 0xff9b45);
+          damageResult.breached ? (lowImpactQuality ? 6 : 12) : (lowImpactQuality ? 4 : 8),
+          0xb9a58f);
 
         const debrisBudget = Math.max(0, maxActiveDebris - activeDebris.length);
         const debrisCount = Math.min(debrisBudget,
@@ -1393,10 +1400,10 @@
           const isHot = i % 5 === 0 || (largeFracture && i % 2 === 0);
           const debGeo = new THREE.DodecahedronGeometry(size, 0);
           const debMat = new THREE.MeshStandardMaterial({
-            color: isHot ? 0x9b5030 : (planet.id === 'moon' ? 0x747780 : 0x514c48),
+            color: isHot ? 0x74564b : (planet.id === 'moon' ? 0x747780 : 0x514c48),
             roughness: 0.92, metalness: 0.04, flatShading: true,
-            emissive: isHot ? 0xff4b17 : 0x130d0a,
-            emissiveIntensity: isHot ? 0.85 : 0.08,
+            emissive: isHot ? 0x49251b : 0x130d0a,
+            emissiveIntensity: isHot ? 0.28 : 0.08,
             transparent: true, opacity: 1.0
           });
           const debMesh = new THREE.Mesh(debGeo, debMat);
@@ -2127,6 +2134,16 @@
             activeExplosions.splice(i, 1);
           } else {
             effect.update(effect.age / effect.maxAge);
+            // A few spaced, long-lived dust puffs sell the settling ash plume
+            // without allocating hundreds of particles on mid-range phones.
+            if (effect.dustWorldPosition && effect.dustWorldNormal) {
+              const nextStage = effect.age >= 1.25 ? 2 : effect.age >= 0.38 ? 1 : 0;
+              while (effect.dustStage < nextStage) {
+                effect.dustStage++;
+                rocketFx.burstDust(effect.dustWorldPosition,effect.dustWorldNormal,
+                  lowImpactQuality ? 3 : 6);
+              }
+            }
           }
         }
 

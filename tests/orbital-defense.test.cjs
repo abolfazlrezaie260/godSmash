@@ -17,6 +17,14 @@ function guaranteedTarget(system,id='incoming',health=0.95) {
   },health);
 }
 
+function advanceUntil(engine,targets,predicate=events=>events.length>0){
+  for(let i=0;i<160;i++){
+    const events=engine.step(.05,targets);
+    if(predicate(events))return events;
+  }
+  return [];
+}
+
 test('catalog supports future defence categories with strict validation',()=>{
   assert.equal(catalog.listTypes().length>=1,true);
   const d=catalog.getType('orbital-laser');
@@ -30,7 +38,8 @@ test('catalog supports future defence categories with strict validation',()=>{
 test('satellites detect approaching weapons and intercept before planetary impact',()=>{
   const engine=setUp();
   const incoming=guaranteedTarget(engine);
-  const shots=engine.step(0.016,[incoming]);
+  assert.equal(engine.step(0.016,[incoming]).length,0,'first radar detection must not fire instantly');
+  const shots=advanceUntil(engine,[incoming],()=>incoming.destroyed);
   assert.ok(shots.length>=1);
   assert.equal(shots[0].targetId,incoming.id);
   assert.ok(incoming.destroyed);
@@ -50,7 +59,7 @@ test('disabled or zero satellites never shoot, while configuration takes effect 
   assert.equal(engine.step(1,[t]).length,0);
   engine.configure({count:4});
   t=guaranteedTarget(engine);
-  assert.ok(engine.step(0.016,[t]).length>0);
+  assert.ok(advanceUntil(engine,[t]).length>0);
   assert.throws(()=>engine.configure({count:7}),RangeError);
 });
 
@@ -65,7 +74,7 @@ test('orbital movement respects simulation delta and cooldown prevents unlimited
   assert.ok(Math.abs(a.getUnits()[0].position.x-b.getUnits()[0].position.x)<1e-10);
   assert.notDeepEqual(a.getUnits()[0].position,p0);
   const t=guaranteedTarget(a,'heavy',6);
-  const shots=a.step(0.001,[t]);
+  const shots=advanceUntil(a,[t]);
   assert.ok(shots.length>0);
   assert.equal(a.step(0.001,[t]).length,0,'all in-range guns should cool down');
   a.step(1.0,[]);
@@ -108,7 +117,9 @@ test('zero defenders at launch: only player add actions deploy orbiting intercep
   assert.equal(engine.getState().count,1);
   assert.equal(engine.getUnits().length,1);
   const hostile=guaranteedTarget(engine);
-  assert.equal(engine.step(0.01,[hostile]).length,1,'manually deployed drone can intercept');
+  assert.equal(engine.step(0.01,[hostile]).length,0,'laser must acquire target first');
+  assert.ok(advanceUntil(engine,[hostile],()=>hostile.destroyed).length>0,
+    'manually deployed drone can eventually intercept');
   assert.ok(hostile.destroyed);
   engine.reset();
   assert.equal(engine.getState().count,1,'planet repair must keep deployed fleet');

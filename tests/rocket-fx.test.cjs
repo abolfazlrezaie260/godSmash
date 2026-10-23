@@ -124,3 +124,24 @@ test('sprite reuse bounds allocations and defers shared resource disposal until 
     global.document = previousDocument;
   }
 });
+
+test('staged impact dust stays in pooled smoke budget without leaking materials',()=>{
+  const originalDocument=global.document;
+  global.document=fakeDocument();
+  try {
+    const scene=new Node();
+    const fx=rocketFx.createSystem(mockThree(),{scene,lowQuality:true,maxParticles:24});
+    const origin=new Vector3(1,2,3),normal=new Vector3(0,0,1);
+    fx.burstDust(origin,normal,12);
+    assert.equal(fx.getParticleCount(),12);
+    assert.equal(fx.getPoolSize(),12);
+    fx.update(1.0);
+    assert.ok(fx.getParticleCount()>0,'long-lived impact dust survives beyond first second');
+    fx.clear();
+    for(let i=0;i<8;i++)fx.burstDust(origin,normal,12);
+    assert.equal(fx.getParticleCount(),24,'dust never exceeds mobile cap');
+    assert.equal(fx.getPoolSize(),24);
+    fx.dispose();
+    assert.equal(scene.children.length,0);
+  } finally {global.document=originalDocument;}
+});
