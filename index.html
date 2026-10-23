@@ -1056,12 +1056,16 @@
       });
       const impactEffects = window.GodSmashImpactEffects;
       const defenseCatalog = window.GodSmashDefenseCatalog;
+      const defenseTypes = defenseCatalog.listTypes();
       const defenseType = defenseCatalog.getType('orbital-laser');
       const orbitalDefense = window.GodSmashOrbitalDefense.createSystem({
-        type: defenseType, planetRadius: EARTH_RADIUS,
+        type: defenseType, types: defenseTypes, planetRadius: EARTH_RADIUS,
         enabled: true, count: 0
       });
-      const defenseCountsByPlanet = new Map();
+      const defenseFleetsByPlanet = new Map();
+      let selectedDefenseTypeId = 'orbital-laser';
+      let awaitingDefensePlacement = false;
+      const placementBanner = document.getElementById('defense-placement-banner');
       const defenseVisuals = window.GodSmashOrbitalDefenseRenderer.createRenderer(THREE, scene, {
         maxUnits: Math.max(...defenseType.allowedCounts),
         maxBeams: lowImpactQuality ? 6 : 12,
@@ -1475,6 +1479,7 @@
         rocketFx.clear();
         orbitalDefense.reset();
         defenseVisuals.clear();
+        updateDefenseRadar();
         defenseVisuals.sync(orbitalDefense.getUnits());
         refreshDefenseHUD();
         while (activeDebris.length > 0) {
@@ -1499,80 +1504,149 @@
 
       const defenseAdd = document.getElementById('defense-add');
       const defenseRemove = document.getElementById('defense-remove');
+      const radarSurface = document.getElementById('defense-radar');
+      const radarCount = document.getElementById('defense-radar-count');
+      const threatList = document.getElementById('defense-threat-list');
+      const typeButtons = [];
+      const priorityButtons = [...document.querySelectorAll('#defense-priorities button')];
+
+      function saveDefenseFleet() {
+        defenseFleetsByPlanet.set(planet.id, orbitalDefense.exportDeployment());
+      }
       function refreshDefenseHUD() {
         const ds = orbitalDefense.getState();
         defenceStatus.textContent = !ds.enabled ? 'خاموش' :
-          ds.count === 0 ? 'بدون ماهواره' : ds.count.toLocaleString('fa-IR') + ' ماهواره';
+          ds.count===0 ? 'بدون ماهواره' : ds.count.toLocaleString('fa-IR')+' ماهواره';
         document.getElementById('defense-count').textContent =
-          ds.count.toLocaleString('fa-IR') + ' / ' + ds.maxCount.toLocaleString('fa-IR');
-        defenseAdd.disabled = ds.count >= ds.maxCount;
-        defenseRemove.disabled = ds.count <= 0;
+          ds.count.toLocaleString('fa-IR')+' / '+ds.maxCount.toLocaleString('fa-IR');
+        defenseAdd.disabled = ds.count >= ds.maxCount || state.shattered || awaitingDefensePlacement;
+        defenseRemove.disabled = ds.count <= 0 || awaitingDefensePlacement;
         document.getElementById('defense-shots').textContent = ds.totalShots.toLocaleString('fa-IR');
-        document.getElementById('defense-intercepts').textContent = ds.interceptions.toLocaleString('fa-IR');
+        document.getElementById('defense-intercepts').textContent =
+          ds.interceptions.toLocaleString('fa-IR');
         defenceEnabledControl.checked = ds.enabled;
+        typeButtons.forEach(button => button.setAttribute('aria-pressed',
+          String(button.dataset.typeId === selectedDefenseTypeId)));
+        priorityButtons.forEach(button => button.setAttribute('aria-pressed',
+          String(button.dataset.priority === ds.priority)));
       }
       function configureDefense(options) {
         orbitalDefense.configure(options);
-        if (!orbitalDefense.getState().enabled || orbitalDefense.getState().count === 0) {
+        if(!orbitalDefense.getState().enabled || orbitalDefense.getState().count===0) {
           defenseVisuals.clear();
         }
-        defenseVisuals.sync(orbitalDefense.getUnits());
+        defenseVisuals.sync(state.shattered ? [] : orbitalDefense.getUnits());
         refreshDefenseHUD();
       }
-      defenseCatalog.listTypes().forEach(type => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'defense-type';
-        button.setAttribute('aria-pressed', String(type.id === defenseType.id));
-        button.textContent = type.nameFa + ' — ' + type.descriptionFa;
-        button.title = type.nameEn;
-        button.addEventListener('click', () => {
-          // Additional types can supply their own runtime in later releases.
-          if (type.id !== defenseType.id) return;
+      defenseTypes.forEach(type => {
+        const button=document.createElement('button');
+        button.type='button';
+        button.className='defense-type';
+        button.dataset.typeId=type.id;
+        button.setAttribute('aria-pressed',String(type.id === selectedDefenseTypeId));
+        const icon=document.createElement('span');
+        icon.textContent = type.mode==='laser' ? '◎' : type.mode==='interceptor' ? '⬡' : '◈';
+        icon.style.fontSize='20px';
+        icon.setAttribute('aria-hidden','true');
+        const caption=document.createElement('strong');
+        caption.textContent=type.nameFa;
+        const note=document.createElement('small');
+        note.textContent=type.descriptionFa;
+        button.append(icon,caption,note);
+        button.title=type.nameEn;
+        button.addEventListener('click',()=>{
+          selectedDefenseTypeId=type.id;
+          refreshDefenseHUD();
         });
+        typeButtons.push(button);
         document.getElementById('defense-types').appendChild(button);
       });
-      defenseAdd.addEventListener('click', () => {
-        if (!orbitalDefense.addSatellite()) return;
-        defenseCountsByPlanet.set(planet.id, orbitalDefense.getState().count);
-        configureDefense({enabled:true});
+      priorityButtons.forEach(button=>{
+        button.addEventListener('click',()=>{
+          orbitalDefense.setPriority(button.dataset.priority);
+          refreshDefenseHUD();
+          updateDefenseRadar();
+        });
       });
-      defenseRemove.addEventListener('click', () => {
-        if (!orbitalDefense.removeSatellite()) return;
-        defenseCountsByPlanet.set(planet.id, orbitalDefense.getState().count);
+      function cancelDefensePlacement() {
+        awaitingDefensePlacement=false;
+        placementBanner.hidden=true;
+        refreshDefenseHUD();
+      }
+      document.getElementById('defense-placement-cancel')
+        .addEventListener('click',cancelDefensePlacement);
+      defenseAdd.addEventListener('click',()=>{
+        if(state.shattered || orbitalDefense.getState().count>=6)return;
+        awaitingDefensePlacement=true;
+        placementBanner.hidden=false;
+        document.getElementById('defense-placement-instruction').textContent =
+          'محل استقرار «'+defenseCatalog.getType(selectedDefenseTypeId).nameFa+
+          '» را روی سطح سیاره لمس کنید';
+        closeDefenseModal();
+        refreshDefenseHUD();
+      });
+      defenseRemove.addEventListener('click',()=>{
+        if(!orbitalDefense.removeSatellite())return;
+        saveDefenseFleet();
         configureDefense({});
       });
-      defenceEnabledControl.addEventListener('change', () => {
-        configureDefense({enabled: defenceEnabledControl.checked});
+      defenceEnabledControl.addEventListener('change',()=>{
+        configureDefense({enabled:defenceEnabledControl.checked});
       });
       function closeDefenseModal() {
-        defenceModal.hidden = true;
-        defenceButton.setAttribute('aria-expanded', 'false');
+        defenceModal.hidden=true;
+        defenceButton.setAttribute('aria-expanded','false');
         defenceButton.focus();
       }
-      defenceButton.addEventListener('click', () => {
-        defenceModal.hidden = false;
-        defenceButton.setAttribute('aria-expanded', 'true');
+      defenceButton.addEventListener('click',()=>{
+        if(awaitingDefensePlacement)cancelDefensePlacement();
+        defenceModal.hidden=false;
+        defenceButton.setAttribute('aria-expanded','true');
+        updateDefenseRadar();
         defenceClose.focus();
       });
-      defenceClose.addEventListener('click', closeDefenseModal);
-      defenceModal.addEventListener('click', e => {
-        if (e.target === defenceModal) closeDefenseModal();
+      defenceClose.addEventListener('click',closeDefenseModal);
+      defenceModal.addEventListener('click',e=>{
+        if(e.target===defenceModal)closeDefenseModal();
       });
-      defenceModal.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          closeDefenseModal();
-        } else if (e.key === 'Tab') {
-          const focusables = [...defenceModal.querySelectorAll('button,input')];
-          const first = focusables[0], last = focusables[focusables.length - 1];
-          if (e.shiftKey && document.activeElement === first) {
+      defenceModal.addEventListener('keydown',e=>{
+        if(e.key==='Escape'){
+          e.preventDefault();closeDefenseModal();
+        }else if(e.key==='Tab'){
+          const focusables=[...defenceModal.querySelectorAll('button:not(:disabled),input:not(:disabled)')];
+          const first=focusables[0],last=focusables[focusables.length-1];
+          if(e.shiftKey&&document.activeElement===first){
             e.preventDefault();last.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
+          }else if(!e.shiftKey&&document.activeElement===last){
             e.preventDefault();first.focus();
           }
         }
       });
+
+      let radarClock=0;
+      function updateDefenseRadar() {
+        if(defenceModal.hidden)return;
+        const threats=orbitalDefense.getRadar(activeMissiles);
+        radarCount.textContent=threats.length.toLocaleString('fa-IR');
+        const dots=threats.map(threat=>{
+          const dot=document.createElement('span');
+          dot.className='defense-radar-dot';
+          dot.style.left=(50+Math.max(-46,Math.min(46,threat.position.x*1.9)))+'%';
+          dot.style.top=(50+Math.max(-46,Math.min(46,threat.position.z*1.9)))+'%';
+          return dot;
+        });
+        radarSurface.replaceChildren(...dots);
+        if(threats.length===0){
+          threatList.textContent='در حال حاضر تهدیدی وجود ندارد';
+          return;
+        }
+        const rows=threats.slice(0,4).map(t=>{
+          const row=document.createElement('div');
+          row.textContent=t.label+' — '+Math.round(t.progress*100).toLocaleString('fa-IR')+'٪ مسیر';
+          return row;
+        });
+        threatList.replaceChildren(...rows);
+      }
       configureDefense({enabled:true,count:0});
 
       function removeMissile(m) {
@@ -1633,7 +1707,8 @@
         const p = catalog.getPlanet(id);
         if (!p) return;
         planet = p;
-        orbitalDefense.configure({count:defenseCountsByPlanet.get(p.id) || 0});
+        cancelDefensePlacement();
+        orbitalDefense.loadDeployment(defenseFleetsByPlanet.get(p.id) || []);
         resetEarth();
         planetDamage.setPlanet(p);
         earthGroup.rotation.y = 0;
