@@ -209,3 +209,16 @@ An orbital unit only fires when its cooldown, coverage, range and planet line-of
 Architecture: `src/defense/catalog.js` defines the unit registry, `src/defense/orbital-defense.js` implements pure combat/placement/radar logic, and `src/defense/orbital-defense-renderer.js` owns visual models and pooled laser effects. Unit counts remain capped at six, active beam meshes at 6–12 depending on graphics quality and threat radar entries at twelve.
 
 **Scope and limitations:** These systems are gameplay approximations, not actual spacecraft, weapon engineering, or ballistic-defense calculations. Orbital placement establishes the initial orbital direction rather than permanently station-keeping over a fixed country. The energy shield only intercepts eligible projectiles near its current orbital coverage; it is not a permanent invulnerable planet-wide shield. Orbital configurations persist across planet changes during the session, but not across browser reloads. For UI regression testing see `tests/index-script.test.cjs`; the behavioural coverage is in `tests/defense-v2.test.cjs`. Real mobile browser render/FPS verification is still needed.
+
+
+## Mobile and tablet: landscape-first gameplay
+
+GodSmash always uses a **landscape-shaped logical game viewport** on touch phones and tablets. Landscape devices render normally. On a portrait touch viewport, `src/ui/landscape.js` rotates the **entire game shell** (WebGL canvas, HUD, weapon dock, defence/planet dialogs, loading screen) by 90° as a CSS fallback; upside-down portrait devices use the opposite direction when the browser reports `portrait-secondary`. Desktop browsers are unaffected.
+
+The viewport controller recomputes camera aspect ratio and WebGL drawing buffer dimensions on `resize` and Screen Orientation API `change` events. Canvas target rays and camera drag deltas are mapped back into the **logical landscape coordinates** before processing; raw `getBoundingClientRect()` ratios cannot be used for a rotated canvas. The weapon-dock clearance uses `offsetHeight` to avoid transformed bounding-box errors.
+
+On the first real touch, the game **tries** fullscreen and `screen.orientation.lock('landscape')` where the platform allows them. Android browsers often require fullscreen and user interaction to lock the physical display; iOS Safari and other browsers may restrict or reject this. CSS fallback does not need fullscreen or permission and keeps gameplay available in all cases. The `manifest.webmanifest` also declares `orientation: landscape` and fullscreen display for installed web-app environments that honor this metadata.
+
+**Android packaging note:** When building a native Android app in the future, configure the host Activity with a landscape-only sensor orientation (for example, Android's `sensorLandscape`) rather than depending on a browser orientation-lock API. Test both left and right landscape rotations.
+
+Automated tests: `tests/landscape.test.cjs` covers portrait/landscape transitions, clockwise/counterclockwise mapping, fallback, fullscreen attempts and desktop exclusion. The integration test checks renderer sizing and input wiring. **Real-device visual QA is still needed**, especially Chrome Android, Samsung Internet and Safari iPhone/iPad in portrait, landscape-left and landscape-right, plus modal touch and aiming.
