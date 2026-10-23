@@ -887,6 +887,7 @@
       // 3. THREE.JS SCENE, CAMERA & LIGHTING
       // ==========================================
       const gameShell = document.getElementById('game-shell');
+      let gameRendererReady = false;
       const landscape = window.GodSmashLandscape.mount({
         view: window, document, shell: gameShell,
         onResize: ({width,height}) => {
@@ -898,7 +899,6 @@
           if (typeof positionWeaponDock === 'function') positionWeaponDock();
         }
       });
-      let gameRendererReady = false;
       const initialView = landscape.getViewport();
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(45,
