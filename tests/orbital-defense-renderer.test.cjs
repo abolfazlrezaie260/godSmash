@@ -47,8 +47,8 @@ test('satellite and beam visuals share geometry and dispose owned resources exac
  assert.equal(scene.children.length,5,'satellite root plus four pooled beams');
  const count=allocated.geometries.length;
  const mats=allocated.materials.length;
- assert.equal(count,4,'body, solar panels, mounts and beam geometries shared');
- assert.equal(mats,7,'three satellite materials and four individual beam materials');
+ assert.equal(count,9,'eight armoured defensive structures plus one shared beam geometry');
+ assert.equal(mats,11,'seven armoured-satellite materials and four independent beam materials');
 
  const units=[
   {id:'d0',position:{x:13,y:0,z:0}},
