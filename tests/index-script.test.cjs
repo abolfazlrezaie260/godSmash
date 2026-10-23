@@ -25,11 +25,11 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /defenseFleetsByPlanet\.get\(p\.id\)/);
   assert.match(match[1], /GodSmashOrbitalDefense\.createSystem/);
   assert.match(match[1], /GodSmashOrbitalDefenseRenderer\.createRenderer/);
-  assert.match(match[1], /orbitalDefense\\.step\\(dt, activeMissiles/);
+  assert.match(match[1], /orbitalDefense\.step\(dt, activeMissiles/);
   assert.match(match[1], /awaitingDefensePlacement/);
-  assert.match(match[1], /defenseFleetsByPlanet\\.get/);
-  assert.match(match[1], /orbitalDefense\\.getRadar/);
-  assert.match(match[1], /orbitalDefense\\.setPriority/);
+  assert.match(match[1], /defenseFleetsByPlanet\.get/);
+  assert.match(match[1], /orbitalDefense\.getRadar/);
+  assert.match(match[1], /orbitalDefense\.setPriority/);
   assert.match(match[1], /impactDirection/);
   assert.ok(html.includes('id="defense-placement-banner"'));
   assert.ok(html.includes('id="defense-radar"'));
