@@ -9,6 +9,7 @@ test('browser game inline script is syntactically valid and wired to projectile 
   const match = html.match(/<script>\s*([\s\S]*?)<\/script>/);
   assert.ok(match, 'browser gameplay script must exist');
   assert.doesNotThrow(() => new vm.Script(match[1], {filename: 'index.html'}));
+  assert.ok(html.includes('src="./src/render/mars-surface.js"'));
   assert.ok(html.includes('src="./src/defense/catalog.js"'));
   assert.ok(html.includes('src="./src/defense/orbital-defense.js"'));
   assert.ok(html.includes('src="./src/defense/orbital-defense-renderer.js"'));
@@ -152,4 +153,19 @@ test('installed web-app metadata asks the host platform for landscape', () => {
   assert.equal(manifest.orientation,'landscape');
   assert.equal(manifest.display,'fullscreen');
   assert.equal(manifest.start_url,'./');
+});
+
+test('Mars terrain material, thin atmosphere and relief are wired without affecting Earth',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+  const match=html.match(/<script>\s*([\s\S]*?)<\/script>/);
+  assert.ok(match);
+  assert.match(match[1], /planetDamage\.setTerrain\(p\.id === 'mars'/);
+  assert.match(match[1], /GodSmashMarsSurface\.heightAt/);
+  assert.match(match[1], /GodSmashMarsSurface\.createBumpTexture/);
+  assert.match(match[1], /earthMat\.roughness = p\.surfaceRoughness/);
+  assert.match(match[1], /earthMat\.metalness = p\.surfaceMetalness/);
+  assert.match(match[1], /earthMat\.bumpMap = null/);
+  assert.match(match[1], /atmosMat\.uniforms\.rimStrength\.value/);
+  assert.match(html, /uniform float rimStrength/);
+  assert.match(match[1], /window\.GodSmashRealEarth\.configure/);
 });
