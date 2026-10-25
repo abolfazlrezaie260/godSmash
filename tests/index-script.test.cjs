@@ -143,7 +143,9 @@ test('impact scorch is dark and non-emissive rather than giant red magma discs',
   assert.ok(begin > 0 && end > begin);
   const body = html.slice(begin, end);
   assert.match(body, /rgba\(16,17,20,0\.89\)/);
-  assert.match(body, /surfaceCtx\.strokeStyle = 'rgba\(24,23,23,0\.34\)'/);
+  assert.match(body, /surfaceCtx\\.strokeStyle = martianDust/);
+  assert.match(body, /rgba\\(69,44,36,0\\.26\\)/);
+  assert.match(body, /rgba\\(24,23,23,0\\.34\\)/);
   assert.doesNotMatch(body, /lavaGrad|emissiveCtx\.fill|emissiveCtx\.stroke/);
   assert.doesNotMatch(body, /#dc2626|#f97316|#fb923c/);
 });
@@ -161,6 +163,8 @@ test('Mars terrain material, thin atmosphere and relief are wired without affect
   assert.ok(match);
   assert.match(match[1], /planetDamage\.setTerrain\(p\.id === 'mars'/);
   assert.match(match[1], /GodSmashMarsSurface\.heightAt/);
+  assert.match(match[1], /dustColor: planet\.id==='mars'/);
+  assert.match(match[1], /rocketFx\.burstDust\(effect\.dustWorldPosition/);
   assert.match(match[1], /GodSmashMarsSurface\.createBumpTexture/);
   assert.match(match[1], /earthMat\.roughness = p\.surfaceRoughness/);
   assert.match(match[1], /earthMat\.metalness = p\.surfaceMetalness/);
