@@ -6,7 +6,7 @@ const textures = require('../src/render/planet-textures.js');
 
 test('default planets and weapons are accessible', () => {
   assert.deepEqual(catalog.listPlanets().map(x => x.id), ['earth', 'mars', 'venus', 'moon']);
-  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser', 'titan', 'viper', 'nova']);
+  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser', 'titan', 'viper', 'nova', 'drone-swarm']);
 });
 test('new missiles have distinct balanced stats and visual profiles', () => {
   const titan = catalog.getWeapon('titan');
@@ -59,4 +59,13 @@ test('procedural texture painter supports offscreen or mocked contexts', () => {
   textures.paint(catalog.getPlanet('mars'),ctx,ctx,128,64);
   textures.paint(catalog.getPlanet('venus'),ctx,ctx,128,64);
   assert.ok(calls.length > 0);
+});
+
+test('drone swarm is a distinct registered weapon with bounded clustered damage',()=>{
+  const weapon=catalog.getWeapon('drone-swarm');
+  assert.ok(weapon);
+  assert.equal(weapon.kind,'swarm');
+  assert.equal(weapon.swarmCount,312);
+  assert.ok(weapon.blastRadius<1);
+  assert.ok(weapon.damage>0 && weapon.damage<2);
 });
