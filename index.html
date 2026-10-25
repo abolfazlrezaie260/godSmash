@@ -1177,6 +1177,7 @@
           length:rPx * (0.65 + Math.random()*0.38)
         }));
 
+        const martianDust = planet.id === 'mars';
         // Draw matching wrapped copies at the texture seam.
         for (const dx of [-TEX_W, 0, TEX_W]) {
           const x = cx + dx;
@@ -1186,10 +1187,10 @@
           surfaceCtx.rotate(markAngle);
           surfaceCtx.scale(elongation,1);
           const ash = surfaceCtx.createRadialGradient(0,0,rPx*0.06,0,0,rPx*1.24);
-          ash.addColorStop(0,'rgba(16,17,20,0.89)');
-          ash.addColorStop(0.33,'rgba(34,33,33,0.78)');
-          ash.addColorStop(0.70,'rgba(46,42,39,0.36)');
-          ash.addColorStop(1,'rgba(43,42,39,0)');
+          ash.addColorStop(0,martianDust ? 'rgba(60,39,34,0.82)' : 'rgba(16,17,20,0.89)');
+          ash.addColorStop(0.33,martianDust ? 'rgba(93,56,41,0.63)' : 'rgba(34,33,33,0.78)');
+          ash.addColorStop(0.70,martianDust ? 'rgba(159,104,74,0.27)' : 'rgba(46,42,39,0.36)');
+          ash.addColorStop(1,martianDust ? 'rgba(143,93,65,0)' : 'rgba(43,42,39,0)');
           surfaceCtx.fillStyle = ash;
           surfaceCtx.beginPath();
           surfaceCtx.arc(0,0,rPx*1.24,0,Math.PI*2);
@@ -1197,7 +1198,8 @@
           surfaceCtx.restore();
 
           // Hairline dark fractures, not incandescent orange radial strokes.
-          surfaceCtx.strokeStyle = 'rgba(24,23,23,0.34)';
+          surfaceCtx.strokeStyle = martianDust
+            ? 'rgba(69,44,36,0.26)' : 'rgba(24,23,23,0.34)';
           surfaceCtx.lineWidth = Math.max(0.7,TEX_W/2048);
           cracks.forEach(({angle,length})=>{
             surfaceCtx.beginPath();
@@ -1434,7 +1436,8 @@
           ...blast, age: 0, maxAge: blast.duration,
           dustStage: 0,
           dustWorldPosition: blastWorldPosition.clone(),
-          dustWorldNormal: worldImpactNormal.clone()
+          dustWorldNormal: worldImpactNormal.clone(),
+          dustColor: planet.id==='mars' ? 0xb37b5c : 0x827d76
         });
 
         // Initial impact: muted fragments and sparks; ash rises as the bloom
@@ -1443,7 +1446,7 @@
         const worldNormal = worldImpactNormal;
         rocketFx.burst(worldImpactPos, worldNormal,
           damageResult.breached ? (lowImpactQuality ? 6 : 12) : (lowImpactQuality ? 4 : 8),
-          0xb9a58f);
+          planet.id==='mars' ? 0xc39071 : 0xb9a58f);
 
         const debrisBudget = Math.max(0, maxActiveDebris - activeDebris.length);
         const debrisCount = Math.min(debrisBudget,
@@ -1455,7 +1458,9 @@
           const isHot = i % 5 === 0 || (largeFracture && i % 2 === 0);
           const debGeo = new THREE.DodecahedronGeometry(size, 0);
           const debMat = new THREE.MeshStandardMaterial({
-            color: isHot ? 0x74564b : (planet.id === 'moon' ? 0x747780 : 0x514c48),
+            color: planet.id === 'mars'
+              ? (isHot ? 0x9d6650 : 0x845643)
+              : isHot ? 0x74564b : (planet.id === 'moon' ? 0x747780 : 0x514c48),
             roughness: 0.92, metalness: 0.04, flatShading: true,
             emissive: isHot ? 0x49251b : 0x130d0a,
             emissiveIntensity: isHot ? 0.28 : 0.08,
@@ -2300,7 +2305,7 @@
               while (effect.dustStage < nextStage) {
                 effect.dustStage++;
                 rocketFx.burstDust(effect.dustWorldPosition,effect.dustWorldNormal,
-                  lowImpactQuality ? 3 : 6);
+                  lowImpactQuality ? 3 : 6,effect.dustColor);
               }
             }
           }
