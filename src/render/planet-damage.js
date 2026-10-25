@@ -334,7 +334,9 @@
       for(let i=0;i<positions.count;i++){
         const j=i*3;
         const x=spherePositions[j],y=spherePositions[j+1],z=spherePositions[j+2];
-        const longitude=((Math.atan2(z,-x)/(Math.PI*2)+.5)*360+360)%360;
+        // Match THREE.SphereGeometry UVs (u = 1 - azimuth / 2π);
+        // previous crater-only mapping used a different longitude origin.
+        const longitude=((1-Math.atan2(z,-x)/(Math.PI*2))*360+360)%360;
         const latitude=Math.asin(clamp(y/radius,-1,1))*180/Math.PI;
         const km=sampleElevationKm ? sampleElevationKm(longitude,latitude) : 0;
         if(!Number.isFinite(km))throw new TypeError('Elevation must be finite');
