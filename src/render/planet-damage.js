@@ -19,6 +19,8 @@
     const geometry = options.geometry;
     const group = options.group;
     const radius = options.radius || 10;
+    const coreRadius = radius * 0.805;
+    const coreExposureDepth = radius - coreRadius;
     const maxBreaches = options.lowQuality ? 6 : 12;
     const originalPositions = new Float32Array(geometry.attributes.position.array);
     const initialIndex = geometry.index ? Array.from(geometry.index.array) : [];
@@ -30,13 +32,22 @@
     const impactSites = [];
     let damagePercent = 0;
     const inner = new THREE.Mesh(
-      new THREE.SphereGeometry(radius * 0.805, options.lowQuality ? 24 : 40, 20),
+      new THREE.SphereGeometry(coreRadius, options.lowQuality ? 24 : 40, 20),
       new THREE.MeshStandardMaterial({
         color: 0x292523, emissive: 0x30211a, emissiveIntensity: 0.12,
         roughness: 1, metalness: 0, side: THREE.DoubleSide
       })
     );
     inner.name = 'Exposed interior';
+    const coreGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(coreRadius + radius * 0.015, options.lowQuality ? 20 : 32, 16),
+      new THREE.MeshBasicMaterial({
+        color: 0xff5a1f, transparent: true, opacity: 0.38,
+        blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+      })
+    );
+    coreGlow.name = 'Molten core glow halo';
+    inner.add(coreGlow);
     inner.visible = false;
     group.add(inner);
     let shattered = false;
@@ -171,7 +182,7 @@
       return depth;
     }
 
-    function recordImpact(normal, effectiveRadius, power) {
+    function recordImpact(normal, effectiveRadius, power, depth) {
       const footprintRadius = clamp((effectiveRadius / radius) * 1.25, 0.015, 0.88);
       let nearest = null;
       let nearestAngle = Infinity;
@@ -186,7 +197,7 @@
       const overlaps = nearest && nearestAngle < nearest.radius + footprintRadius * 0.55;
       const merged = !!overlaps || impactSites.length >= maxImpactSites;
       if (merged) {
-        if (!nearest) return {hits: 1, radius: footprintRadius};
+        if (!nearest) return {hits: 1, radius: footprintRadius, cumulativeDepth: depth, coreExposed: false};
         nearest.normal = nearest.normal.clone().multiplyScalar(nearest.hits)
           .add(normal).normalize();
         nearest.radius = Math.min(0.92, Math.max(
@@ -196,12 +207,16 @@
         ));
         nearest.severity = Math.min(32, nearest.severity + power * 0.16);
         nearest.hits += 1;
+        nearest.cumulativeDepth = Math.min(radius * 2, nearest.cumulativeDepth + depth);
+        nearest.coreExposed = nearest.coreExposed || nearest.cumulativeDepth >= coreExposureDepth;
       } else {
         impactSites.push({
           normal: normal.clone(),
           radius: footprintRadius,
           severity: power,
-          hits: 1
+          hits: 1,
+          cumulativeDepth: depth,
+          coreExposed: depth >= coreExposureDepth
         });
       }
 
@@ -214,7 +229,9 @@
       damagePercent = clamp((1 - remaining) * 100, 0, 100);
       return {
         hits: merged && nearest ? nearest.hits : 1,
-        radius: merged && nearest ? nearest.radius : footprintRadius
+        radius: merged && nearest ? nearest.radius : footprintRadius,
+        cumulativeDepth: merged && nearest ? nearest.cumulativeDepth : impactSites[impactSites.length - 1].cumulativeDepth,
+        coreExposed: merged && nearest ? nearest.coreExposed : impactSites[impactSites.length - 1].coreExposed
       };
     }
 
@@ -226,7 +243,10 @@
       const incidence = clamp(Number.isFinite(config.incidence) ? config.incidence : 1, 0, 1);
       const effectiveRadius = blastRadius * (1 + (1 - incidence) * 0.72);
       const depth = deform(normal, blastRadius, power, incidence, config.impactDirection);
-      const site = recordImpact(normal, effectiveRadius, power);
+      const site = recordImpact(normal, effectiveRadius, power, depth);
+      // The core only becomes visible once accumulated penetration reaches its radius.
+      // It remains hidden behind intact crust, but appears naturally at a sufficiently deep crater floor.
+      if (site.coreExposed && !shattered) inner.visible = true;
 
       let breached = false;
       let aperture = 0;
@@ -249,7 +269,8 @@
       geometry.computeBoundingSphere();
       return {
         breached, depth, aperture, power, incidence, effectiveRadius,
-        damagePercent, impactSiteCount: impactSites.length, siteHits: site.hits
+        damagePercent, impactSiteCount: impactSites.length, siteHits: site.hits,
+        cumulativeDepth: site.cumulativeDepth, coreExposed: site.coreExposed
       };
     }
 
@@ -258,20 +279,26 @@
         inner.material.color.set('#252831');
         inner.material.emissive.set('#2d303c');
         inner.material.emissiveIntensity = 0.35;
+        coreGlow.material.color.set('#7b8296');
+        coreGlow.material.opacity = 0.12;
       } else if (planet.id === 'mars') {
         inner.material.color.set('#492019');
         inner.material.emissive.set('#f05418');
-        inner.material.emissiveIntensity = 0.8;
+        inner.material.emissiveIntensity = 1.8;
+        coreGlow.material.color.set('#ff4d20');
+        coreGlow.material.opacity = 0.36;
       } else {
         inner.material.color.set('#351917');
         inner.material.emissive.set('#ed621a');
-        inner.material.emissiveIntensity = 1.12;
+        inner.material.emissiveIntensity = 2.2;
+        coreGlow.material.color.set('#ff641f');
+        coreGlow.material.opacity = 0.42;
       }
     }
 
     function setShattered(value) {
       shattered = !!value;
-      inner.visible = holes.length > 0 && !shattered;
+      inner.visible = (holes.length > 0 || impactSites.some(site => site.coreExposed)) && !shattered;
       for (const scar of scars) scar.visible = !shattered;
     }
 
@@ -300,7 +327,9 @@
       getMaxBreaches: () => maxBreaches,
       getDamagePercent: () => damagePercent,
       getImpactSiteCount: () => impactSites.length,
-      getMaxImpactSites: () => maxImpactSites
+      getMaxImpactSites: () => maxImpactSites,
+      getCoreExposureCount: () => impactSites.filter(site => site.coreExposed).length,
+      isCoreExposed: () => impactSites.some(site => site.coreExposed)
     });
   }
 
