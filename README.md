@@ -280,3 +280,21 @@ Use the new **ازدحام پهپادها** weapon in the bottom-left dock. When
 Implementation: `src/simulation/drone-swarm.js` owns deterministic flock/flight/target/impact state, while `src/render/drone-swarm-renderer.js` owns the single GPU instanced geometry and materials. The existing planet destruction pipeline renders the grouped hits. Automated tests cover orbit motion, all-drone completion, retargeting, batched impacts, frame-speed scaling, instance draw counts and disposal.
 
 **Known scope limitations:** This is fictional cinematic flocking rather than full pairwise boids physics (avoids O(N²) neighbor checks on phones). Defensive satellites currently intercept individual missile objects, not individual drone instances. Device FPS and subjective visual quality still require testing in a real mobile/tablet browser.
+
+
+## Harvester UFOs — tractor-beam crust extraction (issue #29)
+
+The **سفینه‌های برداشت‌کننده / Harvester UFOs** is a tenth tool in the bottom-left weapons dock. Selecting it deploys **6 UFOs on low-quality mobile configurations** or **9 on higher-quality devices**. The small armored saucers slowly patrol around the planet without attacking automatically. Tap a visible location on the planet (or use the center-fire button) to send them to spread-out positions above that area; re-tapping a different area reassigns all unfinished craft. The game's 0.5×/1×/2× speed control also changes these animations.
+
+**Nonexplosive three-stage harvesting:**
+1. **Approach and hover:** UFOs approach the selected surface at staggered times.
+2. **Tractor extraction:** During roughly 3.4 game seconds of operation, each UFO projects a subtle, translucent teal cone toward the surface. Two extraction passes per craft lower real sphere-mesh vertices into a smooth, deep crater without producing fireballs, scorched rims, an outward debris blast or casualties. Four instanced rock fragments per active UFO visually float upward within its tractor beam, shrink, and disappear into the craft.
+3. **Departure:** UFOs retract the beam and accelerate away from the planet, beyond the game-space boundary. Once every UFO has departed, the now-spent fleet is disposed and a new idle fleet can be selected for further harvesting.
+
+**Rendering and mobile limits:** Hulls share **one custom low-poly instanced geometry and one material**; floating crust fragments share **one additional InstancedMesh**. Beam cones share a third geometry/material with at most 6 or 9 short-lived Mesh draws, visible only while extracting. No new external textures, no per-fragment geometries or post-processing passes. All GPU geometries and materials are disposed exactly once when the weapon changes, the planet changes, it shatters, or the user resets. An optional `?perf=1` HUD entry reports active harvesters and beams.
+
+**Crater simulation:** `planetDamage.extract(localPoint, radius, depth)` edits the existing local terrain vertex buffer with a smooth, downward-only depression, merges nearby extraction spots into the existing bounded impact-site registry and updates surface damage percentages. It deliberately does **not** remove triangles or spawn molten/cracked rims; the harvested location retains a clean bowl. Restoring the planet resets its vertices and damage registry. Each successful excavation adds only a tiny amount to planet-integrity damage and **no population casualties**.
+
+**Tests:** `tests/harvesters.test.cjs` covers orbit motion, target changes, staggered tractor/exit phases, bounded completion, and game-speed scaling. `tests/harvester-renderer.test.cjs` validates shared GPU meshes/materials, beam/fragment instancing and disposal. `tests/planet-destruction.test.cjs` verifies geometry and clean-crater reset semantics. Real phone/tablet WebGL visual QA and FPS checks remain necessary.
+
+**Scope:** This is a fictional arcade-style visual extraction effect. The ascending fragments are representative crust meshes synchronized with edits to the underlying planet surface, not exact lifted triangle cutouts or a geologically accurate simulation of water/atmosphere transfer.
