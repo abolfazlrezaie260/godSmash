@@ -47,7 +47,8 @@
         config.maxSpeed < config.launchSpeed) {
       throw new Error('weapon.maxSpeed must be >= weapon.launchSpeed');
     }
-    if (config.kind !== 'beam' && config.speed <= 0) throw new Error('Projectile speed must be positive');
+    if (['missile','asteroid','swarm'].includes(config.kind) && config.speed <= 0)
+      throw new Error('Projectile speed must be positive');
     if (config.kind !== 'beam' && config.flightPace !== undefined &&
         (config.flightPace <= 0 || config.flightPace > 1)) {
       throw new RangeError('weapon.flightPace must be in (0, 1]');
