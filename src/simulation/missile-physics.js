@@ -106,7 +106,25 @@
     });
   }
 
-  root.GodSmashMissilePhysics = Object.freeze({createFlight, stepFlight});
+  // World-space collision of a solid projectile envelope with the planet.
+  // Rendering exhaust never changes hitbox size; a scaled model's collisionRadius
+  // is provided by GodSmashProjectiles.visualMetrics().
+  function hasPlanetContact(position, planetCenter, planetRadius, collisionRadius, tolerance = 0.035) {
+    if (!position || !planetCenter ||
+      !Number.isFinite(planetRadius) || planetRadius <= 0 ||
+      !Number.isFinite(collisionRadius) || collisionRadius < 0 ||
+      !Number.isFinite(tolerance) || tolerance < 0) {
+      throw new TypeError('Invalid planet or projectile collision bounds');
+    }
+    const dx = position.x - planetCenter.x;
+    const dy = position.y - planetCenter.y;
+    const dz = position.z - planetCenter.z;
+    if (![dx,dy,dz].every(Number.isFinite)) throw new TypeError('Invalid projectile position');
+    const outer = planetRadius + collisionRadius + tolerance;
+    return dx * dx + dy * dy + dz * dz <= outer * outer;
+  }
+
+  root.GodSmashMissilePhysics = Object.freeze({createFlight, stepFlight, hasPlanetContact});
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = root.GodSmashMissilePhysics;
   }
