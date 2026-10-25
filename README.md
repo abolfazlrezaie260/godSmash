@@ -250,3 +250,8 @@ The deterministic model now yields the following **approximate simulated game du
 | Nova | 4.63 s |
 
 Laser satellites begin with an approximately **0.86 s acquisition period**, then keep the lock on a surviving, still-visible target and fire follow-up bursts after an approximately **0.88 s cooldown**; each laser hit deals a limited `0.58` points of arcade durability damage. The first shot and subsequent pulses are therefore visually separate instead of instantly destroying most missiles. Other defence classes retain distinct timing, range and strength characteristics. At 0.5× game speed these game events take approximately twice as long in real time; at 2× they take roughly half as long.
+
+
+### Issue #24 — stable planet on impact
+
+Weapon impacts no longer apply random camera-position offsets. Previously, every impact increased `state.screenShake`, and the render loop added random offsets to all three camera axes; this made the whole planet appear to jump even though the planet group itself had no impact impulse. The camera now stays on its deterministic orbit while the crater, blast, debris and dust remain local to the hit location. Planet auto-rotation remains an intentional gameplay feature; impact does not add a global position or rotation impulse. The planetary rupture also no longer shakes the camera. Regression coverage verifies the stable camera path and rejects reintroduction of impact-driven screen shake.
