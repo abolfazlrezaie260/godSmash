@@ -22,7 +22,8 @@
     const coreRadius = radius * 0.805;
     const coreExposureDepth = radius - coreRadius;
     const maxBreaches = options.lowQuality ? 6 : 12;
-    const originalPositions = new Float32Array(geometry.attributes.position.array);
+    const spherePositions = new Float32Array(geometry.attributes.position.array);
+    const originalPositions = new Float32Array(spherePositions);
     const initialIndex = geometry.index ? Array.from(geometry.index.array) : [];
     if (!initialIndex.length) throw new Error('Indexed planet geometry required');
 
@@ -93,7 +94,9 @@
       const isCold = planet.id === 'moon';
       const shades = isCold
         ? ['#595b65', '#8a8c92', '#34343d', '#1e2026', '#282c33']
-        : ['#46423e', '#806f62', '#363330', '#292523', '#453c36'];
+        : planet.id === 'mars'
+          ? ['#744d3d', '#a77759', '#694b3f', '#4d3530', '#634638']
+          : ['#46423e', '#806f62', '#363330', '#292523', '#453c36'];
       const randomScale = [];
       for (let s = 0; s <= segments; s++) {
         const angle = (s / segments) * Math.PI * 2;
@@ -318,6 +321,34 @@
         siteHits:site.hits,damagePercent,coreExposed:site.coreExposed};
     }
 
+    // Replace pristine terrain only between planets, never over active damage.
+    // Existing impact/debris/reset code continues to use originalPositions, which
+    // becomes the per-planet baseline instead of the Earth-only sphere.
+    function setTerrain(sampleElevationKm) {
+      if (sampleElevationKm !== null && typeof sampleElevationKm !== 'function')
+        throw new TypeError('Elevation must be a sampler or null');
+      if (holes.length || impactSites.length || scars.length)
+        throw new Error('Reset damage before changing terrain');
+      const positions=geometry.attributes.position;
+      const vector=new THREE.Vector3();
+      for(let i=0;i<positions.count;i++){
+        const j=i*3;
+        const x=spherePositions[j],y=spherePositions[j+1],z=spherePositions[j+2];
+        const longitude=((Math.atan2(z,-x)/(Math.PI*2)+.5)*360+360)%360;
+        const latitude=Math.asin(clamp(y/radius,-1,1))*180/Math.PI;
+        const km=sampleElevationKm ? sampleElevationKm(longitude,latitude) : 0;
+        if(!Number.isFinite(km))throw new TypeError('Elevation must be finite');
+        const factor=1+clamp(km,-10,22)/3389.5;
+        originalPositions[j]=x*factor;
+        originalPositions[j+1]=y*factor;
+        originalPositions[j+2]=z*factor;
+      }
+      positions.array.set(originalPositions);
+      positions.needsUpdate=true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+    }
+
     function setPlanet(planet) {
       if (planet.id === 'moon') {
         inner.material.color.set('#252831');
@@ -366,7 +397,7 @@
     }
 
     return Object.freeze({
-      impact, extract, reset, setPlanet, setShattered,
+      impact, extract, reset, setPlanet, setShattered, setTerrain,
       getBreachCount: () => holes.length,
       getMaxBreaches: () => maxBreaches,
       getDamagePercent: () => damagePercent,
