@@ -62,6 +62,7 @@
       if(!alive.length){mode='spent';return false;}
       alive.forEach((d,index)=>{
         d.start={...d.position};
+        d.launched=false;
         // Small irregular crater field: approximately 0.65 world units across.
         const angle=GOLDEN*d.id;
         const radial=radius*(.014+.054*Math.sqrt((d.id%43)/43));
@@ -89,7 +90,20 @@
       for(const d of drones){
         if(d.done)continue;
         const t=clamp((flightTime-d.delay)/d.duration,0,1);
-        if(t<=0)continue;
+        if(t<=0){
+          // Undeployed members keep flocking rather than freezing in place
+          // while the first drone waves attack.
+          orbitPosition(d,elapsed);
+          continue;
+        }
+        if(!d.launched){
+          // Recompute a smooth launch arc from its last live orbital position.
+          d.launched=true;
+          d.start={...d.position};
+          const mid=mul(add(d.start,d.end),.5);
+          d.control=mul(normalize(mid),Math.max(radius*1.22,
+            Math.hypot(mid.x,mid.y,mid.z)+radius*.26));
+        }
         if(t>=1){
           d.position={...d.end};
           d.done=true;d.visible=false;used++;pending++;
