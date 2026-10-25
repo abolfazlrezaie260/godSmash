@@ -92,7 +92,7 @@
         }
         for(let j=0;j<fragmentsPerShip;j++){
           const slot=i*fragmentsPerShip+j;
-          const show=beam.visible&&u.harvestElapsed>j*.1;
+          const show=beam.visible&&u.extracted>0&&u.harvestElapsed>j*.1;
           if(show){
             activeShards++;
             const p=(u.harvestElapsed*.32+j*.25)%1;
@@ -123,7 +123,8 @@
       for(const material of [hullMat,fragmentsMat,beamMat])material.dispose();
     }
     return Object.freeze({sync,dispose,ships,debris,beams,
-      getStats:()=>({drawCalls:disposed?0:2+activeBeams,
+      getStats:()=>({drawCalls:disposed?0:
+        (ships.visible?1:0)+(debris.visible?1:0)+activeBeams,
         activeBeams:disposed?0:activeBeams,
         activeShards:disposed?0:activeShards})
     });
