@@ -68,6 +68,7 @@
         u.beamActive=false;
         u.harvestElapsed=0;
         u.missionDelay=u.id*.24;
+        u.launched=false;
         u.extracted=0;
       }
       if(any){missionTime=0;mode='mission';}
@@ -88,6 +89,10 @@
         if(u.done)continue;
         const clock=missionTime-u.missionDelay;
         if(clock<=0){updateIdle(u,gameTime);continue;}
+        if(!u.launched){
+          u.launched=true;
+          u.start={...u.position};
+        }
         const approachDuration=1.8;
         const extractDuration=3.4;
         const exitDuration=2.4;
