@@ -17,6 +17,10 @@
     if (!planet || !Array.isArray(planet.palette) || planet.palette.length < 3) {
       throw new Error('Unknown planet texture configuration');
     }
+    // Mars has a dedicated geologically inspired offline synthesizer;
+    // Moon/Venus retain their independent lightweight procedural presets.
+    if(planet.id==='mars' && root.GodSmashMarsSurface)
+      return root.GodSmashMarsSurface.paint(surface,emissive,width,height);
     const random = seededRandom(hashId(planet.id));
     const [dark, mid, light] = planet.palette;
     const gradient = surface.createLinearGradient(0, 0, 0, height);
