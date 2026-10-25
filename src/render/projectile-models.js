@@ -53,8 +53,38 @@
     })
   });
 
+  // Physical mesh geometry remains high fidelity at its native dimensions.
+  // Only the root transform changes: relative silhouette and UV detail survive.
+  const MISSILE_SCALE_TO_PLANET = 0.027;
+  const ASTEROID_SCALE_TO_PLANET = 0.048;
   function getProfile(id) {
     return profiles[id] || profiles.strategic;
+  }
+
+  function visualMetrics(profileName, planetRadius = 10) {
+    if (!Number.isFinite(planetRadius) || planetRadius <= 0) {
+      throw new RangeError('Planet radius must be positive');
+    }
+    if (profileName === 'asteroid') {
+      const scale = planetRadius * ASTEROID_SCALE_TO_PLANET;
+      return Object.freeze({
+        scale, collisionRadius: 0.57 * scale,
+        planetRadius, profile: 'asteroid'
+      });
+    }
+    const p = getProfile(profileName);
+    const scale = planetRadius * MISSILE_SCALE_TO_PLANET;
+    // The broad-phase spherical contact envelope contains the nose and fins.
+    // Exhaust is intentionally excluded: it has no solid collision body.
+    const radialReach = Math.max(p.radius + p.finSpan,
+      p.radius + (p.wings ? (p.id === 'plasma' ? 0.62 : 0.77) : 0),
+      p.sideBoosters ? p.radius * 1.65 : 0);
+    const axialReach = Math.max(p.length / 2 + p.nose,
+      p.length / 2 + 0.39);
+    return Object.freeze({
+      scale, collisionRadius: Math.hypot(radialReach, axialReach) * scale,
+      planetRadius, profile: p.id
+    });
   }
 
   function paintMarkings(profile) {
@@ -132,16 +162,18 @@
     return geometry;
   }
 
-  function createMissile(THREE, profileName, quality) {
+  function createMissile(THREE, profileName, quality, planetRadius = 10) {
     if (!THREE || !THREE.Group || !THREE.Mesh) throw new TypeError('Three.js is required');
     const p = getProfile(profileName);
+    const metrics = visualMetrics(p.id, planetRadius);
     const segmentCount = quality === 'low' ? 12 : 24;
     const group = new THREE.Group();
     group.name = 'GodSmash ' + p.serial;
+    group.scale.setScalar(metrics.scale);
 
     const decals = new THREE.CanvasTexture(paintMarkings(p));
     decals.encoding = THREE.sRGBEncoding;
-    decals.anisotropy = 2;
+    decals.anisotropy = quality === 'low' ? 2 : 4;
     const body = new THREE.MeshStandardMaterial({
       map: decals, roughness: 0.46, metalness: 0.42
     });
@@ -294,11 +326,19 @@
     group.add(plume);
     group.userData.trailOffsetZ = nozzleZ - 0.60;
     group.userData.visualProfile = p.id;
-    return { group, plume, dispose: () => finish(THREE, group) };
+    group.userData.collisionRadius = metrics.collisionRadius;
+    group.userData.visualScale = metrics.scale;
+    return {
+      group, plume, collisionRadius: metrics.collisionRadius,
+      visualScale: metrics.scale,
+      dispose: () => finish(THREE, group)
+    };
   }
 
-  function createAsteroid(THREE, quality) {
+  function createAsteroid(THREE, quality, planetRadius = 10) {
+    const metrics = visualMetrics('asteroid', planetRadius);
     const group = new THREE.Group();
+    group.scale.setScalar(metrics.scale);
     group.name = 'GodSmash asteroid';
     const rock = new THREE.Mesh(
       new THREE.DodecahedronGeometry(0.57, quality === 'low' ? 0 : 1),
@@ -309,10 +349,18 @@
     );
     group.add(rock);
     group.userData.trailOffsetZ = -0.45;
-    return { group, plume: null, dispose: () => finish(THREE, group) };
+    group.userData.collisionRadius = metrics.collisionRadius;
+    group.userData.visualScale = metrics.scale;
+    return {
+      group, plume: null, collisionRadius: metrics.collisionRadius,
+      visualScale: metrics.scale,
+      dispose: () => finish(THREE, group)
+    };
   }
 
-  const api = Object.freeze({ profiles, getProfile, createMissile, createAsteroid });
+  const api = Object.freeze({
+    profiles, getProfile, visualMetrics, createMissile, createAsteroid
+  });
   root.GodSmashProjectiles = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

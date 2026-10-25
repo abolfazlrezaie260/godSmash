@@ -132,3 +132,49 @@ test('new missile profiles have distinct booster, speed and plasma details', () 
     }
   } finally { global.document = originalDocument; }
 });
+
+test('issue 27: all six rockets scale relative to planet without losing fine geometry', () => {
+  const originalDocument=global.document;
+  global.document={
+    createElement:()=>({width:0,height:0,getContext:()=>({
+      createLinearGradient:()=>({addColorStop(){}}),
+      fillRect(){},strokeRect(){},fillText(){}
+    })})
+  };
+  try{
+    const {mock,allocated}=fakeTHREE();
+    for(const id of Object.keys(projectiles.profiles)){
+      const model=projectiles.createMissile(mock,id,'high',10);
+      const metrics=projectiles.visualMetrics(id,10);
+      assert.equal(model.group.scale.value,metrics.scale);
+      assert.equal(model.visualScale,metrics.scale);
+      assert.equal(model.collisionRadius,metrics.collisionRadius);
+      assert.ok(metrics.scale<0.33,'rocket geometry must be much smaller than before');
+      assert.ok(metrics.collisionRadius < 10 * .075,'solid hitbox must be small next to Earth');
+      assert.ok(model.group.children.length>=12,'detail meshes retained');
+      assert.ok(model.plume.children.length>=8,'exhaust detail retained');
+      assert.equal(model.group.userData.collisionRadius,model.collisionRadius);
+      model.dispose();
+    }
+    assert.equal(allocated.textures.length,6,'each profile still owns a full-resolution decal');
+    assert.ok(allocated.textures.every(t=>t.disposals===1));
+    assert.ok(allocated.geometries.every(g=>g.disposals===1));
+    assert.ok(allocated.materials.every(m=>m.disposals===1));
+  }finally{global.document=originalDocument;}
+});
+
+test('issue 27: asteroid scale and hitbox follow planet dimensions',()=>{
+  const {mock}=fakeTHREE();
+  const m=projectiles.createAsteroid(mock,'high',10);
+  assert.equal(m.group.scale.value,m.visualScale);
+  assert.equal(m.collisionRadius,projectiles.visualMetrics('asteroid',10).collisionRadius);
+  assert.ok(m.collisionRadius<.35);
+  assert.equal(projectiles.visualMetrics('asteroid',20).collisionRadius,m.collisionRadius*2);
+  for(const id of Object.keys(projectiles.profiles)){
+    const small=projectiles.visualMetrics(id,10),large=projectiles.visualMetrics(id,20);
+    assert.equal(large.scale,small.scale*2);
+    assert.equal(large.collisionRadius,small.collisionRadius*2);
+  }
+  assert.throws(()=>projectiles.visualMetrics('strategic',0),RangeError);
+  m.dispose();
+});

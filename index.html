@@ -1286,8 +1286,10 @@
           const controlPos = midPoint.add(outwardDir.multiplyScalar(7 + Math.random() * 3));
 
           const model = selected.kind === 'asteroid'
-            ? projectileModels.createAsteroid(THREE, projectileQuality)
-            : projectileModels.createMissile(THREE, selected.visualProfile || 'strategic', projectileQuality);
+            ? projectileModels.createAsteroid(THREE, projectileQuality, EARTH_RADIUS)
+            : projectileModels.createMissile(
+              THREE, selected.visualProfile || 'strategic', projectileQuality, EARTH_RADIUS
+            );
           const { group, plume } = model;
           group.position.copy(startPos);
           scene.add(group);
@@ -1300,6 +1302,8 @@
             position: group.position,
             mesh: group,
             plume,
+            // Collision envelope follows the scaled rigid mesh, never exhaust.
+            collisionRadius: model.collisionRadius,
             dispose: model.dispose,
             trailClock: 0,
             weapon: selected,
@@ -2021,7 +2025,11 @@
           const t = Math.min(1.0, m.progress);
           const p0 = m.startPos;
           const p1 = m.controlPos;
-          const p2 = earthGroup.localToWorld(frameTarget.copy(m.localTarget));
+          // Center stops at the scaled hull's contact radius above the surface.
+          const p2 = earthGroup.localToWorld(
+            frameTarget.copy(m.localTarget)
+              .addScaledVector(m.localNormal, m.collisionRadius)
+          );
 
           const oneMinusT = 1 - t;
           const pos = framePosition.set(0, 0, 0)
@@ -2098,7 +2106,9 @@
         // Destroyed projectiles were removed above, so damage is not applied.
         for(let i=activeMissiles.length-1;i>=0;i--){
           const m=activeMissiles[i];
-          if(m.progress<1)continue;
+          if(m.progress<1 || !missilePhysics.hasPlanetContact(
+            m.mesh.position, earthGroup.position, EARTH_RADIUS, m.collisionRadius
+          ))continue;
           removeMissile(m);
           activeMissiles.splice(i,1);
           triggerNuclearDetonation(m.localTarget,m.localNormal,m.weapon,{

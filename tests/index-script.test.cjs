@@ -41,6 +41,11 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.ok(html.includes('src="./src/render/projectile-models.js"'));
   assert.match(match[1], /projectileModels\.createMissile/);
   assert.match(match[1], /projectileModels\.createAsteroid/);
+  assert.match(match[1], /collisionRadius: model\.collisionRadius/);
+  assert.match(match[1], /frameTarget\.copy\(m\.localTarget\)[\s\S]*?addScaledVector\(m\.localNormal, m\.collisionRadius\)/);
+  assert.match(match[1], /missilePhysics\.hasPlanetContact/);
+  assert.match(match[1], /createAsteroid\(THREE, projectileQuality, EARTH_RADIUS\)/);
+
   assert.match(match[1], /m\.dispose\(\)/);
   assert.ok(html.includes('href="./manifest.webmanifest"'));
   assert.ok(html.includes('src="./src/ui/landscape.js"'));

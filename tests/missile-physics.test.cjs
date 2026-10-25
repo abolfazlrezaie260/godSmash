@@ -103,3 +103,18 @@ test('0.5x and 2x game time correctly multiply the new weapon flight pace', () =
   assert.ok(Math.abs(slow/normal-2)<.05);
   assert.ok(Math.abs(fast/normal-.5)<.05);
 });
+
+test('issue 27: scaled projectile collision spheres touch exactly at surface standoff',()=>{
+  const projectiles=require('../src/render/projectile-models.js');
+  const planet={x:0,y:0,z:0},radius=10;
+  for(const id of [...Object.keys(projectiles.profiles),'asteroid']){
+    const hitRadius=projectiles.visualMetrics(id,radius).collisionRadius;
+    const outside={x:radius+hitRadius+.25,y:0,z:0};
+    const contact={x:radius+hitRadius,y:0,z:0};
+    assert.equal(physics.hasPlanetContact(outside,planet,radius,hitRadius),false,id);
+    assert.equal(physics.hasPlanetContact(contact,planet,radius,hitRadius),true,id);
+    assert.equal(physics.hasPlanetContact({x:0,y:radius+hitRadius,z:0},planet,radius,hitRadius),true,id);
+  }
+  assert.throws(()=>physics.hasPlanetContact({x:10,y:0,z:0},planet,10,-1),TypeError);
+  assert.throws(()=>physics.hasPlanetContact({x:Infinity,y:0,z:0},planet,10,.2),TypeError);
+});
