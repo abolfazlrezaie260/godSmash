@@ -218,3 +218,51 @@ test('repeated impacts cumulatively expose a glowing molten core and reset clear
   assert.equal(engine.getCoreExposureCount(), 0);
   assert.equal(engine.isCoreExposed(), false);
 });
+
+test('tractor harvesting depresses terrain cleanly without blasts, holes or scorch',()=>{
+  const geometry=globe(10,96,48),parent=new Node();
+  const system=damage.createSystem(THREE,{
+    geometry,group:parent,radius:10,lowQuality:true
+  });
+  const original=Array.from(geometry.attributes.position.array);
+  const indexes=Array.from(geometry.index.array);
+  const target=new Vector3(10,0,0);
+  const first=system.extract(target,1.18,.60);
+  assert.equal(first.extracted,true);
+  assert.ok(first.vertices>0);
+  assert.equal(system.getBreachCount(),0);
+  assert.equal(parent.children.length,1,'harvest must not allocate scorch/rim meshes');
+  assert.equal(parent.children[0].visible,false,'shallow harvesting does not expose core');
+  const afterFirst=Array.from(geometry.attributes.position.array);
+  assert.notDeepEqual(afterFirst,original);
+  // Extraction only lowers vertices; unlike impacts it never lifts a crater rim.
+  for(let i=0;i<original.length;i+=3){
+    const a=Math.hypot(...original.slice(i,i+3));
+    const b=Math.hypot(...afterFirst.slice(i,i+3));
+    assert.ok(b<=a+1e-4,'harvester must not cause explosion-like upward uplift');
+  }
+  const second=system.extract(target,1.18,.60);
+  assert.ok(second.siteHits>=2,'overlapping extraction passes merge into one site');
+  assert.ok(system.getDamagePercent()>0);
+  assert.deepEqual(Array.from(geometry.index.array),indexes,'harvesting must not tear holes in topology');
+  assert.equal(parent.children.length,1);
+  system.reset();
+  assert.deepEqual(Array.from(geometry.attributes.position.array),original);
+  assert.equal(system.getDamagePercent(),0);
+  assert.equal(system.getImpactSiteCount(),0);
+  assert.equal(system.getBreachCount(),0);
+  assert.equal(parent.children[0].visible,false);
+});
+
+test('harvesting respects reset/shattered state and rejects invalid depths',()=>{
+  const geometry=globe(10,96,48),parent=new Node();
+  const system=damage.createSystem(THREE,{geometry,group:parent,radius:10});
+  const point=new Vector3(10,0,0);
+  assert.throws(()=>system.extract(point,-1,.3),TypeError);
+  assert.throws(()=>system.extract(point,.5,0),TypeError);
+  system.setShattered(true);
+  assert.equal(system.extract(point,1,.5).extracted,false);
+  assert.equal(system.getImpactSiteCount(),0);
+  system.reset();
+  assert.equal(system.extract(point,1.18,.5).extracted,true);
+});
