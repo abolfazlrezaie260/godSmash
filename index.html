@@ -9,6 +9,7 @@
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="./src/content/catalog.js"></script>
+<script src="./src/render/mars-surface.js"></script>
 <script src="./src/render/planet-textures.js"></script>
 <script src="./src/render/real-earth.js"></script>
 <script src="./src/render/projectile-models.js"></script>
@@ -1082,12 +1083,17 @@
         fragmentShader: `
           varying vec3 vNormal;
           uniform vec3 rimColor;
+          uniform float rimStrength;
           void main() {
-            float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.8);
-            gl_FragColor = vec4(rimColor, 1.0) * intensity * 1.35;
+            float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), -1.0, 1.0);
+            float intensity = pow(max(0.0, 0.62 - facing), 2.8);
+            gl_FragColor = vec4(rimColor, intensity * rimStrength);
           }
         `,
-        uniforms: {rimColor: {value: new THREE.Color("#38a6ff")}},
+        uniforms: {
+          rimColor: {value: new THREE.Color("#38a6ff")},
+          rimStrength: {value: 1.35}
+        },
         blending: THREE.AdditiveBlending,
         side: THREE.BackSide,
         transparent: true,
@@ -1097,6 +1103,7 @@
       scene.add(atmosMesh);
       const lowImpactQuality = Math.min(window.innerWidth, window.innerHeight) < 750 ||
         !!(navigator.connection && navigator.connection.saveData);
+      let marsBumpMap = null; // Created once, shared on subsequent Mars resets.
       const planetDamage = window.GodSmashPlanetDamage.createSystem(THREE, {
         geometry: earthGeo, group: earthGroup, radius: EARTH_RADIUS,
         lowQuality: lowImpactQuality
@@ -1154,7 +1161,11 @@
 
         // Paint localized ash and scorched rock on the daylight texture only.
         // No emissive magma disks or neon spokes: they obscured entire continents.
-        const u = 0.5 + Math.atan2(normal.z, -normal.x) / (2 * Math.PI);
+        const azimuth = Math.atan2(normal.z,-normal.x)/(2*Math.PI);
+        // Mars geography and bump map use actual SphereGeometry UV orientation.
+        // Preserve the legacy painting map for existing Earth and Moon scars.
+        const u = planet.id==='mars'
+          ? ((1-azimuth)%1+1)%1 : 0.5+azimuth;
         const vCoord = 0.5 - Math.asin(Math.max(-1, Math.min(1, normal.y))) / Math.PI;
         const cx = u * TEX_W;
         const cy = vCoord * TEX_H;
@@ -1170,6 +1181,7 @@
           length:rPx * (0.65 + Math.random()*0.38)
         }));
 
+        const martianDust = planet.id === 'mars';
         // Draw matching wrapped copies at the texture seam.
         for (const dx of [-TEX_W, 0, TEX_W]) {
           const x = cx + dx;
@@ -1179,10 +1191,10 @@
           surfaceCtx.rotate(markAngle);
           surfaceCtx.scale(elongation,1);
           const ash = surfaceCtx.createRadialGradient(0,0,rPx*0.06,0,0,rPx*1.24);
-          ash.addColorStop(0,'rgba(16,17,20,0.89)');
-          ash.addColorStop(0.33,'rgba(34,33,33,0.78)');
-          ash.addColorStop(0.70,'rgba(46,42,39,0.36)');
-          ash.addColorStop(1,'rgba(43,42,39,0)');
+          ash.addColorStop(0,martianDust ? 'rgba(60,39,34,0.82)' : 'rgba(16,17,20,0.89)');
+          ash.addColorStop(0.33,martianDust ? 'rgba(93,56,41,0.63)' : 'rgba(34,33,33,0.78)');
+          ash.addColorStop(0.70,martianDust ? 'rgba(159,104,74,0.27)' : 'rgba(46,42,39,0.36)');
+          ash.addColorStop(1,martianDust ? 'rgba(143,93,65,0)' : 'rgba(43,42,39,0)');
           surfaceCtx.fillStyle = ash;
           surfaceCtx.beginPath();
           surfaceCtx.arc(0,0,rPx*1.24,0,Math.PI*2);
@@ -1190,7 +1202,8 @@
           surfaceCtx.restore();
 
           // Hairline dark fractures, not incandescent orange radial strokes.
-          surfaceCtx.strokeStyle = 'rgba(24,23,23,0.34)';
+          surfaceCtx.strokeStyle = martianDust
+            ? 'rgba(69,44,36,0.26)' : 'rgba(24,23,23,0.34)';
           surfaceCtx.lineWidth = Math.max(0.7,TEX_W/2048);
           cracks.forEach(({angle,length})=>{
             surfaceCtx.beginPath();
@@ -1427,7 +1440,8 @@
           ...blast, age: 0, maxAge: blast.duration,
           dustStage: 0,
           dustWorldPosition: blastWorldPosition.clone(),
-          dustWorldNormal: worldImpactNormal.clone()
+          dustWorldNormal: worldImpactNormal.clone(),
+          dustColor: planet.id==='mars' ? 0xb37b5c : 0x827d76
         });
 
         // Initial impact: muted fragments and sparks; ash rises as the bloom
@@ -1436,7 +1450,7 @@
         const worldNormal = worldImpactNormal;
         rocketFx.burst(worldImpactPos, worldNormal,
           damageResult.breached ? (lowImpactQuality ? 6 : 12) : (lowImpactQuality ? 4 : 8),
-          0xb9a58f);
+          planet.id==='mars' ? 0xc39071 : 0xb9a58f);
 
         const debrisBudget = Math.max(0, maxActiveDebris - activeDebris.length);
         const debrisCount = Math.min(debrisBudget,
@@ -1448,7 +1462,9 @@
           const isHot = i % 5 === 0 || (largeFracture && i % 2 === 0);
           const debGeo = new THREE.DodecahedronGeometry(size, 0);
           const debMat = new THREE.MeshStandardMaterial({
-            color: isHot ? 0x74564b : (planet.id === 'moon' ? 0x747780 : 0x514c48),
+            color: planet.id === 'mars'
+              ? (isHot ? 0x9d6650 : 0x845643)
+              : isHot ? 0x74564b : (planet.id === 'moon' ? 0x747780 : 0x514c48),
             roughness: 0.92, metalness: 0.04, flatShading: true,
             emissive: isHot ? 0x49251b : 0x130d0a,
             emissiveIntensity: isHot ? 0.28 : 0.08,
@@ -1821,6 +1837,10 @@
         orbitalDefense.loadDeployment(defenseFleetsByPlanet.get(p.id) || []);
         resetEarth();
         planetDamage.setPlanet(p);
+        // Rebuild pristine elevations from the selected planet. Mars relief is
+        // kept as the reset baseline so craters deform its existing mountains.
+        planetDamage.setTerrain(p.id === 'mars'
+          ? window.GodSmashMarsSurface.heightAt : null);
         earthGroup.rotation.y = 0;
         cloudMesh.visible = p.cloudOpacity > 0;
         cloudMat.opacity = p.cloudOpacity;
@@ -1828,8 +1848,27 @@
         window.GodSmashRealEarth.configure(
           THREE, earthMat, cloudMat, fallbackCloudTexture, p.id === "earth"
         );
+        if(p.id === 'mars'){
+          if(!marsBumpMap){
+            marsBumpMap = window.GodSmashMarsSurface.createBumpTexture(
+              THREE, document, lowImpactQuality ? 384 : 768,
+              lowImpactQuality ? 192 : 384
+            );
+          }
+          earthMat.bumpMap = marsBumpMap;
+          earthMat.bumpScale = p.bumpScale;
+          earthMat.roughness = p.surfaceRoughness;
+          earthMat.metalness = p.surfaceMetalness;
+          earthMat.emissiveIntensity = 0.24;
+        } else {
+          earthMat.bumpMap = null;
+          earthMat.bumpScale = 0;
+        }
+        earthMat.needsUpdate = true;
         atmosMesh.visible = !!p.atmosphereColor;
         atmosMat.uniforms.rimColor.value.set(p.atmosphereColor || "#000000");
+        atmosMat.uniforms.rimStrength.value =
+          p.atmosphereStrength !== undefined ? p.atmosphereStrength : 1.35;
         if (nightMesh) nightMesh.visible = p.id === "earth";
         document.getElementById("planet-name").textContent = "سیاره " + p.nameFa + " (" + p.nameEn + ")";
         document.querySelector("#btn-reset span:last-child").textContent = "بازسازی " + p.nameFa;
@@ -2270,7 +2309,7 @@
               while (effect.dustStage < nextStage) {
                 effect.dustStage++;
                 rocketFx.burstDust(effect.dustWorldPosition,effect.dustWorldNormal,
-                  lowImpactQuality ? 3 : 6);
+                  lowImpactQuality ? 3 : 6,effect.dustColor);
               }
             }
           }

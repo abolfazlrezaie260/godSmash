@@ -79,3 +79,14 @@ test('harvester is a distinct non-explosive zero-casualty extraction tool',()=>{
   assert.ok(ufo.blastRadius>0);
   assert.ok(catalog.listWeapons().some(w=>w.id==='harvester'));
 });
+
+test('Martian properties define thin atmosphere and dry nonmetallic regolith',()=>{
+  const mars=catalog.getPlanet('mars'),earth=catalog.getPlanet('earth');
+  assert.equal(mars.surfaceRelief,true);
+  assert.equal(mars.surfaceMetalness,0);
+  assert.ok(mars.surfaceRoughness>.9);
+  assert.ok(mars.atmosphereStrength<.25);
+  assert.ok(mars.bumpScale>0 && mars.bumpScale<.1);
+  assert.equal(earth.atmosphereStrength,undefined);
+  assert.equal(mars.cloudOpacity,0);
+});

@@ -54,7 +54,7 @@ test('renders all planets with actual Earth image and spherical previews',()=>{
   assert.equal(cards[0].getAttribute('aria-pressed'),'true');
   assert.equal(cards[1].getAttribute('aria-pressed'),'false');
   assert.equal(cards[1].children[1].children[0].textContent,'مریخ');
-  assert.equal(cards[1].children[1].children[2].textContent,'سطح سنگی سرخ و جو رقیق');
+  assert.equal(cards[1].children[1].children[2].textContent,catalog.getPlanet('mars').descriptionFa);
 });
 test('open, switch planet, close and sync active planet from gameplay',()=>{
   const p=setup();
