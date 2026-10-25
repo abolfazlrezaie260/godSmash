@@ -266,3 +266,26 @@ test('harvesting respects reset/shattered state and rejects invalid depths',()=>
   system.reset();
   assert.equal(system.extract(point,1.18,.5).extracted,true);
 });
+
+test('Martian relief survives crater reset and switches back to Earth sphere',()=>{
+  const marsSurface=require('../src/render/mars-surface.js');
+  const geometry=globe(10,96,48),parent=new Node();
+  const engine=damage.createSystem(THREE,{geometry,group:parent,radius:10,lowQuality:true});
+  const pristine=Array.from(geometry.attributes.position.array);
+  engine.setPlanet(mars);
+  engine.setTerrain(marsSurface.heightAt);
+  const marsBase=Array.from(geometry.attributes.position.array);
+  assert.notDeepEqual(marsBase,pristine,'volcanoes and lowland basins raise/lower 3D vertices');
+  engine.impact(new Vector3(0,0,10),1.6,{
+    planet:mars,weapon:{damage:4.2},breach:false
+  });
+  assert.notDeepEqual(Array.from(geometry.attributes.position.array),marsBase);
+  assert.throws(()=>engine.setTerrain(null),/Reset damage/);
+  engine.reset();
+  assert.deepEqual(Array.from(geometry.attributes.position.array),marsBase,
+    'Mars impact reset keeps geological relief intact');
+  engine.setTerrain(null);
+  assert.deepEqual(Array.from(geometry.attributes.position.array),pristine,
+    'Earth and other planets restore original spherical geometry');
+  assert.throws(()=>engine.setTerrain(()=>Infinity),/finite/);
+});
