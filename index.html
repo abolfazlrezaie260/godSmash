@@ -1161,7 +1161,11 @@
 
         // Paint localized ash and scorched rock on the daylight texture only.
         // No emissive magma disks or neon spokes: they obscured entire continents.
-        const u = 0.5 + Math.atan2(normal.z, -normal.x) / (2 * Math.PI);
+        const azimuth = Math.atan2(normal.z,-normal.x)/(2*Math.PI);
+        // Mars geography and bump map use actual SphereGeometry UV orientation.
+        // Preserve the legacy painting map for existing Earth and Moon scars.
+        const u = planet.id==='mars'
+          ? ((1-azimuth)%1+1)%1 : 0.5+azimuth;
         const vCoord = 0.5 - Math.asin(Math.max(-1, Math.min(1, normal.y))) / Math.PI;
         const cx = u * TEX_W;
         const cy = vCoord * TEX_H;
