@@ -24,6 +24,9 @@
     finiteNumber(config.rotationSpeed, 0, 'planet.rotationSpeed');
     finiteNumber(config.resistance, 0.01, 'planet.resistance');
     finiteNumber(config.cloudOpacity, 0, 'planet.cloudOpacity');
+    for(const key of ['atmosphereStrength','surfaceRoughness','surfaceMetalness','bumpScale']){
+      if(config[key] !== undefined) finiteNumber(config[key],0,'planet.'+key);
+    }
     const planet = Object.freeze({ ...config, palette: Object.freeze([...config.palette]) });
     planets.set(planet.id, planet);
     return planet;
@@ -69,10 +72,12 @@
   });
   registerPlanet({
     id: 'mars', nameFa: 'مریخ', nameEn: 'MARS', surface: 'rocky',
-    descriptionFa: 'سطح سنگی سرخ و جو رقیق',
+    descriptionFa: 'المپوس، درهٔ مارینریس، حوضه‌های برخوردی و یخ قطبی',
     population: 0, rotationSpeed: 0.10, resistance: 0.85,
-    cloudOpacity: 0, cloudTint: '#ffffff', atmosphereColor: '#b85731',
-    palette: ['#692f20', '#b85f39', '#e09d6e']
+    cloudOpacity: 0, cloudTint: '#ffffff', atmosphereColor: '#b76e51',
+    atmosphereStrength: 0.19, surfaceRoughness: 0.97,
+    surfaceMetalness: 0.0, bumpScale: 0.055, surfaceRelief: true,
+    palette: ['#603b30', '#a45e43', '#c99576']
   });
   registerPlanet({
     id: 'venus', nameFa: 'زهره', nameEn: 'VENUS', surface: 'bands',
