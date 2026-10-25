@@ -56,7 +56,7 @@ test('renders a unique visible button per catalog weapon, with readable labels',
     container, weapons, selectedId: 'icbm', onChange: id => choices.push(id)
   });
   assert.equal(container.children.length, weapons.length);
-  assert.equal(container.children.length, 8);
+  assert.equal(container.children.length, 9);
   for (const [i, item] of weapons.entries()) {
     const button = container.children[i];
     assert.equal(button.dataset.weaponId, item.id);
@@ -90,11 +90,13 @@ test('click, numeric shortcut and arrow keys share the selected weapon', () => {
 
   const arrow = container.children[7].dispatch('keydown', {key: 'ArrowDown'});
   assert.equal(arrow.prevented, true);
-  assert.equal(dock.getSelected(), 'icbm', 'keyboard navigation wraps at end');
-  assert.equal(container.children[0].focused, true);
+  assert.equal(dock.getSelected(), 'drone-swarm', 'navigation advances to the ninth weapon');
+  assert.equal(container.children[8].focused, true);
+  container.children[8].dispatch('keydown',{key:'ArrowDown'});
+  assert.equal(dock.getSelected(),'icbm','keyboard navigation wraps after final weapon');
   container.children[0].dispatch('keydown', {key: 'End'});
-  assert.equal(dock.getSelected(), 'nova');
-  assert.deepEqual(received, ['winged', 'laser', 'nova', 'icbm', 'nova']);
+  assert.equal(dock.getSelected(), 'drone-swarm');
+  assert.deepEqual(received, ['winged', 'laser', 'nova', 'drone-swarm', 'icbm', 'drone-swarm']);
 
   dock.destroy();
   assert.equal(container.children.length, 0);
