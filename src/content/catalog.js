@@ -32,7 +32,7 @@
     if (!config || !idPattern.test(config.id || '') || weapons.has(config.id)) {
       throw new Error('Weapon ID must be unique and lowercase (a-z, 0-9, -).');
     }
-    if (!config.nameFa || !config.kind || !['missile', 'asteroid', 'beam'].includes(config.kind)) {
+    if (!config.nameFa || !config.kind || !['missile', 'asteroid', 'beam', 'swarm'].includes(config.kind)) {
       throw new Error('Weapon requires a name and a supported kind.');
     }
     for (const key of ['blastRadius', 'damage', 'damageVariance', 'casualties',
@@ -152,6 +152,17 @@
     casualties: 95000000, casualtiesVariance: 145000000,
     flightPace: 0.24, interceptHealth: 3.1, speed: 1.08, launchSpeed: 0.28, acceleration: 1.35, maxSpeed: 1.85, fuelDuration: 0.66, drag: 0.07, shake: 0.42, debrisCount: 20,
     fireColor: '#cffafe', plasmaColor: '#7c3aed', waveColor: '#22d3ee'
+  });
+
+
+  registerWeapon({
+    id: 'drone-swarm', nameFa: 'ازدحام پهپادها', subtitle: 'SWARM · 192–312 DRONES',
+    shortLabel: 'ازدحام', kind: 'swarm', icon: '◈', blastRadius: 0.54,
+    damage: 1.35, damageVariance: 0.16,
+    casualties: 6800000, casualtiesVariance: 2500000,
+    speed: 0.9, flightPace: 0.32, interceptHealth: 2.5,
+    shake: 0, debrisCount: 1, swarmCount: 312,
+    fireColor: '#e0f2fe', plasmaColor: '#95a9be', waveColor: '#a1a1aa'
   });
 
   const api = Object.freeze({

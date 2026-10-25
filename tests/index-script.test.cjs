@@ -97,6 +97,17 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.ok(html.includes('id="weapon-damage-stat"'));
   assert.ok(html.includes('id="weapon-speed-stat"'));
   assert.ok(html.includes('id="weapon-radius-stat"'));
+  // Issue #28 — the fleet is distinct from individual projectile meshes.
+  assert.ok(html.includes('src="./src/simulation/drone-swarm.js"'));
+  assert.ok(html.includes('src="./src/render/drone-swarm-renderer.js"'));
+  assert.match(match[1], /droneSimulation\.createSwarm/);
+  assert.match(match[1], /droneRenderer\.createRenderer\(THREE,earthGroup/);
+  assert.match(match[1], /current\.sim\.step\(dt,impact/);
+  assert.match(match[1], /current\.renderer\.sync\(current\.sim\.getDrones\(\)\)/);
+  assert.match(match[1], /if\(weapon\.kind==='swarm'\)/);
+  assert.match(match[1], /next\.kind==='swarm'/);
+  assert.match(match[1], /clearDroneSwarm\(\)/);
+  assert.match(match[1], /if\(selected\.kind==='swarm'\)/);
   assert.match(match[1], /missilePhysics\.createFlight/);
   assert.match(match[1], /missilePhysics\.stepFlight/);
   assert.match(match[1], /impactDamageMultiplier/);

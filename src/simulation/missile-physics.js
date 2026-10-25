@@ -10,7 +10,7 @@
 
   function createFlight(weapon) {
     if (!weapon || !Number.isFinite(weapon.speed) || weapon.speed <= 0 ||
-        weapon.kind === 'beam') {
+        !['missile','asteroid'].includes(weapon.kind)) {
       throw new TypeError('Projectile flight requires a positive-speed missile or asteroid');
     }
     const asteroid = weapon.kind === 'asteroid';

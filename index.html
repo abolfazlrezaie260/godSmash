@@ -14,6 +14,8 @@
 <script src="./src/render/projectile-models.js"></script>
 <script src="./src/render/planet-damage.js"></script>
 <script src="./src/simulation/missile-physics.js"></script>
+<script src="./src/simulation/drone-swarm.js"></script>
+<script src="./src/render/drone-swarm-renderer.js"></script>
 <script src="./src/render/impact-timing.js"></script>
 <script src="./src/render/impact-effects.js"></script>
 <script src="./src/render/rocket-fx.js"></script>
@@ -1212,6 +1214,27 @@
       const projectileQuality = (Math.min(window.innerWidth, window.innerHeight) < 750 ||
         (navigator.connection && navigator.connection.saveData)) ? 'low' : 'high';
       const activeMissiles = [];
+      // One active 192/312-instance fleet maximum; no per-drone Three.js meshes.
+      const droneSimulation = window.GodSmashDroneSwarm;
+      const droneRenderer = window.GodSmashDroneSwarmRenderer;
+      let droneSwarm = null;
+      function clearDroneSwarm(){
+        if(!droneSwarm)return;
+        droneSwarm.renderer.dispose();
+        droneSwarm.sim.dispose();
+        droneSwarm=null;
+      }
+      function ensureDroneSwarm(){
+        if(state.shattered)return null;
+        if(droneSwarm?.sim.getState().mode==='spent')clearDroneSwarm();
+        if(droneSwarm)return droneSwarm;
+        const count=lowImpactQuality?192:312;
+        const sim=droneSimulation.createSwarm({count,planetRadius:EARTH_RADIUS,batchSize:12});
+        const visual=droneRenderer.createRenderer(THREE,earthGroup,{count});
+        droneSwarm={sim,renderer:visual};
+        visual.sync(sim.getDrones());
+        return droneSwarm;
+      }
       const activeExplosions = [];
       const activeDebris = [];
       let missileSequence = 0;
@@ -1441,6 +1464,7 @@
       }
 
       function triggerPlanetaryShatter() {
+        clearDroneSwarm();
         state.shattered = true;
         state.population = 0;
         SoundEngine.playExplosion(1.6);
@@ -1510,6 +1534,7 @@
 
       function resetEarth() {
         generation++;
+        clearDroneSwarm();
         // Restore surface vertices, index topology and persistent scars.
         planetDamage.reset();
 
@@ -1549,6 +1574,7 @@
         state.impacts = 0;
         state.integrity = 100;
         state.shattered = false;
+        if(weapon.kind==='swarm')ensureDroneSwarm();
         updateHUD();
         showImpactToast(planet.nameFa + ' بازسازی شد.');
       }
@@ -1725,7 +1751,9 @@
       function selectWeapon(id) {
         const next = catalog.getWeapon(id);
         if (!next) return;
+        if(next.id!==weapon.id && weapon.kind==='swarm')clearDroneSwarm();
         weapon = next;
+        if(next.kind==='swarm' && !state.shattered)ensureDroneSwarm();
         document.getElementById("weapon-title").textContent = next.nameFa;
         document.getElementById("active-weapon-icon").textContent = next.icon || '●';
         document.getElementById("active-weapon-subtitle").textContent = next.subtitle || '';
@@ -1783,6 +1811,20 @@
 
       function fireWeaponAtWorldPoint(point, delay = 0) {
         const selected = weapon;
+        if(selected.kind==='swarm'){
+          const issued=generation;
+          setTimeout(()=>{
+            if(issued!==generation||state.shattered)return;
+            const fleet=ensureDroneSwarm();
+            if(!fleet)return;
+            const target=earthGroup.worldToLocal(point.clone()).normalize();
+            if(fleet.sim.attack({x:target.x,y:target.y,z:target.z})){
+              SoundEngine.playLaunch();
+              showImpactToast('پهپادها به سمت هدف تغییر مسیر دادند.');
+            }
+          },delay/state.timeScale);
+          return;
+        }
         if (selected.kind !== "beam") return launchMissileAtWorldPoint(point, delay, selected);
         const issued = generation;
         setTimeout(() => {
@@ -1843,7 +1885,10 @@
             cancelDefensePlacement();
             return;
           }
-          if (state.salvoMode) {
+          if(weapon.kind==='swarm'){
+            // One tap redirects the whole active fleet, regardless of salvo mode.
+            fireWeaponAtWorldPoint(hitPoint,0);
+          } else if (state.salvoMode) {
             // Fire 3 missiles of the exact same ICBM type in a tight cluster
             for (let s = 0; s < 3; s++) {
               const jitter = new THREE.Vector3(
@@ -2123,6 +2168,24 @@
           if(radarClock>=.28){radarClock=0;updateDefenseRadar();}
         }
 
+        // Flock/strike progression runs on the same 0.5x/1x/2x game clock.
+        // Each group of twelve drone contacts produces one small cascading hit;
+        // one InstancedMesh draws the entire fleet.
+        if(droneSwarm && !state.shattered){
+          const current=droneSwarm;
+          current.sim.step(dt,impact=>{
+            if(state.shattered)return;
+            const normal=new THREE.Vector3(
+              impact.normal.x,impact.normal.y,impact.normal.z
+            );
+            triggerNuclearDetonation(
+              normal.clone().multiplyScalar(EARTH_RADIUS),
+              normal,catalog.getWeapon('drone-swarm')
+            );
+          });
+          if(droneSwarm===current)current.renderer.sync(current.sim.getDrones());
+        }
+
         // 4. Update soft smoke sprites and short-lived hot exhaust fragments.
         rocketFx.update(dt);
         // 5. Fireball, dust cloud and blast shockwave animation
@@ -2194,6 +2257,8 @@
               'Draw calls: ' + renderer.info.render.calls + ' | triangles: ' + renderer.info.render.triangles,
               'GPU geometries: ' + gpu.geometries + ' | textures: ' + gpu.textures,
               'Active missiles: ' + activeMissiles.length + '/' + maxActiveMissiles,
+              'Instanced drones: ' + (droneSwarm ? droneSwarm.sim.getState().alive : 0) +
+                ' | extra draw calls: ' + (droneSwarm ? 1 : 0),
               'Particles: ' + rocketFx.getParticleCount() + '/' + rocketFx.getBudget() +
                 ' | pooled slots: ' + rocketFx.getPoolSize(),
               'Debris: ' + activeDebris.length + '/' + maxActiveDebris +
