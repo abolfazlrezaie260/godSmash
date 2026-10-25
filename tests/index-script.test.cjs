@@ -104,7 +104,7 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /harvestSimulation\.createFleet/);
   assert.match(match[1], /harvestVisuals\.createRenderer\(THREE,earthGroup/);
   assert.match(match[1], /planetDamage\.extract\(/);
-  assert.match(match[1], /harvestFleet\.sim\.pointAt/);
+  assert.match(match[1], /fleet\.sim\.pointAt/);
   assert.match(match[1], /current\.renderer\.sync\(current\.sim\.getShips\(\)\)/);
   assert.match(match[1], /clearHarvesterFleet\(\)/);
   assert.match(match[1], /next\.kind==='harvester'/);
