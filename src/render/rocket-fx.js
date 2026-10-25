@@ -144,12 +144,12 @@
       }
     }
 
-    function burstDust(position, outward, count = 7) {
+    function burstDust(position, outward, count = 7, tint = 0x827d76) {
       if (disposed) return;
       const amount = Math.min(Math.max(0, Math.floor(count)), budget - particles.length);
       for (let i = 0; i < amount; i++) {
         emit(position, 'smoke', null, 1.5 + Math.random() * 0.45,
-          0x827d76, outward, 2.5);
+          tint, outward, 2.5);
       }
     }
 
