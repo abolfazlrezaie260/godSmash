@@ -9,6 +9,7 @@
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="./src/content/catalog.js"></script>
+<script src="./src/render/mars-surface.js"></script>
 <script src="./src/render/planet-textures.js"></script>
 <script src="./src/render/real-earth.js"></script>
 <script src="./src/render/projectile-models.js"></script>
@@ -1082,12 +1083,17 @@
         fragmentShader: `
           varying vec3 vNormal;
           uniform vec3 rimColor;
+          uniform float rimStrength;
           void main() {
-            float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.8);
-            gl_FragColor = vec4(rimColor, 1.0) * intensity * 1.35;
+            float facing = clamp(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), -1.0, 1.0);
+            float intensity = pow(max(0.0, 0.62 - facing), 2.8);
+            gl_FragColor = vec4(rimColor, intensity * rimStrength);
           }
         `,
-        uniforms: {rimColor: {value: new THREE.Color("#38a6ff")}},
+        uniforms: {
+          rimColor: {value: new THREE.Color("#38a6ff")},
+          rimStrength: {value: 1.35}
+        },
         blending: THREE.AdditiveBlending,
         side: THREE.BackSide,
         transparent: true,
@@ -1097,6 +1103,7 @@
       scene.add(atmosMesh);
       const lowImpactQuality = Math.min(window.innerWidth, window.innerHeight) < 750 ||
         !!(navigator.connection && navigator.connection.saveData);
+      let marsBumpMap = null; // Created once, shared on subsequent Mars resets.
       const planetDamage = window.GodSmashPlanetDamage.createSystem(THREE, {
         geometry: earthGeo, group: earthGroup, radius: EARTH_RADIUS,
         lowQuality: lowImpactQuality
@@ -1821,6 +1828,10 @@
         orbitalDefense.loadDeployment(defenseFleetsByPlanet.get(p.id) || []);
         resetEarth();
         planetDamage.setPlanet(p);
+        // Rebuild pristine elevations from the selected planet. Mars relief is
+        // kept as the reset baseline so craters deform its existing mountains.
+        planetDamage.setTerrain(p.id === 'mars'
+          ? window.GodSmashMarsSurface.heightAt : null);
         earthGroup.rotation.y = 0;
         cloudMesh.visible = p.cloudOpacity > 0;
         cloudMat.opacity = p.cloudOpacity;
@@ -1828,8 +1839,27 @@
         window.GodSmashRealEarth.configure(
           THREE, earthMat, cloudMat, fallbackCloudTexture, p.id === "earth"
         );
+        if(p.id === 'mars'){
+          if(!marsBumpMap){
+            marsBumpMap = window.GodSmashMarsSurface.createBumpTexture(
+              THREE, document, lowImpactQuality ? 384 : 768,
+              lowImpactQuality ? 192 : 384
+            );
+          }
+          earthMat.bumpMap = marsBumpMap;
+          earthMat.bumpScale = p.bumpScale;
+          earthMat.roughness = p.surfaceRoughness;
+          earthMat.metalness = p.surfaceMetalness;
+          earthMat.emissiveIntensity = 0.24;
+        } else {
+          earthMat.bumpMap = null;
+          earthMat.bumpScale = 0;
+        }
+        earthMat.needsUpdate = true;
         atmosMesh.visible = !!p.atmosphereColor;
         atmosMat.uniforms.rimColor.value.set(p.atmosphereColor || "#000000");
+        atmosMat.uniforms.rimStrength.value =
+          p.atmosphereStrength !== undefined ? p.atmosphereStrength : 1.35;
         if (nightMesh) nightMesh.visible = p.id === "earth";
         document.getElementById("planet-name").textContent = "سیاره " + p.nameFa + " (" + p.nameEn + ")";
         document.querySelector("#btn-reset span:last-child").textContent = "بازسازی " + p.nameFa;
