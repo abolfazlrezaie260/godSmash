@@ -15,6 +15,8 @@
 <script src="./src/render/planet-damage.js"></script>
 <script src="./src/simulation/missile-physics.js"></script>
 <script src="./src/simulation/drone-swarm.js"></script>
+<script src="./src/simulation/harvesters.js"></script>
+<script src="./src/render/harvester-renderer.js"></script>
 <script src="./src/render/drone-swarm-renderer.js"></script>
 <script src="./src/render/impact-timing.js"></script>
 <script src="./src/render/impact-effects.js"></script>
@@ -1235,6 +1237,27 @@
         visual.sync(sim.getDrones());
         return droneSwarm;
       }
+      // A small fleet of non-explosive excavating craft with shared GPU models.
+      const harvestSimulation=window.GodSmashHarvesters;
+      const harvestVisuals=window.GodSmashHarvesterRenderer;
+      let harvestFleet=null;
+      function clearHarvesterFleet(){
+        if(!harvestFleet)return;
+        harvestFleet.renderer.dispose();
+        harvestFleet.sim.dispose();
+        harvestFleet=null;
+      }
+      function ensureHarvesterFleet(){
+        if(state.shattered)return null;
+        if(harvestFleet?.sim.getState().mode==='spent')clearHarvesterFleet();
+        if(harvestFleet)return harvestFleet;
+        const count=lowImpactQuality?6:9;
+        const sim=harvestSimulation.createFleet({count,radius:EARTH_RADIUS});
+        const visual=harvestVisuals.createRenderer(THREE,earthGroup,{count,radius:EARTH_RADIUS});
+        harvestFleet={sim,renderer:visual};
+        visual.sync(sim.getShips());
+        return harvestFleet;
+      }
       const activeExplosions = [];
       const activeDebris = [];
       let missileSequence = 0;
@@ -1465,6 +1488,7 @@
 
       function triggerPlanetaryShatter() {
         clearDroneSwarm();
+        clearHarvesterFleet();
         state.shattered = true;
         state.population = 0;
         SoundEngine.playExplosion(1.6);
@@ -1535,6 +1559,7 @@
       function resetEarth() {
         generation++;
         clearDroneSwarm();
+        clearHarvesterFleet();
         // Restore surface vertices, index topology and persistent scars.
         planetDamage.reset();
 
@@ -1575,6 +1600,7 @@
         state.integrity = 100;
         state.shattered = false;
         if(weapon.kind==='swarm')ensureDroneSwarm();
+        if(weapon.kind==='harvester')ensureHarvesterFleet();
         updateHUD();
         showImpactToast(planet.nameFa + ' بازسازی شد.');
       }
@@ -1752,14 +1778,17 @@
         const next = catalog.getWeapon(id);
         if (!next) return;
         if(next.id!==weapon.id && weapon.kind==='swarm')clearDroneSwarm();
+        if(next.id!==weapon.id && weapon.kind==='harvester')clearHarvesterFleet();
         weapon = next;
         if(next.kind==='swarm' && !state.shattered)ensureDroneSwarm();
+        if(next.kind==='harvester' && !state.shattered)ensureHarvesterFleet();
         document.getElementById("weapon-title").textContent = next.nameFa;
         document.getElementById("active-weapon-icon").textContent = next.icon || '●';
         document.getElementById("active-weapon-subtitle").textContent = next.subtitle || '';
         document.getElementById("weapon-damage-stat").textContent = next.damage.toFixed(1);
         document.getElementById("weapon-speed-stat").textContent =
-          next.kind === 'beam' ? 'فوری' : next.speed.toFixed(2) + '×';
+          next.kind === 'beam' ? 'فوری' :
+          next.kind === 'harvester' ? 'برداشت' : next.speed.toFixed(2) + '×';
         document.getElementById("weapon-radius-stat").textContent = next.blastRadius.toFixed(1);
         weaponDock.setSelected(next.id);
       }
@@ -1811,6 +1840,18 @@
 
       function fireWeaponAtWorldPoint(point, delay = 0) {
         const selected = weapon;
+        if(selected.kind==='harvester'){
+          const issued=generation;
+          setTimeout(()=>{
+            if(state.shattered||issued!==generation||weapon.kind!=='harvester')return;
+            const fleet=ensureHarvesterFleet();
+            if(!fleet)return;
+            const target=earthGroup.worldToLocal(point.clone()).normalize();
+            if(fleet.sim.pointAt({x:target.x,y:target.y,z:target.z}))
+              showImpactToast('سفینه‌ها در حال حرکت به محل برداشت هستند.');
+          },delay/state.timeScale);
+          return;
+        }
         if(selected.kind==='swarm'){
           const issued=generation;
           setTimeout(()=>{
@@ -1885,8 +1926,8 @@
             cancelDefensePlacement();
             return;
           }
-          if(weapon.kind==='swarm'){
-            // One tap redirects the whole active fleet, regardless of salvo mode.
+          if(weapon.kind==='swarm'||weapon.kind==='harvester'){
+            // Both fleet weapons ignore the missile three-shot salvo.
             fireWeaponAtWorldPoint(hitPoint,0);
           } else if (state.salvoMode) {
             // Fire 3 missiles of the exact same ICBM type in a tight cluster
@@ -2186,6 +2227,30 @@
           if(droneSwarm===current)current.renderer.sync(current.sim.getDrones());
         }
 
+        // Tractor beams gently lift small crust pieces into the waiting UFOs.
+        // Harvests deform the real sphere geometry; explosions are never spawned.
+        if(harvestFleet&&!state.shattered){
+          const current=harvestFleet;
+          current.sim.step(dt,event=>{
+            const normal=new THREE.Vector3(event.normal.x,event.normal.y,event.normal.z);
+            const result=planetDamage.extract(
+              normal.clone().multiplyScalar(EARTH_RADIUS),event.radius,event.depth
+            );
+            if(result.extracted){
+              state.impacts+=1;
+              state.integrity=Math.max(0,state.integrity-.13);
+              updateHUD();
+            }
+          });
+          if(harvestFleet===current){
+            current.renderer.sync(current.sim.getShips());
+            if(current.sim.getState().mode==='spent'){
+              clearHarvesterFleet();
+              if(weapon.kind==='harvester'&&!state.shattered)ensureHarvesterFleet();
+            }
+          }
+        }
+
         // 4. Update soft smoke sprites and short-lived hot exhaust fragments.
         rocketFx.update(dt);
         // 5. Fireball, dust cloud and blast shockwave animation
@@ -2259,6 +2324,8 @@
               'Active missiles: ' + activeMissiles.length + '/' + maxActiveMissiles,
               'Instanced drones: ' + (droneSwarm ? droneSwarm.sim.getState().alive : 0) +
                 ' | extra draw calls: ' + (droneSwarm ? 1 : 0),
+              'Harvesters: ' + (harvestFleet ? harvestFleet.sim.getState().active : 0) +
+                ' | beams: ' + (harvestFleet ? harvestFleet.renderer.getStats().activeBeams : 0),
               'Particles: ' + rocketFx.getParticleCount() + '/' + rocketFx.getBudget() +
                 ' | pooled slots: ' + rocketFx.getPoolSize(),
               'Debris: ' + activeDebris.length + '/' + maxActiveDebris +
