@@ -178,3 +178,43 @@ test('grazing impacts create wider, shallower craters than direct impacts', () =
   direct.reset();
   grazing.reset();
 });
+
+
+test('repeated impacts cumulatively expose a glowing molten core and reset clears it', () => {
+  const geometry = globe(), parent = new Node();
+  const engine = damage.createSystem(THREE, {
+    geometry, group: parent, radius: 10, lowQuality: false
+  });
+  engine.setPlanet(mars);
+  const point = new Vector3(10, 0, 0);
+  const impact = () => engine.impact(point, 1.9, {
+    planet: mars, weapon: {damage: 4.2}, breach: false
+  });
+
+  const first = impact();
+  assert.equal(first.coreExposed, false);
+  assert.equal(parent.children[0].visible, false, 'a shallow crater must not expose the core');
+  const second = impact();
+  assert.equal(second.siteHits, 2, 'same-location impacts merge into one persistent site');
+  assert.equal(second.coreExposed, false, 'core remains covered before the penetration threshold');
+  const third = impact();
+  assert.equal(third.siteHits, 3);
+  assert.ok(third.cumulativeDepth >= 10 - 10 * 0.805);
+  assert.equal(third.coreExposed, true);
+  assert.equal(parent.children[0].visible, true, 'deep crater reveals the inner sphere without requiring a breach');
+  assert.equal(engine.getCoreExposureCount(), 1);
+  assert.equal(engine.isCoreExposed(), true);
+  const glow = parent.children[0].children.find(child => child.name === 'Molten core glow halo');
+  assert.ok(glow, 'core has a dedicated glow halo');
+  assert.equal(glow.material.blending, THREE.AdditiveBlending);
+  assert.ok(glow.material.opacity > 0);
+
+  engine.setShattered(true);
+  assert.equal(parent.children[0].visible, false, 'shattering hides the intact core render');
+  engine.setShattered(false);
+  assert.equal(parent.children[0].visible, true, 'restoring the planet state preserves valid accumulated exposure');
+  engine.reset();
+  assert.equal(parent.children[0].visible, false, 'reset hides the core again');
+  assert.equal(engine.getCoreExposureCount(), 0);
+  assert.equal(engine.isCoreExposed(), false);
+});

@@ -255,3 +255,8 @@ Laser satellites begin with an approximately **0.86 s acquisition period**, then
 ### Issue #24 — stable planet on impact
 
 Weapon impacts no longer apply random camera-position offsets. Previously, every impact increased `state.screenShake`, and the render loop added random offsets to all three camera axes; this made the whole planet appear to jump even though the planet group itself had no impact impulse. The camera now stays on its deterministic orbit while the crater, blast, debris and dust remain local to the hit location. Planet auto-rotation remains an intentional gameplay feature; impact does not add a global position or rotation impulse. The planetary rupture also no longer shakes the camera. Regression coverage verifies the stable camera path and rejects reintroduction of impact-driven screen shake.
+
+
+### Issue #26 — cumulative molten-core exposure
+
+Repeated impacts at the same persistent damage site now accumulate penetration depth. Once the cumulative depth reaches the distance from the planet surface to the inner-core radius, the recessed glowing core becomes visible even when the impact did not create a full crust breach. A dedicated additive halo gives exposed magma a glow-like bloom without introducing a heavyweight post-processing pipeline. Core color and glow are tuned per planet, and the existing shatter/reset paths correctly hide or restore the core. Automated regression coverage verifies the exposure threshold, repeated-hit merging, glow material, shatter behavior, and reset cleanup.
