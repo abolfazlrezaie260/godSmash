@@ -65,7 +65,7 @@
         d.launched=false;
         // Small irregular crater field: approximately 0.65 world units across.
         const angle=GOLDEN*d.id;
-        const radial=radius*(.014+.054*Math.sqrt((d.id%43)/43));
+        const radial=.014+.054*Math.sqrt((d.id%43)/43);
         const aim=normalize(add(n,add(mul(tangent,radial*Math.cos(angle)),
           mul(bitangent,radial*Math.sin(angle)))));
         d.end=mul(aim,radius);
