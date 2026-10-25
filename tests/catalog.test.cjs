@@ -6,7 +6,7 @@ const textures = require('../src/render/planet-textures.js');
 
 test('default planets and weapons are accessible', () => {
   assert.deepEqual(catalog.listPlanets().map(x => x.id), ['earth', 'mars', 'venus', 'moon']);
-  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser', 'titan', 'viper', 'nova', 'drone-swarm']);
+  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser', 'titan', 'viper', 'nova', 'drone-swarm', 'harvester']);
 });
 test('new missiles have distinct balanced stats and visual profiles', () => {
   const titan = catalog.getWeapon('titan');
@@ -24,7 +24,7 @@ test('new missiles have distinct balanced stats and visual profiles', () => {
     w.launchSpeed > 0 && w.fuelDuration > 0 && w.drag >= 0
   ));
   assert.equal(catalog.getWeapon('asteroid').fuelDuration, 0);
-  assert.ok(catalog.listWeapons().filter(w=>w.kind!=='beam')
+  assert.ok(catalog.listWeapons().filter(w=>['missile','asteroid'].includes(w.kind))
     .every(w=>w.flightPace>0 && w.flightPace<1 && w.interceptHealth>=1.8));
   assert.ok(catalog.getWeapon('titan').interceptHealth>
     catalog.getWeapon('swift').interceptHealth);
@@ -68,4 +68,14 @@ test('drone swarm is a distinct registered weapon with bounded clustered damage'
   assert.equal(weapon.swarmCount,312);
   assert.ok(weapon.blastRadius<1);
   assert.ok(weapon.damage>0 && weapon.damage<2);
+});
+
+test('harvester is a distinct non-explosive zero-casualty extraction tool',()=>{
+  const ufo=catalog.getWeapon('harvester');
+  assert.equal(ufo.kind,'harvester');
+  assert.equal(ufo.damage,0);
+  assert.equal(ufo.casualties,0);
+  assert.equal(ufo.debrisCount,0);
+  assert.ok(ufo.blastRadius>0);
+  assert.ok(catalog.listWeapons().some(w=>w.id==='harvester'));
 });

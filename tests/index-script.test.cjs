@@ -98,7 +98,17 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.ok(html.includes('id="weapon-speed-stat"'));
   assert.ok(html.includes('id="weapon-radius-stat"'));
   // Issue #28 — the fleet is distinct from individual projectile meshes.
-  assert.ok(html.includes('src="./src/simulation/drone-swarm.js"'));
+  // Issue #29: zero-explosion crust extraction fleet.
+  assert.ok(html.includes('src="./src/simulation/harvesters.js"'));
+  assert.ok(html.includes('src="./src/render/harvester-renderer.js"'));
+  assert.match(match[1], /harvestSimulation\.createFleet/);
+  assert.match(match[1], /harvestVisuals\.createRenderer\(THREE,earthGroup/);
+  assert.match(match[1], /planetDamage\.extract\(/);
+  assert.match(match[1], /fleet\.sim\.pointAt/);
+  assert.match(match[1], /current\.renderer\.sync\(current\.sim\.getShips\(\)\)/);
+  assert.match(match[1], /clearHarvesterFleet\(\)/);
+  assert.match(match[1], /next\.kind==='harvester'/);
+    assert.ok(html.includes('src="./src/simulation/drone-swarm.js"'));
   assert.ok(html.includes('src="./src/render/drone-swarm-renderer.js"'));
   assert.match(match[1], /droneSimulation\.createSwarm/);
   assert.match(match[1], /droneRenderer\.createRenderer\(THREE,earthGroup/);

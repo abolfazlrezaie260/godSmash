@@ -274,6 +274,50 @@
       };
     }
 
+    // Extraction lowers the real surface vertices, rather than producing a
+    // normal blast/scorch, removing topology, or showing molten impact effects.
+    // Repeated harvest passes deepen one smooth, clean-edged bowl. Existing
+    // crater sites and the rebuild/reset budget remain shared with weapons.
+    function extract(localPoint, extractionRadius, depth = 0.49) {
+      if(shattered)return {extracted:false,depth:0};
+      if(!localPoint||typeof localPoint.clone!=='function'||
+        !Number.isFinite(extractionRadius)||extractionRadius<=0||
+        !Number.isFinite(depth)||depth<=0)
+        throw new TypeError('Valid extraction point, radius and depth required');
+      const normal=localPoint.clone().normalize();
+      const attr=geometry.attributes.position;
+      const v=new THREE.Vector3(),direction=new THREE.Vector3();
+      const width=clamp(extractionRadius,0.25,radius*.26);
+      const amount=clamp(depth,.05,radius*.105);
+      let affected=0;
+      for(let i=0;i<attr.count;i++){
+        v.fromBufferAttribute(attr,i);
+        const length=v.length()||1;
+        direction.copy(v).multiplyScalar(1/length);
+        const cos=clamp(direction.dot(normal),-1,1);
+        const distance=Math.acos(cos)*radius;
+        const t=distance/width;
+        if(t>=1)continue;
+        // Flat clean center, feathered ramp at rim, no explosion uplift.
+        const falloff=t<.25?1:
+          (1-((t-.25)/.75)**2)**2;
+        const wanted=Math.max(radius*.69,length-amount*falloff);
+        if(wanted>=length)continue;
+        v.multiplyScalar(wanted/length);
+        attr.setXYZ(i,v.x,v.y,v.z);
+        affected++;
+      }
+      if(affected>0){
+        attr.needsUpdate=true;
+        geometry.computeVertexNormals();
+        geometry.computeBoundingSphere();
+      }
+      const site=recordImpact(normal,width,1.2,amount);
+      if(site.coreExposed)inner.visible=true;
+      return {extracted:affected>0,vertices:affected,depth:amount,
+        siteHits:site.hits,damagePercent,coreExposed:site.coreExposed};
+    }
+
     function setPlanet(planet) {
       if (planet.id === 'moon') {
         inner.material.color.set('#252831');
@@ -322,7 +366,7 @@
     }
 
     return Object.freeze({
-      impact, reset, setPlanet, setShattered,
+      impact, extract, reset, setPlanet, setShattered,
       getBreachCount: () => holes.length,
       getMaxBreaches: () => maxBreaches,
       getDamagePercent: () => damagePercent,

@@ -32,7 +32,7 @@
     if (!config || !idPattern.test(config.id || '') || weapons.has(config.id)) {
       throw new Error('Weapon ID must be unique and lowercase (a-z, 0-9, -).');
     }
-    if (!config.nameFa || !config.kind || !['missile', 'asteroid', 'beam', 'swarm'].includes(config.kind)) {
+    if (!config.nameFa || !config.kind || !['missile', 'asteroid', 'beam', 'swarm', 'harvester'].includes(config.kind)) {
       throw new Error('Weapon requires a name and a supported kind.');
     }
     for (const key of ['blastRadius', 'damage', 'damageVariance', 'casualties',
@@ -47,7 +47,8 @@
         config.maxSpeed < config.launchSpeed) {
       throw new Error('weapon.maxSpeed must be >= weapon.launchSpeed');
     }
-    if (config.kind !== 'beam' && config.speed <= 0) throw new Error('Projectile speed must be positive');
+    if (['missile','asteroid','swarm'].includes(config.kind) && config.speed <= 0)
+      throw new Error('Projectile speed must be positive');
     if (config.kind !== 'beam' && config.flightPace !== undefined &&
         (config.flightPace <= 0 || config.flightPace > 1)) {
       throw new RangeError('weapon.flightPace must be in (0, 1]');
@@ -163,6 +164,15 @@
     speed: 0.9, flightPace: 0.32, interceptHealth: 2.5,
     shake: 0, debrisCount: 1, swarmCount: 312,
     fireColor: '#e0f2fe', plasmaColor: '#95a9be', waveColor: '#a1a1aa'
+  });
+
+  registerWeapon({
+    id:'harvester',nameFa:'سفینه‌های برداشت‌کننده',
+    subtitle:'UFO · CRUST HARVEST',shortLabel:'برداشت',icon:'◎',
+    kind:'harvester',blastRadius:.62,
+    damage:0,damageVariance:0,casualties:0,casualtiesVariance:0,
+    speed:0,shake:0,debrisCount:0,
+    fireColor:'#9cebef',plasmaColor:'#70dce5',waveColor:'#9fcad0'
   });
 
   const api = Object.freeze({
