@@ -63,12 +63,13 @@ test('asteroids are ballistic and do not burn rocket fuel', () => {
 
 test('invalid flight state and negative delta time are rejected', () => {
   assert.throws(() => physics.createFlight({kind:'beam',speed:0}), /positive-speed/);
+  assert.throws(() => physics.createFlight(require('../src/content/catalog.js').getWeapon('drone-swarm')), /positive-speed/);
   assert.throws(() => physics.stepFlight(physics.createFlight(titan), -0.1), /non-negative/);
 });
 
 test('catalogued weapons have longer, distinct visible flight durations', () => {
   const catalog=require('../src/content/catalog.js');
-  const all=catalog.listWeapons().filter(w=>w.kind!=='beam');
+  const all=catalog.listWeapons().filter(w=>w.kind==='missile'||w.kind==='asteroid');
   const results={};
   for(const weapon of all){
     const flight=physics.createFlight(weapon);
