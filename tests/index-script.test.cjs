@@ -104,6 +104,9 @@ test('browser game inline script is syntactically valid and wired to projectile 
   assert.match(match[1], /rocketFx\.burst/);
   assert.match(match[1], /createNightLightLayer/);
   assert.match(match[1], /hotIntensity/);
+  assert.doesNotMatch(match[1], /screenShake/);
+  assert.match(match[1], /camera\.position\.set\(cx, cy, cz\);\s*camera\.lookAt\(0, 0, 0\);/);
+  assert.doesNotMatch(match[1], /camera\.position\.[xyz]\s*\+=\s*\(Math\.random\(\) - 0\.5\)/);
 });
 
 test('impact scorch is dark and non-emissive rather than giant red magma discs', () => {
