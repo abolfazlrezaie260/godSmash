@@ -298,3 +298,14 @@ The **سفینه‌های برداشت‌کننده / Harvester UFOs** is a tent
 **Tests:** `tests/harvesters.test.cjs` covers orbit motion, target changes, staggered tractor/exit phases, bounded completion, and game-speed scaling. `tests/harvester-renderer.test.cjs` validates shared GPU meshes/materials, beam/fragment instancing and disposal. `tests/planet-destruction.test.cjs` verifies geometry and clean-crater reset semantics. Real phone/tablet WebGL visual QA and FPS checks remain necessary.
 
 **Scope:** This is a fictional arcade-style visual extraction effect. The ascending fragments are representative crust meshes synchronized with edits to the underlying planet surface, not exact lifted triangle cutouts or a geologically accurate simulation of water/atmosphere transfer.
+
+
+## Detailed Mars: offline geologic surface and realistic dry shading
+
+Mars now uses its own deterministic, entirely offline procedural surface generator in `src/render/mars-surface.js` instead of the generic random-spot rocky planet. It represents the northern lowlands, southern crater highlands, **Olympus Mons / Tharsis shield volcanoes**, **Valles Marineris**, **Hellas and Argyre basins**, dark **Syrtis Major and Solis Planum** provinces, fine regolith variations and ragged bright polar water/CO₂ frost. The visual surface is fully opaque, with no city emissions or dense terrestrial cloud layer.
+
+The existing sphere gains subtle vertex-relief sampled from the Mars topography function; the planet-damage engine stores these modified vertices as the **per-planet pristine baseline**, so a crater or harvesting depression deforms actual Martian hills and resetting Mars returns to its volcanic and canyon relief. Switching back to Earth, Venus or the Moon restores the default spherical geometry. Mars also receives a reusable grayscale bump texture, a high-roughness nonmetallic material (0.97 roughness / 0 metalness), and a weak rust-colored atmosphere shader rim (strength 0.19 instead of Earth's 1.35). Caching generated diffuse data avoids rerunning the expensive terrain sampler on every reset. No downloaded imagery or third-party texture hosting is needed.
+
+Landmark coordinates and geological descriptions are based on NASA's Mars Global Surveyor topography reference https://science.nasa.gov/photojournal/maps-of-mars-global-topography/ . Thin air and seasonal polar frost follow https://science.nasa.gov/mission/mars-reconnaissance-orbiter/science-highlights/ . These textures are **geography-informed procedural illustrations**, not actual photographic NASA maps or scientifically precise MOLA elevations.
+
+Tests cover repeatable surface painting, polar caps, longitude seam, named landmark elevations, procedural bump texture, Mars-only geometry reset and correct material/atmosphere switching. Physical mobile/tablet WebGL visual QA and FPS checks are still necessary.
