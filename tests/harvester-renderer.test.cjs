@@ -70,7 +70,7 @@ test('UFO hulls and rising crust shards share two draw calls and bounded beams',
     assert.equal(renderer.beams.length,count);
     assert.equal(group.children.length,count+2);
     renderer.sync(fleet.getShips());
-    assert.equal(renderer.getStats().drawCalls,2);
+    assert.equal(renderer.getStats().drawCalls,1,'idle UFO fleet requires one draw call');
     assert.equal(renderer.getStats().activeBeams,0);
     assert.ok(renderer.ships.instanceMatrix.needsUpdate);
     assert.ok(renderer.ships.matrices.every(m=>m.scale>.1));
