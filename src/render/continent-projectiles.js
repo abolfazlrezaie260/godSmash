@@ -75,10 +75,14 @@
       if (width === size.width && height === size.height) return;
       size.width = width; size.height = height;
       renderer.setSize(width, height, false);
+      // The atlas uses (0,0) in the *top-left* corner. Orthographic
+      // camera space uses +Y upwards. Inverting the screen Y below and
+      // anchoring the camera at (0,0) prevents the half-screen offset
+      // that used to hide missiles on the western half of the map.
       camera.left = 0; camera.right = width;
-      camera.top = 0; camera.bottom = height;
-      camera.position.set(width / 2, height / 2, 600);
-      camera.lookAt(width / 2, height / 2, 0);
+      camera.top = 0; camera.bottom = -height;
+      camera.position.set(0, 0, 600);
+      camera.lookAt(0, 0, 0);
       camera.updateProjectionMatrix();
     }
 
@@ -120,11 +124,11 @@
         x: ahead.x + wrapped.offset, y: ahead.y
       }, view, size.width, size.height);
       // Keep the solid missile above the image plane and glow trail.
-      item.model.group.position.set(start.x, start.y, 85);
+      item.model.group.position.set(start.x, -start.y, 85);
       const dx = end.x - start.x, dy = end.y - start.y;
       const length = Math.hypot(dx, dy);
       if (length > 0.01) {
-        direction.set(dx / length, dy / length, 0);
+        direction.set(dx / length, -dy / length, 0);
         item.model.group.quaternion.setFromUnitVectors(axis, direction);
         // Three-quarter bank reveals the actual body panels, wings and fins
         // rather than displaying a nearly edge-on cylinder.
