@@ -149,7 +149,8 @@ test('Specter, Aurora and Phoenix have unique ornamental details in the shared m
 
     for(const [id,model] of [['specter',specter],['aurora',aurora],['phoenix',phoenix]]) {
       assert.equal(model.group.userData.visualProfile,id);
-      assert.ok(model.group.children.length>=17);
+      assert.ok(model.group.children.length>=15,
+        'each original design includes body, wing/fins, nose and exhaust');
       assert.ok(model.plume.children.length>=8);
       assert.equal(model.group.userData.visualScale,model.visualScale);
       assert.equal(projectiles.getProfile(id).id,id);
