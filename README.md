@@ -18,7 +18,7 @@ A 3D planet-destruction sandbox built with **Three.js**. Choose a planet, experi
 1. Open **Select Planet → Continent** (Asia, Europe, Africa, North/South America, or Oceania).
 2. The 3D globe is replaced with a **close-up, flat aerial map** that starts with the bundled 4096px Earth image and locally bundled Natural Earth borders. When connected, NASA GIBS Blue Marble Next Generation image tiles add higher-resolution detail during zoom; the local image remains the fallback.
 3. Click/tap a **source country**, then a **destination country** directly on the map (no country dropdowns).
-4. Choose one of the existing missile profiles in the weapon dock and press **Fire**. The same detailed rocket model is rendered through a transparent Three.js WebGL overlay (not an SVG arrow), with an animated trail, impact effects, and damage updates in the HUD.
+4. Choose one of the existing missile profiles in the weapon dock and press **Fire**. The same detailed rocket model is rendered through a transparent Three.js WebGL overlay (not an SVG arrow), at a legible screen-space size with a small tracking label, animated exhaust trail, impact effects, and damage updates in the HUD.
 5. Select another target to reuse the same launch country. **Change Source** starts a new selection.
 6. Use **Distant Destination** for a flat world map to select countries outside the current continent. **Continent View**, mouse wheel, touch drag and the game's zoom buttons adjust the aerial viewport.
 7. **Free Mode** returns to the original 3D planet sandbox.
