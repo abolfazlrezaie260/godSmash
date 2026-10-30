@@ -1921,6 +1921,7 @@
         fitButton: document.getElementById('geo-fit'),
         getWeapon: () => weapon,
         getSalvoMode: () => state.salvoMode,
+        toLogicalDelta: (dx,dy) => landscape.delta(dx,dy),
         onSound: () => SoundEngine.playLaunch(),
         onImpact: fireCountryImpact,
         onError: error => console.error('Unable to load the country map',error),
