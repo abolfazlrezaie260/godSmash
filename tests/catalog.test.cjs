@@ -6,7 +6,7 @@ const textures = require('../src/render/planet-textures.js');
 
 test('default planets and weapons are accessible', () => {
   assert.deepEqual(catalog.listPlanets().map(x => x.id), ['earth', 'mars', 'venus', 'moon']);
-  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser', 'titan', 'viper', 'nova', 'drone-swarm', 'harvester']);
+  assert.deepEqual(catalog.listWeapons().map(x => x.id), ['icbm', 'swift', 'winged', 'asteroid', 'laser', 'titan', 'viper', 'nova', 'specter', 'aurora', 'phoenix', 'drone-swarm', 'harvester']);
 });
 test('new missiles have distinct balanced stats and visual profiles', () => {
   const titan = catalog.getWeapon('titan');
@@ -28,6 +28,22 @@ test('new missiles have distinct balanced stats and visual profiles', () => {
     .every(w=>w.flightPace>0 && w.flightPace<1 && w.interceptHealth>=1.8));
   assert.ok(catalog.getWeapon('titan').interceptHealth>
     catalog.getWeapon('swift').interceptHealth);
+});
+
+test('three new fictional missiles use distinct shared profiles and balanced arcade stats',()=>{
+  const ids=['specter','aurora','phoenix'];
+  const [specter,aurora,phoenix]=ids.map(id=>catalog.getWeapon(id));
+  assert.deepEqual(ids.map(id=>catalog.getWeapon(id).visualProfile),ids);
+  assert.ok(ids.every(id=>catalog.getWeapon(id).kind==='missile'));
+  assert.ok(ids.every(id=>catalog.getWeapon(id).nameFa && catalog.getWeapon(id).subtitle));
+  assert.ok(specter.speed>aurora.speed && aurora.speed>phoenix.speed);
+  assert.ok(specter.damage<aurora.damage && aurora.damage<phoenix.damage);
+  assert.ok(specter.blastRadius<aurora.blastRadius && aurora.blastRadius<phoenix.blastRadius);
+  assert.ok(ids.every(id=>{
+    const weapon=catalog.getWeapon(id);
+    return weapon.flightPace>0 && weapon.flightPace<1 &&
+      weapon.interceptHealth>0 && weapon.maxSpeed>=weapon.launchSpeed;
+  }));
 });
 
 test('unique IDs and required configuration are enforced', () => {
