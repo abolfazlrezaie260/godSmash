@@ -1,5 +1,5 @@
 /* Flat regional tactical map. Local Natural Earth polygons, full-resolution
- * bundled Earth image and DOM/SVG-only cinematic flight. No globe view,
+ * bundled Earth image and Three.js missile overlays and SVG impact effects. No globe view,
  * external map service or real-world ballistics/navigation.
  */
 (function (root) {
@@ -72,7 +72,7 @@
   function mount(opts) {
     const {geography,continentContainer,panel,mapShell,svg,continentLabel,
       routeSummary,launchButton,changeSourceButton,worldButton,fitButton,
-      onChoose,onImpact,onSound,getWeapon,getTimeScale,getSalvoMode,onError,toLogicalDelta} = opts||{};
+      onChoose,onImpact,onSound,getWeapon,getTimeScale,getSalvoMode,onError,toLogicalDelta,missileVisuals} = opts||{};
     if(!geography||!continentContainer||!panel||!mapShell||!svg||
         !continentLabel||!routeSummary||!launchButton||!changeSourceButton||
         !worldButton||!fitButton||typeof onChoose!=='function'||
@@ -82,7 +82,7 @@
     const doc=svg.ownerDocument,buttons=new Map();
     let continentId=null,source=null,target=null,selection='source';
     let mapData=null,loadPromise=null,view={x:0,y:0,w:360,h:180};
-    let regionalView=null,paths=[],markersLayer=null,animationLayer=null;
+    let regionalView=null,paths=[],markersLayer=null,animationLayer=null,imageryLayer=null;
     let held=null,dragged=false,flights=[],explosions=[],loadToken=0;
     let lastWorld=false;
 
@@ -97,6 +97,8 @@
       view.x=clamp(view.x,0,Math.max(0,720-view.w));
       view.y=clamp(view.y,0,Math.max(0,180-view.h));
       svg.setAttribute('viewBox',[view.x,view.y,view.w,view.h].join(' '));
+      if (missileVisuals) missileVisuals.refreshView(view);
+      updateImageryTiles();
     }
     function zoom(factor) {
       const cx=view.x+view.w/2,cy=view.y+view.h/2;
@@ -188,6 +190,7 @@
       return true;
     }
     function clearEffects() {
+      if (missileVisuals) missileVisuals.clear();
       flights=[];explosions=[];
       if(animationLayer)animationLayer.replaceChildren();
     }
@@ -195,6 +198,8 @@
       loadToken++;
       continentId=null;source=null;target=null;selection='source';
       mapShell.hidden=true;panel.hidden=true;clearEffects();
+      if (missileVisuals) missileVisuals.setActive(false);
+      if (imageryLayer) imageryLayer.replaceChildren();
       setButtons();
     }
     function isActive(){return !!continentId;}
@@ -212,6 +217,64 @@
         }).catch(err=>{loadPromise=null;throw err;});
       return loadPromise;
     }
+    /* NASA GIBS Blue Marble Next Generation WMS tiles provide real detail
+     * rather than stretching a 4096px world image during close zooms.
+     * Images are optional: the committed Earth photo stays behind the tiles.
+     * No tile request is made on network-save-data devices.
+     */
+    const NASA_WMS = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
+    const imageryEnabled = !(root.navigator && root.navigator.connection &&
+      root.navigator.connection.saveData);
+    const imageryTiles = new Map();
+    function imageryTileURL(x,y,span,resolution) {
+      const wrapped=((x%360)+360)%360;
+      const west=wrapped-180, east=west+span;
+      const north=90-y, south=Math.max(-90,north-span);
+      return NASA_WMS+'?service=WMS&version=1.3.0&request=GetMap' +
+        '&layers=BlueMarble_NextGeneration&styles=&format=image%2Fjpeg' +
+        '&crs=EPSG%3A4326&bbox='+[south,west,north,east].join(',') +
+        '&width='+resolution+'&height='+resolution;
+    }
+    function updateImageryTiles() {
+      if (!imageryEnabled || !imageryLayer || !continentId) return;
+      const spans=[12,20,30,45,60,90];
+      const span=spans.find(n => Math.ceil(view.w/n+2)*Math.ceil(view.h/n+2)<=32) || 90;
+      const active=new Set();
+      const left=Math.floor(view.x/span)*span;
+      const right=view.x+view.w;
+      const top=Math.max(0,Math.floor(view.y/span)*span);
+      const bottom=Math.min(180,view.y+view.h);
+      // Native tile images at 1024px; at very broad zoom use smaller
+      // tiles for bandwidth and memory. Zoom detail is genuine source data.
+      const resolution=span<=30?1024:512;
+      for(let y=top; y<bottom; y+=span) {
+        for(let x=left; x<right; x+=span) {
+          if(x<0||x>=720)continue;
+          const key=[x,y,span,resolution].join(':');
+          active.add(key);
+          let tile=imageryTiles.get(key);
+          if(!tile) {
+            tile=svgEl(doc,'image',{
+              href:imageryTileURL(x,y,span,resolution),
+              x,y,width:span,height:Math.min(span,180-y),
+              preserveAspectRatio:'none','pointer-events':'none',
+              'data-imagery-source':'NASA-GIBS-BlueMarble'
+            });
+            // Do not cover the fallback if the service is unavailable.
+            tile.addEventListener('error',()=>tile.remove());
+            imageryTiles.set(key,tile);
+          }
+          if(!tile.parentNode)imageryLayer.appendChild(tile);
+        }
+      }
+      for (const [key,tile] of imageryTiles) {
+        if(!active.has(key)) {
+          tile.remove();
+          imageryTiles.delete(key);
+        }
+      }
+    }
+
     function paintMap() {
       svg.replaceChildren();paths=[];
       // Two image tiles let Pacific island countries be selected past 180°.
@@ -220,6 +283,9 @@
           x:offset,y:0,width:360,height:180,preserveAspectRatio:'none'});
         svg.appendChild(image);
       }
+      imageryLayer=svgEl(doc,'g',{'pointer-events':'none','aria-hidden':'true'});
+      svg.appendChild(imageryLayer);
+      updateImageryTiles();
       const overlay=svgEl(doc,'rect',{x:0,y:0,width:720,height:180,
         fill:'#0b1830',opacity:0.26,'pointer-events':'none'});
       svg.appendChild(overlay);
@@ -257,6 +323,7 @@
       const token=++loadToken;
       continentId=id;source=null;target=null;selection='source';
       clearEffects();mapShell.hidden=false;panel.hidden=false;
+      if (missileVisuals) missileVisuals.setActive(true);
       regionalView=BOUNDS[id];
       lastWorld=false;setView(regionalView);setButtons();updatePanel();
       status('در حال آماده‌سازی نقشهٔ کشورها...');
@@ -286,22 +353,17 @@
       // Animate a fictional tactical missile over the 2D map. This is not
       // a real-world range/trajectory calculation.
       for(let i=0;i<number;i++) {
-        // Three wrapped instances keep long Pacific routes visible even
-        // when they pass through the left/right edges of the flat atlas.
-        const sprites=[];
+        // Render the original detailed 3D rocket, not a flat arrow glyph.
+        const trails=[];
         for (const delta of [-360,0,360]) {
-          const glyph=svgEl(doc,'g',{class:'geo-missile'});
           const trail=svgEl(doc,'path',{class:'geo-trail',d:'',fill:'none',
             'vector-effect':'non-scaling-stroke'});
-          const body=svgEl(doc,'path',{d:'M 2.4 0 L -1.7 -0.85 L -1.25 0 L -1.7 0.85 Z',
-            fill:'#fff7ed',stroke:'#f97316','stroke-width':0.25});
-          const plume=svgEl(doc,'path',{d:'M -1.4 0 L -3.6 -0.5 L -2.5 0 L -3.6 0.5 Z',
-            fill:'#fb923c',opacity:0.85});
-          glyph.append(plume,body);animationLayer.append(trail,glyph);
-          sprites.push({glyph,trail,offset:shift+delta});
+          animationLayer.appendChild(trail);
+          trails.push({trail,offset:shift+delta});
         }
+        const model=missileVisuals ? missileVisuals.launch(weapon) : null;
         flights.push({r,source,target,weapon,flight:root.GodSmashMissilePhysics.createFlight(weapon),
-          delay:i*0.23,sprites,passed:0});
+          delay:i*0.23,trails,model,passed:0});
       }
       if(typeof onSound==='function')onSound();
       status('در حال پرواز '+weapon.nameFa+' از '+source.fa+' به '+target.fa);
@@ -310,7 +372,7 @@
     function strike(shot) {
       const p=pointAt(shot.r,1);
       for (const delta of [-360,0,360]) {
-        const x=p.x+shot.sprites[1].offset+delta,y=p.y;
+        const x=p.x+shot.trails[1].offset+delta,y=p.y;
         const outer=svgEl(doc,'circle',{cx:x,cy:y,r:0.5,class:'geo-shockwave'});
         const inner=svgEl(doc,'circle',{cx:x,cy:y,r:0.4,class:'geo-fireball'});
         animationLayer.append(outer,inner);
@@ -326,23 +388,22 @@
         const step=root.GodSmashMissilePhysics.stepFlight(s.flight,dt);
         s.passed=step.progress;
         const p=pointAt(s.r,s.passed),q=pointAt(s.r,Math.min(1,s.passed+0.016));
-        const angle=Math.atan2(q.y-p.y,q.x-p.x)*180/Math.PI;
-        const scale=clamp(view.w/115,0.45,1.7);
+        if(s.model) missileVisuals.position(s.model,p,q,view);
         const tail=pointAt(s.r,Math.max(0,s.passed-0.12));
         const control=pointAt(s.r,Math.max(0,s.passed-0.06));
-        for(const sprite of s.sprites){
+        for(const sprite of s.trails){
           const offset=sprite.offset;
-          sprite.glyph.setAttribute('transform','translate('+(p.x+offset)+' '+p.y+
-            ') rotate('+angle+') scale('+scale+')');
           sprite.trail.setAttribute('d','M '+(tail.x+offset)+' '+tail.y+
             ' Q '+(control.x+offset)+' '+control.y+
             ' '+(p.x+offset)+' '+p.y);
         }
         if(s.passed>=1){
-          s.sprites.forEach(sprite=>{sprite.glyph.remove();sprite.trail.remove();});
+          s.trails.forEach(sprite=>sprite.trail.remove());
+          if (s.model) missileVisuals.remove(s.model);
           flights.splice(i,1);strike(s);
         }
       }
+      if (missileVisuals) missileVisuals.render();
       for(let i=explosions.length-1;i>=0;i--) {
         const e=explosions[i];e.age+=dt;
         if(e.age>=2.8){e.outer.remove();e.inner.remove();explosions.splice(i,1);continue;}
