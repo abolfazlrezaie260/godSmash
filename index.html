@@ -15,6 +15,7 @@
 <script src="./src/render/projectile-models.js"></script>
 <script src="./src/render/planet-damage.js"></script>
 <script src="./src/simulation/missile-physics.js"></script>
+<script src="./src/simulation/geography.js"></script>
 <script src="./src/simulation/drone-swarm.js"></script>
 <script src="./src/simulation/harvesters.js"></script>
 <script src="./src/render/harvester-renderer.js"></script>
@@ -25,6 +26,7 @@
 <script src="./src/performance/quality-controller.js"></script>
   <script src="./src/ui/weapon-dock.js"></script>
   <script src="./src/ui/planet-picker.js"></script>
+  <script src="./src/ui/continent-mode.js"></script>
   <script src="./src/ui/landscape.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -374,6 +376,34 @@
       color: #7dd3fc; opacity: 0; font-size: 17px; font-weight: bold;
     }
     .planet-choice.is-selected .planet-choice-check { opacity: 1; }
+    /* Country-to-country play mode */
+    .continent-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+    .continent-choice { border-radius:12px; border:1px solid #475569; color:#dbeafe;
+      background:#1e293b; padding:10px 5px; min-height:44px; font-size:12px;
+      font-weight:700; cursor:pointer; }
+    .continent-choice.is-selected { border-color:#22d3ee; background:#164e63; color:white; }
+    .continent-choice:focus-visible { outline:2px solid #7dd3fc; outline-offset:2px; }
+    #geo-route-panel[hidden] { display:none; }
+    #geo-route-panel { position:fixed; z-index:22; top:max(79px,env(safe-area-inset-top));
+      right:max(12px,env(safe-area-inset-right)); width:min(330px,calc(100% - 24px));
+      border-radius:15px; padding:10px; pointer-events:auto; }
+    #geo-route-panel .geo-selects { display:flex; gap:8px; margin-top:8px; }
+    #geo-route-panel label { flex:1; min-width:0; color:#cbd5e1; font-size:11px; font-weight:700; }
+    #geo-route-panel select { display:block; width:100%; min-width:0; margin-top:4px;
+      padding:7px 5px; color:white; background:#0f172a; border:1px solid #475569;
+      border-radius:8px; font-size:12px; min-height:38px; }
+    #geo-route-panel select:focus-visible { outline:2px solid #22d3ee; }
+    #geo-launch { border-radius:9px; min-height:40px; background:#c2410c;
+      color:white; font-weight:800; font-size:12px; padding:7px 9px; }
+    #geo-exit { border-radius:9px; min-height:40px; border:1px solid #64748b;
+      color:#cbd5e1; font-size:11px; padding:7px; }
+    @media (max-width:700px) {
+      #geo-route-panel { top:62px; right:6px; width:min(282px,calc(100% - 174px)); padding:8px; }
+      #geo-route-panel .geo-selects { gap:5px; margin-top:5px; }
+      #geo-route-panel select { min-height:34px; font-size:11px; }
+      #geo-launch,#geo-exit { min-height:36px; }
+      .continent-grid { gap:6px; }
+    }
     #btn-speed-toggle {
       min-width: 56px; min-height: 44px; display: flex;
       align-items: center; justify-content: center; gap: 4px;
@@ -598,16 +628,40 @@
       aria-labelledby="planet-modal-title" dir="rtl" tabindex="-1">
       <div class="flex items-center justify-between gap-3 mb-3">
         <div>
-          <h2 id="planet-modal-title" class="font-bold text-lg">انتخاب سیاره</h2>
-          <p class="text-xs text-slate-400 mt-1">روی سیاره دلخواه بزنید تا پیش‌نمایش آن انتخاب شود.</p>
+          <h2 id="planet-modal-title" class="font-bold text-lg">انتخاب سیاره یا قاره</h2>
+          <p class="text-xs text-slate-400 mt-1">سیاره یا یکی از قاره‌های زمین را انتخاب کنید.</p>
         </div>
         <button id="planet-modal-close" type="button"
           class="hud-btn border border-slate-600 rounded-xl px-3 py-2 min-w-[44px] min-h-[44px]"
           aria-label="بستن انتخاب سیاره">✕</button>
       </div>
       <div id="planet-options" class="planet-grid" role="group" aria-label="سیارات قابل انتخاب"></div>
+      <div class="mt-4 pt-3 border-t border-slate-700">
+        <h3 class="font-bold text-sm text-cyan-200">انتخاب قاره از زمین</h3>
+        <p class="text-[11px] text-slate-400 my-2">قاره را انتخاب کنید، سپس کشور مبدأ و مقصد را روی نقشه زمین تعیین کنید.</p>
+        <div id="continent-options" class="continent-grid" role="group" aria-label="قاره‌های زمین"></div>
+      </div>
     </section>
   </div>
+
+  <!-- Country-to-country route mode, activated from the planet modal. -->
+  <section id="geo-route-panel" class="glass-panel" dir="rtl"
+    role="region" aria-label="مسیر موشک بین کشورها" hidden>
+    <div class="text-cyan-200 font-bold text-sm" id="geo-continent-label">حالت کشورها</div>
+    <div class="geo-selects">
+      <label for="geo-from">کشور مبدأ
+        <select id="geo-from" aria-label="کشور مبدأ"></select>
+      </label>
+      <label for="geo-to">کشور مقصد
+        <select id="geo-to" aria-label="کشور مقصد"></select>
+      </label>
+    </div>
+    <p id="geo-route-summary" aria-live="polite" class="text-[10px] text-slate-300 mt-2"></p>
+    <div class="flex gap-2 mt-2">
+      <button id="geo-launch" type="button" class="flex-1">شلیک موشک</button>
+      <button id="geo-exit" type="button">حالت آزاد</button>
+    </div>
+  </section>
 
   <!-- Weapon inventory, laid out horizontally on phones/tablets. -->
   <aside id="weapon-dock" class="weapon-dock glass-panel" aria-label="انتخاب سلاح">
