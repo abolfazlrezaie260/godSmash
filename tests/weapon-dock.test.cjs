@@ -56,7 +56,7 @@ test('renders a unique visible button per catalog weapon, with readable labels',
     container, weapons, selectedId: 'icbm', onChange: id => choices.push(id)
   });
   assert.equal(container.children.length, weapons.length);
-  assert.equal(container.children.length, 10);
+  assert.equal(container.children.length, 13);
   for (const [i, item] of weapons.entries()) {
     const button = container.children[i];
     assert.equal(button.dataset.weaponId, item.id);
@@ -64,6 +64,10 @@ test('renders a unique visible button per catalog weapon, with readable labels',
     assert.match(button.getAttribute('aria-label'), new RegExp(item.nameFa));
     assert.equal(button.children[2].textContent, item.shortLabel);
   }
+  assert.equal(container.children[8].children[3].textContent,'9');
+  assert.equal(container.children[9].children[3].textContent,'⋯',
+    'weapons past 9 have no invented number key');
+  assert.match(container.children[10].title,/کلیک/);
   assert.equal(container.children[0].getAttribute('aria-pressed'), 'true');
   assert.equal(container.children[0].tabIndex, 0);
   assert.deepEqual(choices, [], 'initial mount should not trigger a selection callback');
@@ -85,20 +89,29 @@ test('click, numeric shortcut and arrow keys share the selected weapon', () => {
   assert.equal(dock.getSelected(), 'laser');
   assert.equal(dock.selectAt(7), true);
   assert.equal(dock.getSelected(), 'nova');
-  assert.equal(dock.selectAt(10), false);
-  assert.equal(dock.getSelected(), 'nova');
+  assert.equal(dock.selectAt(10), true);
+  assert.equal(dock.getSelected(), 'phoenix');
+  assert.equal(dock.selectAt(13), false);
+  assert.equal(dock.getSelected(), 'phoenix');
 
   const arrow = container.children[7].dispatch('keydown', {key: 'ArrowDown'});
   assert.equal(arrow.prevented, true);
-  assert.equal(dock.getSelected(), 'drone-swarm', 'navigation advances to the ninth weapon');
+  assert.equal(dock.getSelected(), 'specter', 'ninth weapon is Specter');
   assert.equal(container.children[8].focused, true);
   container.children[8].dispatch('keydown',{key:'ArrowDown'});
-  assert.equal(dock.getSelected(),'harvester','arrow selects tenth fleet weapon');
+  assert.equal(dock.getSelected(),'aurora');
   container.children[9].dispatch('keydown',{key:'ArrowDown'});
-  assert.equal(dock.getSelected(),'icbm','keyboard navigation wraps after final weapon');
+  assert.equal(dock.getSelected(),'phoenix');
+  container.children[10].dispatch('keydown',{key:'ArrowDown'});
+  assert.equal(dock.getSelected(),'drone-swarm');
+  container.children[11].dispatch('keydown',{key:'ArrowDown'});
+  assert.equal(dock.getSelected(),'harvester');
+  container.children[12].dispatch('keydown',{key:'ArrowDown'});
+  assert.equal(dock.getSelected(),'icbm','keyboard navigation wraps after last weapon');
   container.children[0].dispatch('keydown', {key: 'End'});
   assert.equal(dock.getSelected(), 'harvester');
-  assert.deepEqual(received, ['winged', 'laser', 'nova', 'drone-swarm', 'harvester', 'icbm', 'harvester']);
+  assert.deepEqual(received, ['winged', 'laser', 'nova','phoenix','specter',
+    'aurora','phoenix','drone-swarm','harvester','icbm','harvester']);
 
   dock.destroy();
   assert.equal(container.children.length, 0);
