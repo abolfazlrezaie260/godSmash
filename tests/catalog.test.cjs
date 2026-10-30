@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const catalog = require('../src/content/catalog.js');
 const textures = require('../src/render/planet-textures.js');
+const projectiles = require('../src/render/projectile-models.js');
 
 test('default planets and weapons are accessible', () => {
   assert.deepEqual(catalog.listPlanets().map(x => x.id), ['earth', 'mars', 'venus', 'moon']);
@@ -44,6 +45,17 @@ test('three new fictional missiles use distinct shared profiles and balanced arc
     return weapon.flightPace>0 && weapon.flightPace<1 &&
       weapon.interceptHealth>0 && weapon.maxSpeed>=weapon.launchSpeed;
   }));
+});
+
+test('every registered missile resolves to a single shared 3D model in both modes',()=>{
+  const missiles=catalog.listWeapons().filter(w=>w.kind==='missile');
+  assert.equal(missiles.length,9);
+  assert.equal(new Set(missiles.map(w=>w.visualProfile)).size,9);
+  for(const missile of missiles){
+    assert.ok(Object.prototype.hasOwnProperty.call(projectiles.profiles,missile.visualProfile),
+      missile.id+' is missing a 3D visual profile');
+    assert.equal(projectiles.getProfile(missile.visualProfile).id,missile.visualProfile);
+  }
 });
 
 test('unique IDs and required configuration are enforced', () => {
