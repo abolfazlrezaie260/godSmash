@@ -9,8 +9,15 @@ A 3D planet-destruction sandbox built with **Three.js**. Choose a planet, experi
 - **Four planets:** Earth, Mars, Venus, and the Moon, with photographic Earth textures and custom procedural surfaces.
 - **Weapons and tools:** missiles, asteroids, orbital laser, drone swarms, and UFO harvesters.
 - **Destruction effects:** persistent craters, exposed interiors, explosions, smoke, and debris.
+- **Country-to-country mode:** choose a continent in the planet selector, pick two countries on Earth (for example, Iran → Iraq), then launch any available missile type along an animated globe arc.
 - **Planetary defense:** deploy up to six satellites per planet, with different interceptor types and radar targeting.
 - **Responsive gameplay:** desktop and touch controls, 0.5× / 1× / 2× speed, and adaptive graphics quality.
+
+## Country-to-country play
+
+Open **Select Planet → Choose Continent**, then choose the **source** and **destination** countries in the route panel. Select a missile from the weapon dock and press **Fire**. Single and three-missile salvo modes are supported. Choose **Free Mode** to return to the original planet sandbox.
+
+Country markers use approximate geographic centers for visualization, not national borders or real-world targeting data.
 
 ## Run locally
 
