@@ -166,6 +166,17 @@ test('country selection is entirely map-based; selected source is retained',asyn
     assert.equal(f.ui.getSelected().target,null);
     countryPath('iq').fire('click');
     assert.equal(f.ui.getSelected().target.id,'iq');
+    // Country labels are sized relative to the zoomed viewport. Zooming
+    // must update their SVG sizes instead of producing giant black text.
+    const markers=()=>f.svg.children.find(g=>g.children.some(node=>
+      node.tagName==='TEXT' && node.textContent==='ایران'));
+    const findIranLabel=()=>markers().children.find(node=>
+      node.tagName==='TEXT' && node.textContent==='ایران');
+    const initialSize=Number(findIranLabel().attributes['font-size']);
+    f.ui.zoom(0.5);
+    const smallerSize=Number(findIranLabel().attributes['font-size']);
+    assert.ok(smallerSize<initialSize);
+    assert.ok(Number(findIranLabel().attributes['stroke-width'])<0.3);
     assert.match(f.summary.textContent,/ایران/);
     assert.match(f.summary.textContent,/عراق/);
     assert.equal(f.launch.disabled,false);
