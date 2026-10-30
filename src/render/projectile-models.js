@@ -50,6 +50,37 @@
       hardwareColor: '#263248', finColor: '#6d5ca8', glowRings: true, wings: true,
       plumeColors: Object.freeze([0x8b5cf6, 0x6d28d9, 0x22d3ee, 0x67e8f9, 0xffffff]),
       shockColor: 0x8b5cf6
+    }),
+    // Fictional silhouettes: dramatic art direction, not real rocket designs.
+    specter: Object.freeze({
+      id: 'specter', serial: 'GS-07', caption: 'SPECTER',
+      length: 1.82, radius: 0.15, nose: 0.64,
+      fins: 3, finSpan: 0.23, finChord: 0.39,
+      stripes: '#0d9488', base: '#344650', tip: '#a7f3d0',
+      hardwareColor: '#172b35', finColor: '#1d4248',
+      wings: true, wingStyle: 'swept', canards: true,
+      plumeColors: Object.freeze([0x2dd4bf, 0x0f766e, 0x5eead4, 0x99f6e4, 0xffffff]),
+      shockColor: 0x5eead4
+    }),
+    aurora: Object.freeze({
+      id: 'aurora', serial: 'GS-08', caption: 'AURORA',
+      length: 1.92, radius: 0.20, nose: 0.71,
+      fins: 4, finSpan: 0.26, finChord: 0.47,
+      stripes: '#8b5cf6', base: '#e5e7eb', tip: '#e9d5ff',
+      hardwareColor: '#4c3d7a', finColor: '#7c3aed',
+      wings: true, wingStyle: 'crescent', glowRings: true, energyRails: true,
+      plumeColors: Object.freeze([0x7c3aed, 0xa855f7, 0x22d3ee, 0xe9d5ff, 0xffffff]),
+      shockColor: 0xc084fc
+    }),
+    phoenix: Object.freeze({
+      id: 'phoenix', serial: 'GS-09', caption: 'PHOENIX',
+      length: 2.27, radius: 0.27, nose: 0.73,
+      fins: 5, finSpan: 0.38, finChord: 0.61,
+      stripes: '#ea580c', base: '#504335', tip: '#fcd34d',
+      hardwareColor: '#342c27', finColor: '#9a3412',
+      wings: false, sideBoosters: 3, tailCrown: true,
+      plumeColors: Object.freeze([0xf97316, 0xea580c, 0xfbbf24, 0xfde68a, 0xffffff]),
+      shockColor: 0xfb923c
     })
   });
 
@@ -162,6 +193,33 @@
     return geometry;
   }
 
+  // Alternate fantasy wing shapes for visual distinction in both modes.
+  // Deliberately ornamental geometry, not flight-surface specifications.
+  function createArcadeWingShape(THREE, style, radius) {
+    const shape = new THREE.Shape();
+    if (style === 'swept') {
+      shape.moveTo(radius * 0.7, -0.36);
+      shape.lineTo(radius + 0.28, -0.46);
+      shape.lineTo(radius + 0.94, 0.30);
+      shape.lineTo(radius + 0.76, 0.50);
+      shape.lineTo(radius + 0.10, 0.18);
+    } else {
+      shape.moveTo(radius * 0.75, -0.42);
+      shape.lineTo(radius + 0.39, -0.30);
+      shape.lineTo(radius + 0.84, -0.04);
+      shape.lineTo(radius + 0.62, 0.43);
+      shape.lineTo(radius + 0.36, 0.51);
+      shape.lineTo(radius + 0.21, 0.14);
+    }
+    shape.closePath();
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.044, steps: 1, bevelEnabled: false
+    });
+    geometry.rotateX(Math.PI / 2);
+    geometry.translate(0, 0.022, 0);
+    return geometry;
+  }
+
   function createMissile(THREE, profileName, quality, planetRadius = 10) {
     if (!THREE || !THREE.Group || !THREE.Mesh) throw new TypeError('Three.js is required');
     const p = getProfile(profileName);
@@ -227,8 +285,10 @@
       group.add(fin);
     }
     if (p.wings) {
-      const wingGeo = createFinShape(THREE, p.radius, p.id === 'plasma' ? 0.62 : 0.77,
-        p.id === 'plasma' ? 0.64 : 0.78, 0.043);
+      const wingGeo = p.wingStyle
+        ? createArcadeWingShape(THREE, p.wingStyle, p.radius)
+        : createFinShape(THREE, p.radius, p.id === 'plasma' ? 0.62 : 0.77,
+          p.id === 'plasma' ? 0.64 : 0.78, 0.043);
       for (let i = 0; i < 2; i++) {
         const wing = new THREE.Mesh(wingGeo, finMaterial);
         wing.position.z = 0.1;
@@ -237,28 +297,70 @@
       }
     }
 
-    // The Titan silhouette uses two side boosters; shared materials keep draw cost modest.
+    // Titan has two decorated side pods; Phoenix has a triangular trio.
+    // All three are arcade silhouettes rather than propulsion assemblies.
     if (p.sideBoosters) {
       const boosterLength = p.length * 0.62;
       const boosterRadius = p.radius * 0.25;
       for (let i = 0; i < p.sideBoosters; i++) {
-        const x = (i === 0 ? -1 : 1) * p.radius * 1.34;
+        const offset = p.radius * 1.34;
+        const x = p.sideBoosters === 2
+          ? (i === 0 ? -offset : offset)
+          : Math.cos(i * Math.PI * 2 / p.sideBoosters) * offset;
+        const y = p.sideBoosters === 2 ? 0
+          : Math.sin(i * Math.PI * 2 / p.sideBoosters) * offset;
         const boosterBody = axialCylinder(
           THREE, boosterRadius * 0.94, boosterRadius, boosterLength,
           segmentCount, -p.length * 0.10, body, group
         );
         boosterBody.position.x = x;
+        boosterBody.position.y = y;
         const boosterNose = new THREE.Mesh(
           new THREE.ConeGeometry(boosterRadius, p.nose * 0.40, segmentCount), metal
         );
         boosterNose.geometry.rotateX(Math.PI / 2);
-        boosterNose.position.set(x, 0, -p.length * 0.10 + boosterLength / 2 + p.nose * 0.20);
+        boosterNose.position.set(x, y, -p.length * 0.10 + boosterLength / 2 + p.nose * 0.20);
         group.add(boosterNose);
         const boosterNozzle = new THREE.Mesh(
           new THREE.TorusGeometry(boosterRadius * 0.70, 0.012, 5, segmentCount), darkSteel
         );
-        boosterNozzle.position.set(x, 0, -p.length * 0.10 - boosterLength / 2);
+        boosterNozzle.position.set(x, y, -p.length * 0.10 - boosterLength / 2);
         group.add(boosterNozzle);
+      }
+    }
+
+    if (p.canards) {
+      const canardGeo = createFinShape(THREE, p.radius, 0.25, 0.30, 0.025);
+      for (let i = 0; i < 2; i++) {
+        const canard = new THREE.Mesh(canardGeo, finMaterial);
+        canard.position.z = p.length * 0.33;
+        canard.rotation.z = Math.PI * i;
+        group.add(canard);
+      }
+    }
+    if (p.energyRails) {
+      const railMaterial = new THREE.MeshBasicMaterial({
+        color: p.shockColor, transparent: true, opacity: 0.82,
+        depthWrite: false, blending: THREE.AdditiveBlending
+      });
+      for (const side of [-1, 1]) {
+        const rail = axialCylinder(THREE, 0.018, 0.018, p.length * 0.68,
+          8, -0.03, railMaterial, group);
+        rail.position.x = side * (p.radius + 0.022);
+      }
+    }
+    if (p.tailCrown) {
+      const crownMaterial = new THREE.MeshBasicMaterial({
+        color: 0xfbbf24, transparent: true, opacity: 0.85,
+        depthWrite: false, blending: THREE.AdditiveBlending
+      });
+      for (let i = 0; i < 3; i++) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(p.radius * (1.07 + 0.13 * i), 0.018,
+            5, segmentCount), crownMaterial
+        );
+        ring.position.z = -p.length * 0.42 - i * 0.09;
+        group.add(ring);
       }
     }
 
