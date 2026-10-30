@@ -376,32 +376,53 @@
       color: #7dd3fc; opacity: 0; font-size: 17px; font-weight: bold;
     }
     .planet-choice.is-selected .planet-choice-check { opacity: 1; }
-    /* Country-to-country play mode */
+    /* Flat high-resolution continental atlas replaces the globe in this mode. */
     .continent-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
     .continent-choice { border-radius:12px; border:1px solid #475569; color:#dbeafe;
       background:#1e293b; padding:10px 5px; min-height:44px; font-size:12px;
       font-weight:700; cursor:pointer; }
     .continent-choice.is-selected { border-color:#22d3ee; background:#164e63; color:white; }
     .continent-choice:focus-visible { outline:2px solid #7dd3fc; outline-offset:2px; }
-    #geo-route-panel[hidden] { display:none; }
+    #geo-map-shell[hidden],#geo-route-panel[hidden] { display:none; }
+    #geo-map-shell { position:fixed; inset:0; z-index:4; overflow:hidden;
+      background:#102b3f; touch-action:none; }
+    #geo-map-svg { display:block; width:100%; height:100%; background:#0b2235;
+      touch-action:none; cursor:grab; }
+    #geo-map-svg:active { cursor:grabbing; }
+    .geo-country { fill:rgba(13,42,59,.14); stroke:rgba(190,227,241,.86);
+      stroke-width:1.2px; cursor:pointer; transition:fill .16s ease;
+      stroke-linejoin:round; }
+    .geo-country:hover,.geo-country:focus-visible { fill:rgba(56,189,248,.35);
+      stroke:#e0f2fe; stroke-width:2px; outline:none; }
+    .geo-country.geo-source { fill:rgba(34,211,238,.40); stroke:#67e8f9; stroke-width:2.4px; }
+    .geo-country.geo-target { fill:rgba(251,146,60,.43); stroke:#fdba74; stroke-width:2.4px; }
+    .geo-missile { filter:drop-shadow(0 0 2px #fed7aa); }
+    .geo-trail { stroke:#fdba74; stroke-width:3px; stroke-linecap:round;
+      filter:drop-shadow(0 0 2px #fb923c); }
+    .geo-shockwave { fill:none; stroke:#fff7ed; stroke-width:3px;
+      filter:drop-shadow(0 0 6px #f97316); }
+    .geo-fireball { fill:#ffcc62; filter:drop-shadow(0 0 8px #f97316); }
+    #geo-map-title { position:absolute; top:88px; left:16px; color:#e2f9ff;
+      background:rgba(3,18,32,.7); border:1px solid #326477; border-radius:12px;
+      padding:8px 12px; font-size:12px; pointer-events:none; }
     #geo-route-panel { position:fixed; z-index:22; top:max(79px,env(safe-area-inset-top));
-      right:max(12px,env(safe-area-inset-right)); width:min(330px,calc(100% - 24px));
-      border-radius:15px; padding:10px; pointer-events:auto; }
-    #geo-route-panel .geo-selects { display:flex; gap:8px; margin-top:8px; }
-    #geo-route-panel label { flex:1; min-width:0; color:#cbd5e1; font-size:11px; font-weight:700; }
-    #geo-route-panel select { display:block; width:100%; min-width:0; margin-top:4px;
-      padding:7px 5px; color:white; background:#0f172a; border:1px solid #475569;
-      border-radius:8px; font-size:12px; min-height:38px; }
-    #geo-route-panel select:focus-visible { outline:2px solid #22d3ee; }
-    #geo-launch { border-radius:9px; min-height:40px; background:#c2410c;
-      color:white; font-weight:800; font-size:12px; padding:7px 9px; }
-    #geo-exit { border-radius:9px; min-height:40px; border:1px solid #64748b;
-      color:#cbd5e1; font-size:11px; padding:7px; }
+      right:max(12px,env(safe-area-inset-right)); width:min(305px,calc(100% - 24px));
+      border-radius:15px; padding:12px; pointer-events:auto; }
+    #geo-route-panel .geo-control { padding:8px 10px; min-height:40px;
+      font-size:11px; border:1px solid #64748b; border-radius:9px;
+      background:#192b43; color:#e2e8f0; font-weight:700; }
+    #geo-launch { background:#c2410c !important; border-color:#f97316 !important;
+      color:#fff !important; font-size:12px !important; }
+    #geo-launch:disabled { opacity:.48; cursor:not-allowed; }
+    #game-shell.is-continent-mode #canvas-container,
+    #game-shell.is-continent-mode #center-reticle,
+    #game-shell.is-continent-mode #btn-defenses,
+    #game-shell.is-continent-mode #btn-autorotate { visibility:hidden; }
     @media (max-width:700px) {
-      #geo-route-panel { top:62px; right:6px; width:min(282px,calc(100% - 174px)); padding:8px; }
-      #geo-route-panel .geo-selects { gap:5px; margin-top:5px; }
-      #geo-route-panel select { min-height:34px; font-size:11px; }
-      #geo-launch,#geo-exit { min-height:36px; }
+      #geo-route-panel { top:62px; right:6px; width:min(256px,calc(100% - 170px));
+        padding:8px; }
+      #geo-route-panel .geo-control { padding:6px; min-height:34px; font-size:10px; }
+      #geo-map-title { top:62px; left:6px; font-size:10px; max-width:30%; }
       .continent-grid { gap:6px; }
     }
     #btn-speed-toggle {
@@ -499,6 +520,14 @@
 
   <!-- 3D WebGL Viewport -->
   <div id="canvas-container" aria-label="فضای سه‌بعدی سیاره زمین"></div>
+
+  <!-- Close aerial atlas: 2D high-resolution imagery and real country polygons. -->
+  <div id="geo-map-shell" hidden aria-label="نقشه تعاملی قاره و کشورها">
+    <svg id="geo-map-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180"
+      preserveAspectRatio="xMidYMid meet" role="group"
+      aria-label="نقشه کشورها؛ برای انتخاب مبدأ و مقصد روی کشور کلیک کنید"></svg>
+    <p id="geo-map-title">نقشه نزدیک قاره · انتخاب کشور از روی نقشه</p>
+  </div>
 
   <!-- Subtle Reticle Crosshair in Center of Screen -->
   <div id="center-reticle" class="pointer-events-none fixed inset-0 flex items-center justify-center z-10 opacity-40">
@@ -644,22 +673,21 @@
     </section>
   </div>
 
-  <!-- Country-to-country route mode, activated from the planet modal. -->
+  <!-- Country selection is on the map, not in country dropdowns. -->
   <section id="geo-route-panel" class="glass-panel" dir="rtl"
     role="region" aria-label="مسیر موشک بین کشورها" hidden>
-    <div class="text-cyan-200 font-bold text-sm" id="geo-continent-label">حالت کشورها</div>
-    <div class="geo-selects">
-      <label for="geo-from">کشور مبدأ
-        <select id="geo-from" aria-label="کشور مبدأ"></select>
-      </label>
-      <label for="geo-to">کشور مقصد
-        <select id="geo-to" aria-label="کشور مقصد"></select>
-      </label>
-    </div>
-    <p id="geo-route-summary" aria-live="polite" class="text-[10px] text-slate-300 mt-2"></p>
-    <div class="flex gap-2 mt-2">
-      <button id="geo-launch" type="button" class="flex-1">شلیک موشک</button>
-      <button id="geo-exit" type="button">حالت آزاد</button>
+    <div class="text-cyan-200 font-bold text-sm" id="geo-continent-label">حالت نقشه قاره‌ای</div>
+    <p id="geo-route-summary" role="status" aria-live="polite"
+      class="text-[11px] leading-5 text-slate-200 mt-2 mb-2">
+      برای انتخاب مبدأ روی کشور موردنظر در نقشه کلیک کنید.
+    </p>
+    <button id="geo-launch" type="button" disabled
+      class="geo-control w-full mb-2">شلیک از مبدأ به مقصد</button>
+    <div class="grid grid-cols-2 gap-2">
+      <button id="geo-change-source" type="button" class="geo-control">تغییر مبدأ</button>
+      <button id="geo-world" type="button" class="geo-control">انتخاب مقصد دورتر</button>
+      <button id="geo-fit" type="button" class="geo-control">نمای قاره</button>
+      <button id="geo-exit" type="button" class="geo-control">حالت آزاد</button>
     </div>
   </section>
 
