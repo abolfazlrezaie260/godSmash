@@ -29,6 +29,9 @@ Country polygon data in `assets/data/countries-110m.json` is derived from [Natur
 
 ## Visual quality
 
+In the aerial map, the missile renderer now shares the SVG's **top-left screen coordinate system** (including the inverted WebGL Y axis). This keeps rockets visible throughout the screen, including western countries. Explosion rings use **pixel-bounded radii and non-scaling outlines**, preventing large white discs when zooming into a country.
+
+
 The normal Earth-globe surface now retains the full **4K** bundled daytime texture resolution on desktop (up from 2K); mobile uses **2K** rather than 1K when supported. The flat map progressively requests detailed NASA GIBS Blue Marble Next Generation tiles as you zoom, while preserving a completely local **4K fallback** for offline use.
 
 NASA's imagery is used only for visualization; attribution: NASA Earth Observatory / Blue Marble Next Generation (see [NASA GIBS documentation](https://nasa-gibs.github.io/gibs-api-docs/)). The animated missiles are original fictional GodSmash assets; no third-party missile models or external 3D assets are loaded.
