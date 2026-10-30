@@ -17,6 +17,10 @@ test('missile display lengths respect screen size, country distance and weapon p
   assert.ok(calc(420,1000,'cruise')<20);
   assert.ok(calc(1200,500,'siege')>calc(1200,500,'interceptor'));
   assert.ok(calc(1200,250,'strategic')<calc(1200,900,'strategic'));
+  assert.ok(calc(1200,500,'specter')<calc(1200,500,'aurora'));
+  assert.ok(calc(1200,500,'aurora')<calc(1200,500,'phoenix'));
+  assert.ok(['specter','aurora','phoenix'].every(profile =>
+    calc(1200,500,profile)>0 && calc(1200,500,profile)<=62));
   const view={x:180,y:0,w:180,h:90};
   const small={start:{x:210,y:20},end:{x:220,y:20}};
   const large={start:{x:210,y:20},end:{x:280,y:20}};
