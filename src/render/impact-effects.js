@@ -1,207 +1,266 @@
-/* Cinematic impact core: turbulent fireball, hot plasma shell and surface shock rings.
- * Combined with GodSmashRocketFX for wispy smoke and hot fragments.
- * Visual units are game-space approximations, not a thermodynamic simulation.
+/* Surface-conforming, layered planetary impacts.
+ * All sizes are visual game-space units, never physical blast predictions.
+ * One shared effect factory is used for every planet and missile.
  */
-(function (root) {
+(function(root){
   'use strict';
-
   const timing = root.GodSmashImpactTiming ||
-    (typeof module !== 'undefined' && module.exports ? require('./impact-timing.js') : null);
+    (typeof module !== 'undefined' && module.exports
+      ? require('./impact-timing.js') : null);
+  const clamp=(n,a,b)=>Math.min(b,Math.max(a,n));
+  const mix=(a,b,t)=>a+(b-a)*t;
+  const smooth=(a,b,t)=>{
+    const x=clamp((t-a)/(b-a),0,1);return x*x*(3-2*x);
+  };
+  const PLANETS=Object.freeze({
+    earth:Object.freeze({
+      heat:'#ffbc69',outer:'#a64a29',dust:'#625d58',rim:'#c7a080',
+      smoke:1,linger:1,fire:1,wave:1,plume:1
+    }),
+    mars:Object.freeze({
+      heat:'#ffb76b',outer:'#9d523a',dust:'#a26a50',rim:'#bf7957',
+      smoke:0.58,linger:1.18,fire:0.85,wave:0.58,plume:0.9
+    }),
+    moon:Object.freeze({
+      heat:'#ffe5b5',outer:'#b9aa91',dust:'#939397',rim:'#b6b5ad',
+      smoke:0,linger:0.7,fire:0.55,wave:0.16,plume:0.35
+    }),
+    venus:Object.freeze({
+      heat:'#ffe2a2',outer:'#d79256',dust:'#ad885a',rim:'#e4af72',
+      smoke:1.3,linger:1.25,fire:0.82,wave:0.52,plume:1.2
+    })
+  });
+  function planetStyle(id){
+    return PLANETS[id] || PLANETS.earth;
+  }
 
-  const vertexShader = `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // Relative to a hit point on a sphere: +Z is the surface normal. The
+  // ring lies at the actual curved surface height, not on an airborne plane.
+  function surfacePoint(radius, angle, sphereRadius, lift=0.04){
+    const r=clamp(radius,0,sphereRadius*0.49);
+    return {
+      x:r*Math.cos(angle),y:r*Math.sin(angle),
+      z:Math.sqrt(sphereRadius*sphereRadius-r*r)-sphereRadius+lift
+    };
+  }
+  function setSurfaceRing(geometry,inner,outer,sphereRadius,segments,lift){
+    const positions=geometry.attributes.position;
+    for(let i=0;i<=segments;i++){
+      const angle=i*2*Math.PI/segments;
+      const a=surfacePoint(inner,angle,sphereRadius,lift);
+      const b=surfacePoint(outer,angle,sphereRadius,lift);
+      const k=i*2;
+      positions.setXYZ(k,a.x,a.y,a.z);
+      positions.setXYZ(k+1,b.x,b.y,b.z);
+    }
+    positions.needsUpdate=true;
+  }
+  function makeSurfaceRing(THREE,segments){
+    const data=new Float32Array((segments+1)*2*3);
+    const indices=[];
+    for(let i=0;i<segments;i++){
+      const n=i*2;
+      indices.push(n,n+1,n+2,n+1,n+3,n+2);
+    }
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.BufferAttribute(data,3));
+    geometry.setIndex(indices);
+    return geometry;
+  }
+  // 3D local-position turbulence removes the latitude-longitude UV stripes
+  // and seams of the old spherical blast texture.
+  const fireVertex=`
+    varying vec3 vLocal;
+    varying vec3 vNormalLocal;
+    void main(){
+      vLocal=position;
+      vNormalLocal=normal;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
     }
   `;
-
-  const fragmentShader = `
+  const fireFragment=`
     precision highp float;
+    varying vec3 vLocal;
+    varying vec3 vNormalLocal;
     uniform float uTime;
-    uniform float uOpacity;
-    uniform vec3 uHotColor;
-    uniform vec3 uOuterColor;
-    varying vec2 vUv;
-
-    float hash(vec2 p) {
-      p = fract(p * vec2(123.34, 456.21));
-      p += dot(p, p + 45.32);
-      return fract(p.x * p.y);
-    }
-    float noise(vec2 p) {
-      vec2 i = floor(p);
-      vec2 f = fract(p);
-      f = f * f * (3.0 - 2.0 * f);
+    uniform float uAlpha;
+    uniform vec3 uHot;
+    uniform vec3 uCool;
+    float h(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+    float n(vec3 p){
+      vec3 i=floor(p), f=fract(p);f=f*f*(3.-2.*f);
       return mix(
-        mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y
-      );
+        mix(mix(h(i),h(i+vec3(1,0,0)),f.x),
+            mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),
+        mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),
+            mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z);
     }
-    float fbm(vec2 p) {
-      float value = 0.0;
-      float amplitude = 0.5;
-      for (int i = 0; i < 4; i++) {
-        value += amplitude * noise(p);
-        p = p * 2.03 + vec2(7.1, 3.7);
-        amplitude *= 0.5;
-      }
-      return value;
+    float fbm(vec3 p){
+      float v=0.,a=.54;
+      for(int i=0;i<4;i++){v+=a*n(p);p=p*2.07+vec3(11.3,3.7,8.2);a*=.49;}
+      return v;
     }
-    void main() {
-      vec2 flowUv = vUv * vec2(17.0, 10.0);
-      float slow = fbm(flowUv + vec2(uTime * 0.42, -uTime * 0.26));
-      float fine = fbm(flowUv * 1.9 + vec2(-uTime * 0.72, uTime * 0.58));
-      float turbulence = slow * 0.64 + fine * 0.36;
-      float limb = smoothstep(0.015, 0.20, vUv.y) *
-                   (1.0 - smoothstep(0.80, 0.99, vUv.y));
-      float flame = smoothstep(0.22, 0.69, turbulence);
-      float alpha = uOpacity * limb * smoothstep(0.13, 0.44, turbulence);
-      vec3 color = mix(uOuterColor * 0.62, uHotColor, flame);
-      color += uHotColor * pow(max(0.0, turbulence - 0.63), 2.0) * 1.6;
-      gl_FragColor = vec4(color, alpha * 0.96);
+    void main(){
+      vec3 p=normalize(vLocal)*5.0+vec3(uTime*.52,-uTime*.28,uTime*.31);
+      float turbulence=fbm(p)+.28*fbm(p*2.2-vec3(uTime));
+      float heat=smoothstep(.20,.78,turbulence);
+      float irregular=smoothstep(.24,.48,turbulence);
+      float silhouette=.76+.24*abs(dot(normalize(vNormalLocal),vec3(0.,0.,1.)));
+      vec3 color=mix(uCool,uHot,heat);
+      color+=uHot*pow(max(heat-.52,0.),2.)*.55;
+      gl_FragColor=vec4(color,uAlpha*irregular*silhouette);
     }
   `;
 
-  function createEffect(THREE, weapon, size, lowQuality) {
-    const group = new THREE.Group();
-    group.name = 'Cinematic impact blast';
-    const span = Math.max(0.4, size);
-    const hotColor = weapon.fireColor || '#ffdb93';
-    const outerColor = weapon.plasmaColor || '#ff7c32';
-
-    const fireMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: {value: 0},
-        uOpacity: {value: 1},
-        uHotColor: {value: new THREE.Color(hotColor)},
-        uOuterColor: {value: new THREE.Color(outerColor)}
+  function createEffect(THREE,weapon,size,lowQuality,options={}){
+    if(!timing)throw new Error('Impact timing must load before impact effects');
+    const planetId=typeof options==='string'?options:(options.planetId||'earth');
+    const style=planetStyle(planetId);
+    const sphereRadius=typeof options==='object'&&Number.isFinite(options.planetRadius)
+      ?Math.max(1,options.planetRadius):10;
+    const group=new THREE.Group();
+    group.name='Surface-bound multi-stage planetary impact';
+    const span=clamp(Number(size)||1,0.4,sphereRadius*0.48);
+    const quality=lowQuality?'low':'high';
+    const hot=weapon.fireColor||style.heat;
+    const outer=weapon.plasmaColor||style.outer;
+    const fireMat=new THREE.ShaderMaterial({
+      uniforms:{
+        uTime:{value:0},uAlpha:{value:0},
+        uHot:{value:new THREE.Color(hot)},uCool:{value:new THREE.Color(outer)}
       },
-      vertexShader, fragmentShader,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide
+      vertexShader:fireVertex,fragmentShader:fireFragment,
+      transparent:true,depthWrite:false,side:THREE.DoubleSide,
+      blending:THREE.AdditiveBlending
     });
-    const shellMaterial = new THREE.MeshBasicMaterial({
-      color: outerColor, transparent: true, opacity: 0.2,
-      depthWrite: false, blending: THREE.NormalBlending,
-      side: THREE.DoubleSide
+    const fire=new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1,lowQuality?1:2),fireMat
+    );
+    fire.position.z=span*.11;
+    group.add(fire);
+    // Cooler, restrained outer skin turns from fire to soot without a
+    // second opaque sphere engulfing the surface.
+    const shellMat=new THREE.MeshBasicMaterial({
+      color:outer,transparent:true,opacity:0,
+      depthWrite:false,side:THREE.DoubleSide
     });
-    const waveMaterial = new THREE.MeshBasicMaterial({
-      color: weapon.waveColor || '#ffbb6e', transparent: true,
-      opacity: 0.24, depthWrite: false,
-      blending: THREE.NormalBlending, side: THREE.DoubleSide
-    });
-    const innerWaveMaterial = new THREE.MeshBasicMaterial({
-      color: hotColor, transparent: true, opacity: 0.15,
-      depthWrite: false, blending: THREE.NormalBlending,
-      side: THREE.DoubleSide
-    });
-
-    const dustMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: {value: 0},
-        uOpacity: {value: 0},
-        uHotColor: {value: new THREE.Color('#55504a')},
-        uOuterColor: {value: new THREE.Color('#272c32')}
-      },
-      vertexShader, fragmentShader,
-      transparent: true, depthWrite: false,
-      blending: THREE.NormalBlending, side: THREE.DoubleSide
-    });
-
-    const fireball = new THREE.Mesh(
-      new THREE.SphereGeometry(span * 0.35, lowQuality ? 12 : 24, lowQuality ? 8 : 16),
-      fireMaterial
+    const shell=new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1,lowQuality?1:2),shellMat
     );
-    fireball.position.z = span * 0.14;
-    group.add(fireball);
+    shell.position.z=span*.14;
+    group.add(shell);
 
-    const plasma = new THREE.Mesh(
-      new THREE.SphereGeometry(span * 0.50, lowQuality ? 12 : 20, lowQuality ? 8 : 14),
-      shellMaterial
-    );
-    plasma.position.z = span * 0.12;
-    group.add(plasma);
+    const segments=lowQuality?24:48;
+    const rings=[];
+    for(const [tint,width,offset] of [
+      [style.rim,0.085,0.05],[outer,0.05,0.078]
+    ]){
+      const geometry=makeSurfaceRing(THREE,segments);
+      const material=new THREE.MeshBasicMaterial({
+        color:tint,transparent:true,opacity:0,side:THREE.DoubleSide,
+        depthWrite:false
+      });
+      const mesh=new THREE.Mesh(geometry,material);
+      mesh.frustumCulled=false;
+      mesh.userData.width=width;
+      mesh.userData.lift=offset;
+      group.add(mesh);
+      rings.push(mesh);
+    }
 
-    // Transparent turbulence creates a delayed ash cloud, without a red glow
-    // or the abrupt solid sphere of the previous fireball-only animation.
-    const dust = new THREE.Mesh(
-      new THREE.SphereGeometry(span * 0.62,
-        lowQuality ? 12 : 20, lowQuality ? 8 : 12),
-      dustMaterial
-    );
-    dust.position.z = span * 0.11;
-    group.add(dust);
+    // Irregular individually drifting charcoal clouds. On the Moon there
+    // is no atmospheric smoke; lunar debris is supplied by the main game.
+    const smoke=[];
+    const count=style.smoke===0?0:Math.round((lowQuality?6:13)*style.smoke);
+    const cloudGeometry=new THREE.IcosahedronGeometry(1,lowQuality?0:1);
+    for(let i=0;i<count;i++){
+      const angle=i*2.399963229728653;
+      const band=.28+.72*Math.sqrt((i+.6)/Math.max(1,count));
+      const mat=new THREE.MeshBasicMaterial({
+        color:style.dust,transparent:true,opacity:0,
+        depthWrite:false,side:THREE.DoubleSide
+      });
+      const puff=new THREE.Mesh(cloudGeometry,mat);
+      puff.visible=false;
+      group.add(puff);
+      smoke.push({mesh:puff,angle,band,phase:(i%5)*.037,
+        turn:((i*17)%7-3)*.23,
+        shape:.7+(i%4)*.23});
+    }
 
-    // The shock front expands along the surface as rings, rather than a clean sphere.
-    const ringSegments = lowQuality ? 28 : 56;
-    const shockFront = new THREE.Mesh(
-      new THREE.RingGeometry(0.82, 1.0, ringSegments), waveMaterial
+    const flash=lowQuality?null:new THREE.PointLight(
+      new THREE.Color(style.heat),0,span*3.2
     );
-    shockFront.position.z = span * 0.055;
-    shockFront.scale.setScalar(0.001);
-    group.add(shockFront);
-
-    const innerWave = new THREE.Mesh(
-      new THREE.RingGeometry(0.94, 1.0, ringSegments), innerWaveMaterial
-    );
-    innerWave.position.z = span * 0.04;
-    innerWave.scale.setScalar(0.001);
-    group.add(innerWave);
-
-    const flash = lowQuality ? null : new THREE.PointLight(
-      new THREE.Color(outerColor), 2.2, span * 5
-    );
-    if (flash) {
-      flash.position.z = span * 0.18;
+    if(flash){
+      flash.position.z=span*.2;
       group.add(flash);
     }
 
-    let disposed = false;
-    function update(progress) {
-      if (disposed) return;
-      const t = Math.max(0, Math.min(1, progress));
-      const phase = timing.sample(t);
+    const maxWave=Math.min(sphereRadius*.33,span*1.38);
+    let disposed=false;
+    function update(progress){
+      if(disposed)return;
+      const t=clamp(Number(progress)||0,0,1);
+      const phase=timing.sample(t);
+      const early=smooth(.008,.16,t);
+      const cooling=1-smooth(.16,.45,t);
+      const radius=span*style.fire*(.06+.52*early);
+      fire.scale.setScalar(radius);
+      fire.position.z=span*(.10+.19*early);
+      fireMat.uniforms.uTime.value=t*6.7;
+      fireMat.uniforms.uAlpha.value=phase.flame*.78*style.fire;
+      shell.scale.setScalar(radius*1.24);
+      shell.position.z=span*(.08+.19*early);
+      shellMat.opacity=phase.plasma*.13*cooling;
 
-      // (1) Very short ignition, (2) expanding fire and pressure front,
-      // (3) an ash/dust plume lingering after the bright combustion fades.
-      fireball.scale.setScalar(phase.fireScale);
-      fireMaterial.uniforms.uTime.value = t * 5.0;
-      fireMaterial.uniforms.uOpacity.value = phase.flame * 0.84;
-      plasma.scale.setScalar(phase.shellScale);
-      shellMaterial.opacity = phase.plasma * 0.27;
-      shockFront.scale.setScalar(span * phase.shockScale);
-      innerWave.scale.setScalar(span * phase.shockScale * 0.78);
-      waveMaterial.opacity = phase.shock * 0.22;
-      innerWaveMaterial.opacity = phase.shock * 0.12;
+      const expanding=smooth(.04,.47,t);
+      const r=Math.max(.08,maxWave*(.15+.85*expanding));
+      rings.forEach((ring,index)=>{
+        const width=ring.userData.width*span;
+        setSurfaceRing(ring.geometry,Math.max(.02,r-width),r,
+          sphereRadius,segments,ring.userData.lift);
+        ring.material.opacity=phase.shock*style.wave*(index===0?.34:.15);
+      });
 
-      dust.scale.setScalar(phase.dustScale);
-      dustMaterial.uniforms.uTime.value = t * 3.1;
-      dustMaterial.uniforms.uOpacity.value = phase.dust * 0.49;
-      if (flash) flash.intensity = 2.9 * phase.flash;
+      for(const p of smoke){
+        const mesh=p.mesh;
+        const visible=smooth(.13+p.phase,.32+p.phase,t)*
+          (1-smooth(.76,1,t));
+        mesh.visible=visible>.008;
+        const age=clamp((t-.13-p.phase)/.8,0,1);
+        const spread=span*style.plume*(.12+.59*age)*p.band;
+        const direction=p.angle+p.turn*age;
+        mesh.position.set(
+          Math.cos(direction)*spread,Math.sin(direction)*spread,
+          span*(.035+.82*age)*style.plume
+        );
+        const puffSize=span*(.12+.27*age)*p.shape;
+        mesh.scale.set(puffSize,puffSize*(.8+age*.3),puffSize*.65);
+        mesh.material.opacity=visible*(lowQuality?.13:.17);
+      }
+      if(flash)flash.intensity=2.4*phase.flash*style.fire;
     }
-
-    function dispose() {
-      if (disposed) return;
-      disposed = true;
-      const geometries = new Set();
-      const materials = new Set();
-      group.traverse(item => {
-        if (item.geometry) geometries.add(item.geometry);
-        if (item.material) {
-          (Array.isArray(item.material) ? item.material : [item.material]).forEach(m => materials.add(m));
+    function dispose(){
+      if(disposed)return;
+      disposed=true;
+      const geometries=new Set(),materials=new Set();
+      group.traverse(node=>{
+        if(node.geometry)geometries.add(node.geometry);
+        if(node.material){
+          (Array.isArray(node.material)?node.material:[node.material])
+            .forEach(material=>materials.add(material));
         }
       });
-      geometries.forEach(g => g.dispose());
-      materials.forEach(m => m.dispose());
+      geometries.forEach(g=>g.dispose());
+      materials.forEach(m=>m.dispose());
     }
-
     update(0);
-    return {group, update, dispose, duration: timing.duration(span, lowQuality)};
+    return {group,update,dispose,duration:timing.duration(span,lowQuality)*style.linger,
+      planetId,smokeCount:count,rings};
   }
-
-  root.GodSmashImpactEffects = Object.freeze({createEffect});
-  if (typeof module !== 'undefined' && module.exports) module.exports = root.GodSmashImpactEffects;
-})(typeof window !== 'undefined' ? window : globalThis);
+  const api=Object.freeze({
+    createEffect,planetStyle,surfacePoint,setSurfaceRing
+  });
+  root.GodSmashImpactEffects=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);
