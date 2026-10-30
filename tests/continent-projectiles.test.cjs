@@ -19,7 +19,15 @@ test('real missile model uses the selected weapon profile and is disposed',()=>{
   class Renderer {setClearColor(){}setPixelRatio(){}setSize(){}clear(){}render(){}dispose(){}}
   class Scene {add(){}remove(){}}
   class Light {constructor(){this.position={set(){}};}}
-  class Camera {constructor(){this.position={set(){}};}lookAt(){}updateProjectionMatrix(){}}
+  let cameraInstance;
+  class Camera {
+    constructor(){
+      cameraInstance=this;
+      this.position={set(x,y,z){this.x=x;this.y=y;this.z=z;}};
+    }
+    lookAt(x,y,z){this.target=[x,y,z];}
+    updateProjectionMatrix(){}
+  }
   const THREE={WebGLRenderer:Renderer,Vector3:Vec,Scene,OrthographicCamera:Camera,
     HemisphereLight:Light,DirectionalLight:Light,sRGBEncoding:3001,ACESFilmicToneMapping:4};
   const modelFactory={createMissile(three,profile,quality,radius){
@@ -31,14 +39,30 @@ test('real missile model uses the selected weapon profile and is disposed',()=>{
   const canvas={clientWidth:1200,clientHeight:800},svg={clientWidth:1200,clientHeight:800};
   const renderer=overlay.mount({canvas,svg,THREE,projectileModels:modelFactory});
   renderer.setActive(true);
+  assert.equal(cameraInstance.left,0);
+  assert.equal(cameraInstance.right,1200);
+  assert.equal(cameraInstance.top,0);
+  assert.equal(cameraInstance.bottom,-800);
+  assert.equal(cameraInstance.position.x,0);
+  assert.equal(cameraInstance.position.y,0);
+  assert.deepEqual(cameraInstance.target,[0,0,0]);
   const missile=renderer.launch({kind:'missile',visualProfile:'cruise'});
   assert.deepEqual(made,[['cruise','high',10]]);
   // Full missile body (not the tiny orbital size) remains > 80 screen pixels.
   assert.ok(missile.displayLength>=82);
   assert.ok(missile.displayLength<=148);
   assert.ok(missile.model.group.scale.size>=30);
-  renderer.position(missile,{x:220,y:45},{x:225,y:45},{x:180,y:0,w:180,h:90});
+  const view={x:180,y:0,w:180,h:90};
+  const mapPoint={x:220,y:45};
+  renderer.position(missile,mapPoint,{x:225,y:45},view);
+  const projected=overlay.projectPoint(mapPoint,view,1200,800);
+  assert.equal(missile.model.group.position.x,projected.x);
+  assert.equal(missile.model.group.position.y,-projected.y);
   assert.equal(missile.model.group.visible,true);
+  // Rockets must remain visible even on the western edge of the screen.
+  renderer.position(missile,{x:185,y:5},{x:190,y:6},view);
+  assert.equal(missile.model.group.visible,true);
+  assert.ok(missile.model.group.position.x<120);
   renderer.render();
   assert.equal(renderer.getActiveCount(),1);
   renderer.remove(missile);renderer.remove(missile);
