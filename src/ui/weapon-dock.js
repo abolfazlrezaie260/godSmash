@@ -49,7 +49,7 @@
       button.className = 'weapon-dock-button';
       button.dataset.weaponId = entry.id;
       button.setAttribute('aria-label', 'انتخاب ' + entry.nameFa + (entry.subtitle ? '، ' + entry.subtitle : ''));
-      button.title = entry.nameFa + ' (' + (index + 1) + ')';
+      button.title = entry.nameFa + (index < 9 ? ' · کلید ' + (index + 1) : ' · انتخاب با کلیک');
       const symbol = documentRef.createElement('span');
       symbol.className = 'weapon-dock-icon';
       symbol.textContent = entry.icon || '●';
@@ -69,7 +69,7 @@
       shorthand.setAttribute('aria-hidden', 'true');
       const keyHint = documentRef.createElement('span');
       keyHint.className = 'weapon-dock-key';
-      keyHint.textContent = String(index + 1);
+      keyHint.textContent = index < 9 ? String(index + 1) : '⋯';
       keyHint.setAttribute('aria-hidden', 'true');
       button.append(symbol, copy, shorthand, keyHint);
       button.addEventListener('click', () => activate(entry.id, false));
