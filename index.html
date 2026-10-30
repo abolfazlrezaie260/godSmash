@@ -13,6 +13,7 @@
 <script src="./src/render/planet-textures.js"></script>
 <script src="./src/render/real-earth.js"></script>
 <script src="./src/render/projectile-models.js"></script>
+<script src="./src/render/continent-projectiles.js"></script>
 <script src="./src/render/planet-damage.js"></script>
 <script src="./src/simulation/missile-physics.js"></script>
 <script src="./src/simulation/geography.js"></script>
@@ -389,6 +390,13 @@
     #geo-map-svg { display:block; width:100%; height:100%; background:#0b2235;
       touch-action:none; cursor:grab; }
     #geo-map-svg:active { cursor:grabbing; }
+    /* Independent alpha WebGL scene for original GodSmash 3D missile models. */
+    #geo-projectile-canvas {
+      position:absolute; inset:0; width:100%; height:100%;
+      display:block; background:transparent; pointer-events:none;
+      touch-action:none; z-index:3;
+    }
+    #geo-projectile-canvas[hidden] {display:none;}
     .geo-country { fill:rgba(13,42,59,.14); stroke:rgba(190,227,241,.86);
       stroke-width:1.2px; cursor:pointer; transition:fill .16s ease;
       stroke-linejoin:round; }
@@ -526,6 +534,7 @@
     <svg id="geo-map-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180"
       preserveAspectRatio="xMidYMid meet" role="group"
       aria-label="نقشه کشورها؛ برای انتخاب مبدأ و مقصد روی کشور کلیک کنید"></svg>
+    <canvas id="geo-projectile-canvas" aria-hidden="true" hidden></canvas>
     <p id="geo-map-title">نقشه نزدیک قاره · انتخاب کشور از روی نقشه</p>
   </div>
 
@@ -1058,7 +1067,11 @@
       // 4. PROCEDURAL PLANET EARTH & DYNAMIC CRATER TEXTURES
       // ==========================================
       // Adaptive canvas resolution: photographic imagery with a smaller mobile footprint.
-      const TEX_W = Math.min(window.innerWidth, window.innerHeight) < 750 ? 1024 : 2048;
+      // Keep the painted impact surface at the real image's 4K detail on desktop.
+      // Phones use 2K to avoid oversized GPU allocations; WebGL quality may
+      // further adapt independently when frame rate drops.
+      const TEX_W = Math.min(window.innerWidth, window.innerHeight) < 750
+        ? 2048 : Math.min(4096, renderer.capabilities.maxTextureSize || 4096);
       const TEX_H = TEX_W / 2;
 
       const surfaceCanvas = document.createElement('canvas');
@@ -1884,6 +1897,11 @@
         });
       }
 
+      const continentProjectiles = window.GodSmashContinentProjectiles.mount({
+        canvas: document.getElementById('geo-projectile-canvas'),
+        svg: document.getElementById('geo-map-svg'),
+        THREE, projectileModels, lowQuality: lowImpactQuality
+      });
       let continentMode = null;
       function fireCountryImpact(country, selected) {
         // Keep the existing destructible Earth simulation and HUD behind the
@@ -1920,6 +1938,7 @@
         worldButton: document.getElementById('geo-world'),
         fitButton: document.getElementById('geo-fit'),
         getWeapon: () => weapon,
+        missileVisuals: continentProjectiles,
         getSalvoMode: () => state.salvoMode,
         toLogicalDelta: (dx,dy) => landscape.delta(dx,dy),
         onSound: () => SoundEngine.playLaunch(),
