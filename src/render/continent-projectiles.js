@@ -32,7 +32,8 @@
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const profileSize = Object.freeze({
     strategic: 1.05, interceptor: 0.84, cruise: 0.94,
-    siege: 1.13, hypersonic: 0.86, plasma: 1
+    siege: 1.13, hypersonic: 0.86, plasma: 1,
+    specter: 0.86, aurora: 1.02, phoenix: 1.12
   });
 
   // Screen-space size is limited by BOTH the viewport and the distance
