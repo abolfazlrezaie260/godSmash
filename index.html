@@ -854,6 +854,7 @@
       // 2. GAME STATE & CONFIGURATION
       // ==========================================
       const catalog = window.GodSmashCatalog;
+      const geography = window.GodSmashGeography;
       let planet = catalog.getPlanet("earth");
       let weapon = catalog.getWeapon("icbm");
       let generation = 0;
@@ -1089,6 +1090,8 @@
       // Earth Group
       const earthGroup = new THREE.Group();
       scene.add(earthGroup);
+      const geographyVisuals = new THREE.Group();
+      earthGroup.add(geographyVisuals);
       let nightLayer = null;
       let nightMesh = null;
 
@@ -1363,12 +1366,13 @@
         return retGroup;
       }
 
-      function launchMissileAtWorldPoint(worldTargetPoint, delayMs = 0, selected = weapon) {
+      function launchMissileAtWorldPoint(worldTargetPoint, delayMs = 0, selected = weapon, geographicRoute = null) {
         if (state.shattered) return;
 
         const issued = generation;
         setTimeout(() => {
-          if (state.shattered || issued !== generation) return;
+          if (state.shattered || issued !== generation ||
+              (geographicRoute && (!continentMode || continentMode.getRoute() !== geographicRoute))) return;
           if (activeMissiles.length >= maxActiveMissiles) {
             showImpactToast('ظرفیت موشک‌های فعال پر است؛ کمی صبر کنید.');
             return;
@@ -1388,7 +1392,7 @@
           const sideSign = Math.random() > 0.5 ? 1 : -1;
 
           // Starts inside the field of view for more legible close-up detail.
-          const startPos = camera.position.clone().multiplyScalar(0.81)
+          let startPos = camera.position.clone().multiplyScalar(0.81)
             .add(camRight.multiplyScalar(sideSign * (4.0 + Math.random() * 1.4)))
             .add(camUp.multiplyScalar(1.3 + Math.random() * 0.9));
 
@@ -1396,13 +1400,27 @@
           const currentWorldTarget = earthGroup.localToWorld(localTarget.clone());
           const midPoint = startPos.clone().lerp(currentWorldTarget, 0.5);
           const outwardDir = midPoint.clone().normalize();
-          const controlPos = midPoint.add(outwardDir.multiplyScalar(7 + Math.random() * 3));
+          let controlPos = midPoint.add(outwardDir.multiplyScalar(7 + Math.random() * 3));
 
           const model = selected.kind === 'asteroid'
             ? projectileModels.createAsteroid(THREE, projectileQuality, EARTH_RADIUS)
             : projectileModels.createMissile(
               THREE, selected.visualProfile || 'strategic', projectileQuality, EARTH_RADIUS
             );
+          // In country mode, launch at the source country's globe position.
+          // The path is a cinematic Earth-surface arc, not a physical trajectory.
+          let localStart = null;
+          let localControl = null;
+          if (geographicRoute) {
+            localStart = new THREE.Vector3(
+              geographicRoute.start.x,geographicRoute.start.y,geographicRoute.start.z
+            ).normalize().multiplyScalar(EARTH_RADIUS + model.collisionRadius + 0.24);
+            localControl = new THREE.Vector3(
+              geographicRoute.control.x,geographicRoute.control.y,geographicRoute.control.z
+            );
+            startPos = earthGroup.localToWorld(localStart.clone());
+            controlPos = earthGroup.localToWorld(localControl.clone());
+          }
           const { group, plume } = model;
           group.position.copy(startPos);
           scene.add(group);
@@ -1424,6 +1442,8 @@
             controlPos,
             localTarget,
             localNormal,
+            localStart,
+            localControl,
             reticle,
             flight: missilePhysics.createFlight(selected),
             progress: 0
@@ -2158,6 +2178,8 @@
       let gameTime = 0;
       // Reuse frame-local vectors instead of allocating new ones for every missile.
       const frameTarget = new THREE.Vector3();
+      const frameRouteStart = new THREE.Vector3();
+      const frameRouteControl = new THREE.Vector3();
       const framePosition = new THREE.Vector3();
       const frameAhead = new THREE.Vector3();
       const frameDirection = new THREE.Vector3();
@@ -2202,8 +2224,10 @@
 
           // Quadratic Bézier interpolation toward moving point on rotating Earth
           const t = Math.min(1.0, m.progress);
-          const p0 = m.startPos;
-          const p1 = m.controlPos;
+          const p0 = m.localStart
+            ? earthGroup.localToWorld(frameRouteStart.copy(m.localStart)) : m.startPos;
+          const p1 = m.localControl
+            ? earthGroup.localToWorld(frameRouteControl.copy(m.localControl)) : m.controlPos;
           // Center stops at the scaled hull's contact radius above the surface.
           const p2 = earthGroup.localToWorld(
             frameTarget.copy(m.localTarget)
