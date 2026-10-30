@@ -367,7 +367,7 @@
           animationLayer.appendChild(trail);
           trails.push({trail,offset:shift+delta});
         }
-        const model=missileVisuals ? missileVisuals.launch(weapon) : null;
+        const model=missileVisuals ? missileVisuals.launch(weapon, r) : null;
         // Compact tracking tag supplements the *real* Three.js model instead
         // of disguising an arrow as a rocket.
         const tracking=svgEl(doc,'g',{'pointer-events':'none','aria-hidden':'true'});
