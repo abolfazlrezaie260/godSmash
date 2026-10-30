@@ -97,6 +97,9 @@
       view.x=clamp(view.x,0,Math.max(0,720-view.w));
       view.y=clamp(view.y,0,Math.max(0,180-view.h));
       svg.setAttribute('viewBox',[view.x,view.y,view.w,view.h].join(' '));
+      // Recompute label sizes on zoom; otherwise text and pins balloon when
+      // the SVG viewBox shrinks to country-level zoom.
+      if (markersLayer) renderMarkers();
       if (missileVisuals) missileVisuals.refreshView(view);
       updateImageryTiles();
     }
@@ -144,11 +147,14 @@
         for(const shift of [0,-360,360]) {
           const p={x:point.x+shift,y:point.y};
           if(p.x<view.x-20||p.x>view.x+view.w+20)continue;
-          const circle=svgEl(doc,'circle',{cx:p.x,cy:p.y,r:0.95,fill:color,
-            stroke:'#0f172a','stroke-width':0.25,'pointer-events':'none'});
+          const circle=svgEl(doc,'circle',{cx:p.x,cy:p.y,
+            r:clamp(view.w/340,0.18,0.8),fill:color,
+            stroke:'#0f172a','stroke-width':clamp(view.w/650,0.08,0.28),
+            'pointer-events':'none'});
           const label=svgEl(doc,'text',{x:p.x+1.5,y:p.y-1.6,fill:'#ffffff',
-            'font-size':clamp(view.w/65,1.6,4.3),'font-weight':'700',
-            'paint-order':'stroke',stroke:'#06101f','stroke-width':0.9,
+            'font-size':clamp(view.w/110,0.33,1.6),'font-weight':'700',
+            'paint-order':'stroke',stroke:'#06101f',
+            'stroke-width':clamp(view.w/650,0.08,0.28),
             'pointer-events':'none'});
           label.textContent=displayName(country);
           markersLayer.append(circle,label);
@@ -362,8 +368,19 @@
           trails.push({trail,offset:shift+delta});
         }
         const model=missileVisuals ? missileVisuals.launch(weapon) : null;
+        // Compact tracking tag supplements the *real* Three.js model instead
+        // of disguising an arrow as a rocket.
+        const tracking=svgEl(doc,'g',{'pointer-events':'none','aria-hidden':'true'});
+        const light=svgEl(doc,'circle',{cx:0,cy:0,r:0.27,
+          fill:'#ffdb91',stroke:'#ff7e2d','stroke-width':0.13,
+          'vector-effect':'non-scaling-stroke'});
+        const name=svgEl(doc,'text',{x:0,y:0,fill:'#ffffff','font-weight':'700',
+          'paint-order':'stroke',stroke:'#091424','pointer-events':'none'});
+        name.textContent=weapon.nameFa || weapon.id || 'موشک';
+        tracking.append(light,name);
+        animationLayer.appendChild(tracking);
         flights.push({r,source,target,weapon,flight:root.GodSmashMissilePhysics.createFlight(weapon),
-          delay:i*0.23,trails,model,passed:0});
+          delay:i*0.23,trails,model,tracking,name,light,passed:0});
       }
       if(typeof onSound==='function')onSound();
       status('در حال پرواز '+weapon.nameFa+' از '+source.fa+' به '+target.fa);
@@ -389,6 +406,13 @@
         s.passed=step.progress;
         const p=pointAt(s.r,s.passed),q=pointAt(s.r,Math.min(1,s.passed+0.016));
         if(s.model) missileVisuals.position(s.model,p,q,view);
+        const mapShift=continentId==='oceania'&&p.x<100?360:0;
+        s.tracking.setAttribute('transform','translate('+(p.x+mapShift)+' '+p.y+')');
+        s.name.setAttribute('x',clamp(view.w/150,0.3,1.1));
+        s.name.setAttribute('y',-clamp(view.w/130,0.4,1.2));
+        s.name.setAttribute('font-size',clamp(view.w/150,0.3,1.15));
+        s.name.setAttribute('stroke-width',clamp(view.w/650,0.08,0.26));
+        s.light.setAttribute('r',clamp(view.w/420,0.12,0.55));
         const tail=pointAt(s.r,Math.max(0,s.passed-0.12));
         const control=pointAt(s.r,Math.max(0,s.passed-0.06));
         for(const sprite of s.trails){
@@ -399,6 +423,7 @@
         }
         if(s.passed>=1){
           s.trails.forEach(sprite=>sprite.trail.remove());
+          s.tracking.remove();
           if (s.model) missileVisuals.remove(s.model);
           flights.splice(i,1);strike(s);
         }
