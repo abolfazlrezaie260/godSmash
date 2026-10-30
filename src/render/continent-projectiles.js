@@ -60,6 +60,13 @@
     const direction = new THREE.Vector3();
     const size = {width: 0, height: 0};
     let active = false;
+    // Visual display size is expressed in device-independent CSS pixels.
+    // Unlike the planet model's tiny orbital scale, an aerial missile should
+    // remain legible on a dense high-DPI map at any continent zoom.
+    function missileDisplayLength(width) {
+      if (!Number.isFinite(width) || width <= 0) return 100;
+      return Math.max(82, Math.min(148, width * 0.093));
+    }
     const live = new Set();
 
     function resize() {
@@ -83,12 +90,22 @@
         THREE, weapon.visualProfile || 'strategic',
         lowQuality ? 'low' : 'high', 10
       );
-      // The scene is measured in screen pixels. Scale the native root rather
-      // than replacing its fins, decals, boosters or five-layer exhaust.
-      model.group.scale.multiplyScalar(lowQuality ? 64 : 85);
+      // Use the native model's *actual body dimensions* for a predictable
+      // 82–148 CSS-pixel silhouette, rather than multiplying the orbital
+      // scale by a constant (which made it nearly invisible on the map).
+      resize();
+      const profile = typeof projectileModels.getProfile === 'function'
+        ? projectileModels.getProfile(weapon.visualProfile || 'strategic')
+        : {length: 2, nose: 0.7};
+      const bodyLength = Math.max(0.4, profile.length + profile.nose);
+      const displayLength = missileDisplayLength(size.width);
+      model.group.scale.setScalar(displayLength / bodyLength);
+      // Keep recognizable fins, nose, labels and steel materials. Shorten
+      // the original very long exhaust for a cleaner aerial silhouette.
+      if (model.plume && model.plume.scale) model.plume.scale.setScalar(0.67);
       model.group.visible = false;
       scene.add(model.group);
-      const item = {model, position: null, heading: null, view: null};
+      const item = {model, position: null, heading: null, view: null, bodyLength, displayLength};
       live.add(item);
       return item;
     }
@@ -102,14 +119,16 @@
       const end = projectPoint({
         x: ahead.x + wrapped.offset, y: ahead.y
       }, view, size.width, size.height);
-      item.model.group.position.set(start.x, start.y, 50);
+      // Keep the solid missile above the image plane and glow trail.
+      item.model.group.position.set(start.x, start.y, 85);
       const dx = end.x - start.x, dy = end.y - start.y;
       const length = Math.hypot(dx, dy);
       if (length > 0.01) {
         direction.set(dx / length, dy / length, 0);
         item.model.group.quaternion.setFromUnitVectors(axis, direction);
-        // Slight bank reveals the model's body panels, wings and fins.
-        item.model.group.rotateY(0.32);
+        // Three-quarter bank reveals the actual body panels, wings and fins
+        // rather than displaying a nearly edge-on cylinder.
+        item.model.group.rotateY(0.48);
       }
       item.model.group.visible =
         start.x >= -90 && start.x <= size.width + 90 &&
@@ -137,7 +156,6 @@
     function render() {
       if (!active) return;
       resize();
-      renderer.clear();
       renderer.render(scene, camera);
     }
 
