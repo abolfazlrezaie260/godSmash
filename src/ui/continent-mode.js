@@ -72,7 +72,7 @@
   function mount(opts) {
     const {geography,continentContainer,panel,mapShell,svg,continentLabel,
       routeSummary,launchButton,changeSourceButton,worldButton,fitButton,
-      onChoose,onImpact,onSound,getWeapon,getTimeScale,getSalvoMode,onError} = opts||{};
+      onChoose,onImpact,onSound,getWeapon,getTimeScale,getSalvoMode,onError,toLogicalDelta} = opts||{};
     if(!geography||!continentContainer||!panel||!mapShell||!svg||
         !continentLabel||!routeSummary||!launchButton||!changeSourceButton||
         !worldButton||!fitButton||typeof onChoose!=='function'||
@@ -155,12 +155,15 @@
       if(source&&target) {
         const r=routePoints(source.anchor,target.anchor);
         let shift=continentId==='oceania'&&r.start.x<100?360:0;
-        const routePath=svgEl(doc,'path',{d:'M '+(r.start.x+shift)+' '+r.start.y+
-          ' Q '+(r.control.x+shift)+' '+r.control.y+
-          ' '+(r.end.x+shift)+' '+r.end.y,fill:'none',
-          stroke:'#67e8f9','stroke-width':0.38,'stroke-dasharray':'1.5 1',
-          opacity:0.9,'vector-effect':'non-scaling-stroke','pointer-events':'none'});
-        markersLayer.insertBefore(routePath,markersLayer.firstChild);
+        for(const delta of [-360,0,360]) {
+          const offset=shift+delta;
+          const routePath=svgEl(doc,'path',{d:'M '+(r.start.x+offset)+' '+r.start.y+
+            ' Q '+(r.control.x+offset)+' '+r.control.y+
+            ' '+(r.end.x+offset)+' '+r.end.y,fill:'none',
+            stroke:'#67e8f9','stroke-width':0.38,'stroke-dasharray':'1.5 1',
+            opacity:0.9,'vector-effect':'non-scaling-stroke','pointer-events':'none'});
+          markersLayer.insertBefore(routePath,markersLayer.firstChild);
+        }
       }
       for(const item of paths) {
         const selectedSource=source&&item.id===source.id;
@@ -283,16 +286,22 @@
       // Animate a fictional tactical missile over the 2D map. This is not
       // a real-world range/trajectory calculation.
       for(let i=0;i<number;i++) {
-        const glyph=svgEl(doc,'g',{class:'geo-missile'});
-        const trail=svgEl(doc,'path',{class:'geo-trail',d:'',fill:'none',
-          'vector-effect':'non-scaling-stroke'});
-        const body=svgEl(doc,'path',{d:'M 2.4 0 L -1.7 -0.85 L -1.25 0 L -1.7 0.85 Z',
-          fill:'#fff7ed',stroke:'#f97316','stroke-width':0.25});
-        const plume=svgEl(doc,'path',{d:'M -1.4 0 L -3.6 -0.5 L -2.5 0 L -3.6 0.5 Z',
-          fill:'#fb923c',opacity:0.85});
-        glyph.append(plume,body);animationLayer.append(trail,glyph);
-        flights.push({r,shift,source,target,weapon,flight:root.GodSmashMissilePhysics.createFlight(weapon),
-          delay:i*0.23,trail,glyph,passed:0});
+        // Three wrapped instances keep long Pacific routes visible even
+        // when they pass through the left/right edges of the flat atlas.
+        const sprites=[];
+        for (const delta of [-360,0,360]) {
+          const glyph=svgEl(doc,'g',{class:'geo-missile'});
+          const trail=svgEl(doc,'path',{class:'geo-trail',d:'',fill:'none',
+            'vector-effect':'non-scaling-stroke'});
+          const body=svgEl(doc,'path',{d:'M 2.4 0 L -1.7 -0.85 L -1.25 0 L -1.7 0.85 Z',
+            fill:'#fff7ed',stroke:'#f97316','stroke-width':0.25});
+          const plume=svgEl(doc,'path',{d:'M -1.4 0 L -3.6 -0.5 L -2.5 0 L -3.6 0.5 Z',
+            fill:'#fb923c',opacity:0.85});
+          glyph.append(plume,body);animationLayer.append(trail,glyph);
+          sprites.push({glyph,trail,offset:shift+delta});
+        }
+        flights.push({r,source,target,weapon,flight:root.GodSmashMissilePhysics.createFlight(weapon),
+          delay:i*0.23,sprites,passed:0});
       }
       if(typeof onSound==='function')onSound();
       status('در حال پرواز '+weapon.nameFa+' از '+source.fa+' به '+target.fa);
@@ -300,11 +309,13 @@
     }
     function strike(shot) {
       const p=pointAt(shot.r,1);
-      const x=p.x+shot.shift,y=p.y;
-      const outer=svgEl(doc,'circle',{cx:x,cy:y,r:0.5,class:'geo-shockwave'});
-      const inner=svgEl(doc,'circle',{cx:x,cy:y,r:0.4,class:'geo-fireball'});
-      animationLayer.append(outer,inner);
-      explosions.push({outer,inner,age:0,x,y});
+      for (const delta of [-360,0,360]) {
+        const x=p.x+shot.sprites[1].offset+delta,y=p.y;
+        const outer=svgEl(doc,'circle',{cx:x,cy:y,r:0.5,class:'geo-shockwave'});
+        const inner=svgEl(doc,'circle',{cx:x,cy:y,r:0.4,class:'geo-fireball'});
+        animationLayer.append(outer,inner);
+        explosions.push({outer,inner,age:0,x,y});
+      }
       onImpact(shot.target,shot.weapon);
     }
     function update(dt) {
@@ -317,15 +328,19 @@
         const p=pointAt(s.r,s.passed),q=pointAt(s.r,Math.min(1,s.passed+0.016));
         const angle=Math.atan2(q.y-p.y,q.x-p.x)*180/Math.PI;
         const scale=clamp(view.w/115,0.45,1.7);
-        s.glyph.setAttribute('transform','translate('+(p.x+s.shift)+' '+p.y+
-          ') rotate('+angle+') scale('+scale+')');
         const tail=pointAt(s.r,Math.max(0,s.passed-0.12));
-        s.trail.setAttribute('d','M '+(tail.x+s.shift)+' '+tail.y+
-          ' Q '+(pointAt(s.r,Math.max(0,s.passed-0.06)).x+s.shift)+' '+
-          pointAt(s.r,Math.max(0,s.passed-0.06)).y+
-          ' '+(p.x+s.shift)+' '+p.y);
+        const control=pointAt(s.r,Math.max(0,s.passed-0.06));
+        for(const sprite of s.sprites){
+          const offset=sprite.offset;
+          sprite.glyph.setAttribute('transform','translate('+(p.x+offset)+' '+p.y+
+            ') rotate('+angle+') scale('+scale+')');
+          sprite.trail.setAttribute('d','M '+(tail.x+offset)+' '+tail.y+
+            ' Q '+(control.x+offset)+' '+control.y+
+            ' '+(p.x+offset)+' '+p.y);
+        }
         if(s.passed>=1){
-          s.glyph.remove();s.trail.remove();flights.splice(i,1);strike(s);
+          s.sprites.forEach(sprite=>{sprite.glyph.remove();sprite.trail.remove();});
+          flights.splice(i,1);strike(s);
         }
       }
       for(let i=explosions.length-1;i>=0;i--) {
@@ -346,12 +361,16 @@
     });
     svg.addEventListener('pointermove',event=>{
       if(!held)return;
-      const dx=event.clientX-held.x,dy=event.clientY-held.y;
-      if(Math.hypot(dx,dy)<7&&!dragged)return;
+      const physicalDx=event.clientX-held.x,physicalDy=event.clientY-held.y;
+      if(Math.hypot(physicalDx,physicalDy)<7&&!dragged)return;
       dragged=true;
+      const logical=typeof toLogicalDelta==='function'
+        ? toLogicalDelta(physicalDx,physicalDy)
+        : {x:physicalDx,y:physicalDy};
       const rect=svg.getBoundingClientRect();
-      const scale=Math.min(rect.width/held.original.w,rect.height/held.original.h);
-      setView([held.original.x-dx/scale,held.original.y-dy/scale,
+      const width=svg.clientWidth||rect.width,height=svg.clientHeight||rect.height;
+      const scale=Math.min(width/held.original.w,height/held.original.h);
+      setView([held.original.x-logical.x/scale,held.original.y-logical.y/scale,
         held.original.w,held.original.h]);
     });
     const release=()=>{held=null;};
