@@ -68,74 +68,156 @@ test('country routes have two distinct endpoints and stay above the Earth sphere
   assert.throws(()=>geo.createRoute('asia','ir','de'),TypeError);
 });
 
+const physics = require('../src/simulation/missile-physics.js');
+const boundaries = JSON.parse(fs.readFileSync(
+  path.join(__dirname,'../assets/data/countries-110m.json'),'utf8'
+));
+
 class FakeElement {
   constructor(tag,doc) {
-    this.tagName=tag.toUpperCase();
-    this.ownerDocument=doc;
+    this.tagName=tag.toUpperCase();this.ownerDocument=doc;
     this.children=[];this.listeners={};this.attributes={};this.dataset={};
-    this.value='';this.hidden=false;
-    const classes=new Set();
+    this.hidden=false;this.textContent='';this.disabled=false;
+    const styles=new Set();
     this.classList={
-      toggle(name,yes){if(yes)classes.add(name);else classes.delete(name);},
-      remove(name){classes.delete(name);},
-      contains(name){return classes.has(name);}
+      toggle(name,on){if(on)styles.add(name);else styles.delete(name);},
+      contains(name){return styles.has(name);}
     };
   }
-  appendChild(child){this.children.push(child);}
-  replaceChildren(...children){this.children=children;this.value=children[0]?.value||'';}
+  append(...children){for(const child of children)this.appendChild(child);}
+  appendChild(child){child.parent=this;this.children.push(child);return child;}
+  replaceChildren(...items){this.children=[];this.append(...items);}
+  insertBefore(child,before){
+    child.parent=this;
+    const i=this.children.indexOf(before);
+    if(i<0)this.children.push(child);else this.children.splice(i,0,child);
+  }
+  get firstChild(){return this.children[0]||null;}
   setAttribute(name,value){this.attributes[name]=String(value);}
-  addEventListener(event,handler){(this.listeners[event]??=[]).push(handler);}
-  fire(event){for(const cb of this.listeners[event]||[])cb({target:this});}
+  getAttribute(name){return this.attributes[name];}
+  addEventListener(event,callback){(this.listeners[event]??=[]).push(callback);}
+  remove(){if(this.parent)this.parent.children=this.parent.children.filter(c=>c!==this);}
+  getBoundingClientRect(){return {width:1280,height:720,left:0,top:0};}
+  fire(event,extras={}){
+    const e={target:this,key:undefined,clientX:0,clientY:0,deltaY:0,
+      preventDefault(){},stopPropagation(){},...extras};
+    for(const cb of this.listeners[event]||[])cb(e);
+  }
 }
-test('continent UI chooses Iran/Iraq, updates route, and exits cleanly', () => {
-  const doc={createElement(tag){return new FakeElement(tag,doc);}};
-  function el(tag){return new FakeElement(tag,doc);}
-  const container=el('div'),panel=el('section'),from=el('select'),to=el('select');
-  const name=el('div'),summary=el('p'),launch=el('button');
-  const selected=[],routes=[],launched=[];
+function fixture() {
+  const doc={createElement(tag){return new FakeElement(tag,doc);},
+    createElementNS(ns,tag){return new FakeElement(tag,doc);}};
+  const make=tag=>new FakeElement(tag,doc);
+  const buttons=make('div'),panel=make('section'),mapShell=make('div'),svg=make('svg');
+  const name=make('p'),summary=make('p'),launch=make('button');
+  const changeSource=make('button'),world=make('button'),fit=make('button');
+  const chosen=[],impacts=[],sounds=[];
   const ui=continentUI.mount({
-    geography:geo,continentContainer:container,panel,fromSelect:from,toSelect:to,
+    geography:geo,continentContainer:buttons,panel,mapShell,svg,
     continentLabel:name,routeSummary:summary,launchButton:launch,
-    onChoose:id=>selected.push(id),
-    onRoute:route=>routes.push(route),
-    onLaunch:route=>launched.push(route)
+    changeSourceButton:changeSource,worldButton:world,fitButton:fit,
+    onChoose:id=>chosen.push(id),
+    onImpact:(country,weapon)=>impacts.push([country.id,weapon.id]),
+    onSound:()=>sounds.push(1),
+    getWeapon:()=>({kind:'missile',id:'icbm',nameFa:'موشک',
+      speed:.95,flightPace:.27,launchSpeed:.18,acceleration:1.05,
+      maxSpeed:1.55,fuelDuration:.72,drag:.035}),
+    getSalvoMode:()=>false
   });
-  assert.equal(container.children.length,6);
-  container.children[0].fire('click');
-  assert.deepEqual(selected,['asia']);
-  assert.equal(ui.setContinent('asia'),true);
-  assert.equal(panel.hidden,false);
-  assert.equal(ui.getRoute().source.id,'ir');
-  assert.equal(ui.getRoute().destination.id,'iq');
-  assert.match(summary.textContent,/ایران/);
-  launch.fire('click');
-  assert.equal(launched[0].destination.id,'iq');
-  from.value='iq';
-  from.fire('change');
-  assert.equal(ui.getRoute().source.id,'iq');
-  assert.notEqual(ui.getRoute().destination.id,'iq');
-  assert.equal(ui.setContinent('bad'),false);
-  ui.clear();
-  assert.equal(panel.hidden,true);
-  assert.equal(ui.getRoute(),null);
-  assert.equal(routes.at(-1),null);
-  launch.fire('click');
-  assert.equal(launched.length,1);
+  return {ui,buttons,panel,mapShell,svg,name,summary,launch,changeSource,world,
+    fit,chosen,impacts,sounds};
+}
+
+test('public-domain country polygons include Iran, Iraq and all six regions',()=>{
+  assert.ok(boundaries.features.length>=170);
+  for(const continent of geo.listContinents()) {
+    assert.ok(boundaries.features.filter(c=>c.continent===continent.id).length>=5);
+  }
+  const iran=boundaries.features.find(c=>c.id==='ir');
+  const iraq=boundaries.features.find(c=>c.id==='iq');
+  assert.equal(iran.fa,'ایران');
+  assert.equal(iraq.fa,'عراق');
+  assert.ok(continentUI.polygonPath(iran).startsWith('M'));
+  assert.match(continentUI.polygonPath(iran),/L/);
+  assert.deepEqual(continentUI.xy(32,53),{x:233,y:58});
+  const p=continentUI.routePoints({lat:32,lon:53},{lat:33,lon:44});
+  assert.ok(p.start.x>p.end.x);
+  assert.ok(continentUI.pointAt(p,.5).y<p.start.y);
 });
 
-test('HTML wires continent selection to real missile models, HUD and reset', () => {
+test('country selection is entirely map-based; selected source is retained',async()=>{
+  const previous=globalThis.fetch;
+  globalThis.fetch=async()=>({ok:true,json:async()=>boundaries});
+  try {
+    const f=fixture();
+    assert.equal(f.buttons.children.length,6);
+    f.buttons.children[0].fire('click');
+    assert.deepEqual(f.chosen,['asia']);
+    assert.equal(await f.ui.setContinent('asia'),true);
+    assert.equal(f.panel.hidden,false);
+    assert.equal(f.mapShell.hidden,false);
+    assert.equal(f.ui.getSelected().source,null);
+    assert.equal(f.launch.disabled,true);
+    const countryPath=id=>f.svg.children
+      .flatMap(child=>child.children||[])
+      .find(child=>child.attributes['data-country-id']===id);
+    countryPath('ir').fire('click');
+    assert.equal(f.ui.getSelected().source.id,'ir');
+    assert.equal(f.ui.getSelected().target,null);
+    countryPath('iq').fire('click');
+    assert.equal(f.ui.getSelected().target.id,'iq');
+    assert.match(f.summary.textContent,/ایران/);
+    assert.match(f.summary.textContent,/عراق/);
+    assert.equal(f.launch.disabled,false);
+    assert.equal(f.ui.fire(),true);
+    assert.equal(f.sounds.length,1);
+    // The selected source stays Iran when choosing another destination.
+    countryPath('tr').fire('click');
+    assert.equal(f.ui.getSelected().source.id,'ir');
+    assert.equal(f.ui.getSelected().target.id,'tr');
+    f.world.fire('click');
+    assert.equal(f.ui.getView().w,360);
+    f.ui.choose('us');
+    assert.equal(f.ui.getSelected().target.id,'us');
+    f.fit.fire('click');
+    assert.ok(f.ui.getView().w<360);
+    f.changeSource.fire('click');
+    assert.equal(f.ui.getSelected().source,null);
+    countryPath('iq').fire('click');
+    assert.equal(f.ui.getSelected().source.id,'iq');
+    f.ui.clear();
+    assert.equal(f.panel.hidden,true);
+    assert.equal(f.mapShell.hidden,true);
+    assert.equal(f.ui.isActive(),false);
+  } finally {globalThis.fetch=previous;}
+});
+
+test('missiles animate in the flat map and impact on the chosen country',async()=>{
+  const previous=globalThis.fetch;
+  globalThis.fetch=async()=>({ok:true,json:async()=>boundaries});
+  try {
+    const f=fixture();
+    await f.ui.setContinent('asia');
+    f.ui.choose('ir');f.ui.choose('iq');
+    assert.equal(f.ui.fire(),true);
+    for(let i=0;i<600;i++)f.ui.update(.05);
+    assert.deepEqual(f.impacts,[['iq','icbm']]);
+    f.ui.resetEffects();
+  }finally{globalThis.fetch=previous;}
+});
+
+test('HTML integrates flat regional map without dropdown selectors',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-  assert.match(html,/src\/simulation\/geography\.js/);
-  assert.match(html,/src\/ui\/continent-mode\.js/);
-  for(const id of ['continent-options','geo-route-panel','geo-from','geo-to','geo-launch','geo-exit']) {
+  for(const id of ['continent-options','geo-route-panel','geo-map-shell',
+    'geo-map-svg','geo-launch','geo-change-source','geo-world','geo-exit']) {
     assert.ok(html.includes('id="'+id+'"'),id);
   }
+  assert.doesNotMatch(html,/id="geo-from"/);
+  assert.doesNotMatch(html,/id="geo-to"/);
   assert.match(html,/GodSmashContinentMode\.mount/);
   assert.match(html,/continentMode\.setContinent\(id\)/);
-  assert.match(html,/onLaunch: fireCountryRoute/);
-  assert.match(html,/launchMissileAtWorldPoint\(destinationWorld, i\*170, weapon, route\)/);
-  assert.match(html,/geographicRoute\.start/);
-  assert.match(html,/geographicRoute\.target/);
-  assert.match(html,/planetPicker\.close\(\)/);
+  assert.match(html,/onImpact: fireCountryImpact/);
+  assert.match(html,/if\(continentMode\?\.isActive\(\)\)continentMode\.update\(dt\)/);
+  assert.match(html,/gameShell\.classList\.add\('is-continent-mode'\)/);
   assert.match(html,/if \(continentMode\) continentMode\.clear\(\)/);
 });
