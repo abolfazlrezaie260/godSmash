@@ -29,6 +29,34 @@
     return {x: point.x + offset, y: point.y, offset};
   }
 
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const profileSize = Object.freeze({
+    strategic: 1.05, interceptor: 0.84, cruise: 0.94,
+    siege: 1.13, hypersonic: 0.86, plasma: 1
+  });
+
+  // Screen-space size is limited by BOTH the viewport and the distance
+  // between the selected countries. A short trip cannot be obscured by
+  // an enormous rocket. Never rely on the tiny tangent used for heading.
+  function missileDisplayLength(width, routePixels, visualProfile = 'strategic') {
+    const screen = Number.isFinite(width) && width > 0 ? width : 1000;
+    const screenLimit = screen * 0.038;
+    const routeLimit = Number.isFinite(routePixels) && routePixels > 0
+      ? Math.max(14, routePixels * 0.17) : screenLimit;
+    const factor = profileSize[visualProfile] || 1;
+    return clamp(Math.min(screenLimit, routeLimit) * factor, 14, 62);
+  }
+
+  function routePixelLength(route, view, width, height) {
+    if (!route || !route.start || !route.end) return null;
+    const start = pickWrappedPoint(route.start, view);
+    const startPixel = projectPoint(start, view, width, height);
+    const endPixel = projectPoint({
+      x: route.end.x + start.offset, y: route.end.y
+    }, view, width, height);
+    return Math.hypot(endPixel.x - startPixel.x, endPixel.y - startPixel.y);
+  }
+
   function mount(options) {
     const {canvas, svg, THREE, projectileModels, lowQuality = false} = options || {};
     if (!canvas || !svg || !THREE || !THREE.WebGLRenderer ||
@@ -60,33 +88,6 @@
     const direction = new THREE.Vector3();
     const size = {width: 0, height: 0};
     let active = false;
-    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    const profileSize = Object.freeze({
-      strategic: 1.05, interceptor: 0.84, cruise: 0.94,
-      siege: 1.13, hypersonic: 0.86, plasma: 1
-    });
-
-    // Screen-space size is limited by BOTH the viewport and the distance
-    // between the selected countries. A short trip cannot be obscured by
-    // an enormous rocket. Never rely on the tiny tangent used for heading.
-    function missileDisplayLength(width, routePixels, visualProfile = 'strategic') {
-      const screen = Number.isFinite(width) && width > 0 ? width : 1000;
-      const screenLimit = screen * 0.038;
-      const routeLimit = Number.isFinite(routePixels) && routePixels > 0
-        ? Math.max(14, routePixels * 0.17) : screenLimit;
-      const factor = profileSize[visualProfile] || 1;
-      return clamp(Math.min(screenLimit, routeLimit) * factor, 14, 62);
-    }
-
-    function routePixelLength(route, view, width, height) {
-      if (!route || !route.start || !route.end) return null;
-      const start = pickWrappedPoint(route.start, view);
-      const startPixel = projectPoint(start, view, width, height);
-      const endPixel = projectPoint({
-        x: route.end.x + start.offset, y: route.end.y
-      }, view, width, height);
-      return Math.hypot(endPixel.x - startPixel.x, endPixel.y - startPixel.y);
-    }
     const live = new Set();
 
     function resize() {
