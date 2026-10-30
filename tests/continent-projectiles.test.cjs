@@ -9,6 +9,21 @@ test('map screen projection handles zoom and letterboxing',()=>{
   assert.equal(overlay.projectPoint({x:0,y:0},{x:0,y:0,w:100,h:50},1000,1000).y,250);
   assert.throws(()=>overlay.projectPoint(null,{w:1,h:1},20,20),TypeError);
 });
+test('missile display lengths respect screen size, country distance and weapon profile',()=>{
+  const calc=overlay.missileDisplayLength;
+  assert.ok(calc(1600,1000,'strategic')<65);
+  assert.ok(calc(1600,1000,'strategic')>45);
+  assert.ok(calc(1600,70,'strategic')<=20);
+  assert.ok(calc(420,1000,'cruise')<20);
+  assert.ok(calc(1200,500,'siege')>calc(1200,500,'interceptor'));
+  assert.ok(calc(1200,250,'strategic')<calc(1200,900,'strategic'));
+  const view={x:180,y:0,w:180,h:90};
+  const small={start:{x:210,y:20},end:{x:220,y:20}};
+  const large={start:{x:210,y:20},end:{x:280,y:20}};
+  assert.ok(overlay.routePixelLength(small,view,1200,800) <
+    overlay.routePixelLength(large,view,1200,800));
+});
+
 test('map wrap selects the copy nearest the screen',()=>{
   assert.equal(overlay.pickWrappedPoint({x:5,y:30},{x:350,w:120}).x,365);
   assert.equal(overlay.pickWrappedPoint({x:355,y:30},{x:0,w:120}).x,-5);
@@ -33,7 +48,8 @@ test('real missile model uses the selected weapon profile and is disposed',()=>{
   const modelFactory={createMissile(three,profile,quality,radius){
     assert.equal(three,THREE);made.push([profile,quality,radius]);
     return {group:{scale:{setScalar(x){this.size=x;}},position:{set(x,y,z){this.x=x;this.y=y;}},
-      quaternion:{setFromUnitVectors(a,b){this.heading=b;}},rotateY(){},visible:false},
+      quaternion:{setFromUnitVectors(a,b){this.heading={x:b.x,y:b.y,z:b.z};}},
+      rotateZ(angle){this.roll=angle;},visible:false},
       dispose(){disposed.push(profile);}};
   }};
   const canvas={clientWidth:1200,clientHeight:800},svg={clientWidth:1200,clientHeight:800};
@@ -46,15 +62,19 @@ test('real missile model uses the selected weapon profile and is disposed',()=>{
   assert.equal(cameraInstance.position.x,0);
   assert.equal(cameraInstance.position.y,0);
   assert.deepEqual(cameraInstance.target,[0,0,0]);
-  const missile=renderer.launch({kind:'missile',visualProfile:'cruise'});
+  const route={start:{x:200,y:30},end:{x:270,y:55}};
+  const missile=renderer.launch({kind:'missile',visualProfile:'cruise'},route);
   assert.deepEqual(made,[['cruise','high',10]]);
-  // Full missile body (not the tiny orbital size) remains > 80 screen pixels.
-  assert.ok(missile.displayLength>=82);
-  assert.ok(missile.displayLength<=148);
-  assert.ok(missile.model.group.scale.size>=30);
+  assert.equal(missile.displayLength,0); // scale is calculated once the view is known
   const view={x:180,y:0,w:180,h:90};
   const mapPoint={x:220,y:45};
   renderer.position(missile,mapPoint,{x:225,y:45},view);
+  assert.ok(missile.displayLength>=14 && missile.displayLength<62);
+  assert.ok(missile.model.group.scale.size>0);
+  assert.equal(missile.model.group.scale.size,missile.displayLength/missile.bodyLength);
+  assert.ok(missile.model.group.quaternion.heading.x>0.9);
+  assert.ok(missile.model.group.quaternion.heading.z>0);
+  assert.equal(missile.model.group.roll,0.16);
   const projected=overlay.projectPoint(mapPoint,view,1200,800);
   assert.equal(missile.model.group.position.x,projected.x);
   assert.equal(missile.model.group.position.y,-projected.y);
@@ -63,6 +83,11 @@ test('real missile model uses the selected weapon profile and is disposed',()=>{
   renderer.position(missile,{x:185,y:5},{x:190,y:6},view);
   assert.equal(missile.model.group.visible,true);
   assert.ok(missile.model.group.position.x<120);
+  const beforeZoom=missile.displayLength;
+  renderer.position(missile,{x:185,y:5},{x:190,y:6},
+    {x:180,y:0,w:360,h:180});
+  assert.ok(missile.displayLength<=beforeZoom);
+  assert.ok(missile.model.group.quaternion.heading.y<0);
   renderer.render();
   assert.equal(renderer.getActiveCount(),1);
   renderer.remove(missile);renderer.remove(missile);
