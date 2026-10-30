@@ -211,8 +211,23 @@ test('missiles animate in the flat map and impact on the chosen country',async()
     await f.ui.setContinent('asia');
     f.ui.choose('ir');f.ui.choose('iq');
     assert.equal(f.ui.fire(),true);
-    for(let i=0;i<600;i++)f.ui.update(.05);
+    // Stop at the impact so we can inspect the on-map SVG shockwave.
+    for(let i=0;i<600 && !f.impacts.length;i++)f.ui.update(.05);
     assert.deepEqual(f.impacts,[['iq','icbm']]);
+    const shocks=()=>f.svg.children.flatMap(layer=>layer.children||[])
+      .filter(element=>element.attributes.class==='geo-shockwave');
+    assert.ok(shocks().length>0);
+    const pixelRadius=()=>{
+      const v=f.ui.getView(), unit=Math.max(v.w/1280,v.h/720);
+      return Number(shocks()[0].attributes.r)/unit;
+    };
+    // The old implementation scaled a 10-unit circle into an enormous
+    // hundreds-of-pixels white disc at close zoom.
+    assert.ok(pixelRadius()<70,'Shockwave must stay smaller than 70px');
+    assert.equal(shocks()[0].attributes['vector-effect'],'non-scaling-stroke');
+    f.ui.zoom(0.5);
+    f.ui.update(.05);
+    assert.ok(pixelRadius()<70,'Shockwave radius must stay capped during zoom');
     f.ui.resetEffects();
   }finally{globalThis.fetch=previous;}
 });
