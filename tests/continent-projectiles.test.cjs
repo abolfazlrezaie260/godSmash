@@ -24,7 +24,7 @@ test('real missile model uses the selected weapon profile and is disposed',()=>{
     HemisphereLight:Light,DirectionalLight:Light,sRGBEncoding:3001,ACESFilmicToneMapping:4};
   const modelFactory={createMissile(three,profile,quality,radius){
     assert.equal(three,THREE);made.push([profile,quality,radius]);
-    return {group:{scale:{multiplyScalar(x){this.size=x;}},position:{set(x,y,z){this.x=x;this.y=y;}},
+    return {group:{scale:{setScalar(x){this.size=x;}},position:{set(x,y,z){this.x=x;this.y=y;}},
       quaternion:{setFromUnitVectors(a,b){this.heading=b;}},rotateY(){},visible:false},
       dispose(){disposed.push(profile);}};
   }};
@@ -33,6 +33,10 @@ test('real missile model uses the selected weapon profile and is disposed',()=>{
   renderer.setActive(true);
   const missile=renderer.launch({kind:'missile',visualProfile:'cruise'});
   assert.deepEqual(made,[['cruise','high',10]]);
+  // Full missile body (not the tiny orbital size) remains > 80 screen pixels.
+  assert.ok(missile.displayLength>=82);
+  assert.ok(missile.displayLength<=148);
+  assert.ok(missile.model.group.scale.size>=30);
   renderer.position(missile,{x:220,y:45},{x:225,y:45},{x:180,y:0,w:180,h:90});
   assert.equal(missile.model.group.visible,true);
   renderer.render();
