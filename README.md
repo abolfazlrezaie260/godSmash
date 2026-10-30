@@ -7,7 +7,8 @@ A 3D planet-destruction sandbox built with **Three.js**. Choose a planet, experi
 ## Features
 
 - **Four planets:** Earth, Mars, Venus, and the Moon, with photographic Earth textures and custom procedural surfaces.
-- **Weapons and tools:** missiles, asteroids, orbital laser, drone swarms, and UFO harvesters.
+- **Weapons and tools:** nine original 3D missile models, asteroids, orbital laser, drone swarms, and UFO harvesters.
+- **New fictional rockets:** **Specter** (fast, angular swept-wing silhouette), **Aurora** (luminous crescent wings), and **Phoenix** (heavy, triple-pod silhouette). Each has its own arcade damage, speed and flight effects, sharing one model across planet and country modes.
 - **Destruction effects:** persistent craters, exposed interiors, explosions, smoke, and debris.
 - **Flat continental battle map:** choose a continent in the planet selector, click a country directly on the map to set the launch origin, then click another as the destination (e.g., Iran → Iraq). Watch the **same detailed 3D missile models used in normal gameplay** fly above an aerial Earth map with selectable country boundaries.
 - **Planetary defense:** deploy up to six satellites per planet, with different interceptor types and radar targeting.
