@@ -5,7 +5,7 @@
   'use strict';
 
   function mount(options) {
-    const {modal, container, trigger, closeButton, planets, selectedId, onSelect, textures} = options || {};
+    const {modal, container, trigger, closeButton, planets, selectedId, onSelect, textures, allowReselect = false} = options || {};
     if (!modal || !container || !trigger || !closeButton ||
         !Array.isArray(planets) || !planets.length || typeof onSelect !== 'function') {
       throw new TypeError('Planet picker requires modal, controls, planets and onSelect');
@@ -92,7 +92,7 @@
       marker.setAttribute('aria-hidden', 'true');
       button.append(preview, caption, marker);
       button.addEventListener('click', () => {
-        if (planet.id !== active) onSelect(planet.id);
+        if (planet.id !== active || allowReselect) onSelect(planet.id);
         syncSelected(planet.id);
         close();
       });
@@ -113,7 +113,9 @@
         return;
       }
       if (event.key !== 'Tab') return;
-      const ordered = [closeButton, ...choices.values()];
+      const extra = modal.querySelectorAll ?
+        Array.from(modal.querySelectorAll('#continent-options button')) : [];
+      const ordered = [closeButton, ...choices.values(), ...extra];
       const first = ordered[0], last = ordered[ordered.length - 1];
       if (event.shiftKey && doc.activeElement === first) {
         event.preventDefault(); last.focus();
