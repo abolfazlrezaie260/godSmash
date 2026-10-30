@@ -386,12 +386,24 @@
       status('در حال پرواز '+weapon.nameFa+' از '+source.fa+' به '+target.fa);
       return true;
     }
+    // A map unit expands to many CSS pixels during a close zoom. Convert
+    // cinematic impact radii from CSS pixels before placing SVG circles so
+    // the shockwave never grows into a huge white/blue disk.
+    function impactUnitsPerPixel() {
+      const rect=svg.getBoundingClientRect();
+      const width=svg.clientWidth||rect.width||1;
+      const height=svg.clientHeight||rect.height||1;
+      return Math.max(view.w/width,view.h/height);
+    }
     function strike(shot) {
       const p=pointAt(shot.r,1);
+      const unit=impactUnitsPerPixel();
       for (const delta of [-360,0,360]) {
         const x=p.x+shot.trails[1].offset+delta,y=p.y;
-        const outer=svgEl(doc,'circle',{cx:x,cy:y,r:0.5,class:'geo-shockwave'});
-        const inner=svgEl(doc,'circle',{cx:x,cy:y,r:0.4,class:'geo-fireball'});
+        const outer=svgEl(doc,'circle',{cx:x,cy:y,r:6*unit,
+          class:'geo-shockwave','vector-effect':'non-scaling-stroke'});
+        const inner=svgEl(doc,'circle',{cx:x,cy:y,r:6*unit,
+          class:'geo-fireball','vector-effect':'non-scaling-stroke'});
         animationLayer.append(outer,inner);
         explosions.push({outer,inner,age:0,x,y});
       }
@@ -432,11 +444,11 @@
       for(let i=explosions.length-1;i>=0;i--) {
         const e=explosions[i];e.age+=dt;
         if(e.age>=2.8){e.outer.remove();e.inner.remove();explosions.splice(i,1);continue;}
-        const grow=e.age/2.8;
-        e.outer.setAttribute('r',String(1+grow*9));
-        e.outer.setAttribute('opacity',String(1-grow));
-        e.inner.setAttribute('r',String(0.8+grow*2.6));
-        e.inner.setAttribute('opacity',String(Math.max(0,1-grow*1.5)));
+        const grow=e.age/2.8, unit=impactUnitsPerPixel();
+        e.outer.setAttribute('r',String((6+grow*60)*unit));
+        e.outer.setAttribute('opacity',String(Math.max(0,0.85-grow)));
+        e.inner.setAttribute('r',String((6+grow*18)*unit));
+        e.inner.setAttribute('opacity',String(Math.max(0,0.72-grow*1.45)));
       }
     }
     // Selection and pan/zoom are pointer-driven, including mobile touch.
