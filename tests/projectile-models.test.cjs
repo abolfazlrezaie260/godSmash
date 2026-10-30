@@ -52,9 +52,10 @@ function fakeTHREE() {
   return { mock, allocated };
 }
 
-test('missile model exposes three fictional silhouette presets', () => {
+test('missile factory exposes nine fictional silhouette presets', () => {
   assert.deepEqual(Object.keys(projectiles.profiles),
-    ['strategic', 'interceptor', 'cruise', 'siege', 'hypersonic', 'plasma']);
+    ['strategic', 'interceptor', 'cruise', 'siege', 'hypersonic', 'plasma',
+      'specter', 'aurora', 'phoenix']);
   assert.equal(projectiles.getProfile('unknown').id, 'strategic');
 });
 
@@ -133,7 +134,46 @@ test('new missile profiles have distinct booster, speed and plasma details', () 
   } finally { global.document = originalDocument; }
 });
 
-test('issue 27: all six rockets scale relative to planet without losing fine geometry', () => {
+
+test('Specter, Aurora and Phoenix have unique ornamental details in the shared model factory',()=>{
+  const oldDocument=global.document;
+  global.document={createElement:()=>({getContext:()=>({
+    createLinearGradient:()=>({addColorStop(){}}),
+    fillRect(){},strokeRect(){},fillText(){}
+  })})};
+  try {
+    const {mock,allocated}=fakeTHREE();
+    const specter=projectiles.createMissile(mock,'specter','high');
+    const aurora=projectiles.createMissile(mock,'aurora','high');
+    const phoenix=projectiles.createMissile(mock,'phoenix','high');
+
+    for(const [id,model] of [['specter',specter],['aurora',aurora],['phoenix',phoenix]]) {
+      assert.equal(model.group.userData.visualProfile,id);
+      assert.ok(model.group.children.length>=17);
+      assert.ok(model.plume.children.length>=8);
+      assert.equal(model.group.userData.visualScale,model.visualScale);
+      assert.equal(projectiles.getProfile(id).id,id);
+    }
+    assert.equal(projectiles.getProfile('specter').wingStyle,'swept');
+    assert.equal(projectiles.getProfile('aurora').wingStyle,'crescent');
+    assert.equal(projectiles.getProfile('phoenix').sideBoosters,3);
+    const cruise=projectiles.createMissile(mock,'cruise','low');
+    assert.ok(specter.group.children.length>cruise.group.children.length);
+    assert.ok(aurora.group.children.some(node=>node.material &&
+      node.material.color===projectiles.profiles.aurora.shockColor));
+    assert.ok(phoenix.group.children.length>specter.group.children.length);
+    assert.equal(specter.plume.children[0].material.color,0x2dd4bf);
+    assert.equal(aurora.plume.children[0].material.color,0x7c3aed);
+    assert.equal(phoenix.plume.children[0].material.color,0xf97316);
+    for(const model of [specter,aurora,phoenix,cruise])model.dispose();
+    assert.equal(allocated.textures.length,4);
+    assert.ok(allocated.textures.every(x=>x.disposals===1));
+    assert.ok(allocated.materials.every(x=>x.disposals===1));
+    assert.ok(allocated.geometries.every(x=>x.disposals===1));
+  }finally {global.document=oldDocument;}
+});
+
+test('issue 27: all nine rockets scale relative to planet without losing fine geometry', () => {
   const originalDocument=global.document;
   global.document={
     createElement:()=>({width:0,height:0,getContext:()=>({
@@ -156,7 +196,7 @@ test('issue 27: all six rockets scale relative to planet without losing fine geo
       assert.equal(model.group.userData.collisionRadius,model.collisionRadius);
       model.dispose();
     }
-    assert.equal(allocated.textures.length,6,'each profile still owns a full-resolution decal');
+    assert.equal(allocated.textures.length,9,'each profile still owns a full-resolution decal');
     assert.ok(allocated.textures.every(t=>t.disposals===1));
     assert.ok(allocated.geometries.every(g=>g.disposals===1));
     assert.ok(allocated.materials.every(m=>m.disposals===1));
