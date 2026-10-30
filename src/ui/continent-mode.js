@@ -39,7 +39,7 @@
       }
       currentRoute = geography.createRoute(continentId,fromSelect.value,toSelect.value);
       routeSummary.textContent =
-        currentRoute.source.nameFa + ' ← ' + currentRoute.destination.nameFa +
+        'از ' + currentRoute.source.nameFa + ' به ' + currentRoute.destination.nameFa +
         ' | موشک را از فهرست سلاح‌ها انتخاب کنید';
       onRoute(currentRoute);
     }
