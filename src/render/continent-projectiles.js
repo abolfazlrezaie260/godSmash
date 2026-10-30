@@ -60,12 +60,32 @@
     const direction = new THREE.Vector3();
     const size = {width: 0, height: 0};
     let active = false;
-    // Visual display size is expressed in device-independent CSS pixels.
-    // Unlike the planet model's tiny orbital scale, an aerial missile should
-    // remain legible on a dense high-DPI map at any continent zoom.
-    function missileDisplayLength(width) {
-      if (!Number.isFinite(width) || width <= 0) return 100;
-      return Math.max(82, Math.min(148, width * 0.093));
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const profileSize = Object.freeze({
+      strategic: 1.05, interceptor: 0.84, cruise: 0.94,
+      siege: 1.13, hypersonic: 0.86, plasma: 1
+    });
+
+    // Screen-space size is limited by BOTH the viewport and the distance
+    // between the selected countries. A short trip cannot be obscured by
+    // an enormous rocket. Never rely on the tiny tangent used for heading.
+    function missileDisplayLength(width, routePixels, visualProfile = 'strategic') {
+      const screen = Number.isFinite(width) && width > 0 ? width : 1000;
+      const screenLimit = screen * 0.038;
+      const routeLimit = Number.isFinite(routePixels) && routePixels > 0
+        ? Math.max(14, routePixels * 0.17) : screenLimit;
+      const factor = profileSize[visualProfile] || 1;
+      return clamp(Math.min(screenLimit, routeLimit) * factor, 14, 62);
+    }
+
+    function routePixelLength(route, view, width, height) {
+      if (!route || !route.start || !route.end) return null;
+      const start = pickWrappedPoint(route.start, view);
+      const startPixel = projectPoint(start, view, width, height);
+      const endPixel = projectPoint({
+        x: route.end.x + start.offset, y: route.end.y
+      }, view, width, height);
+      return Math.hypot(endPixel.x - startPixel.x, endPixel.y - startPixel.y);
     }
     const live = new Set();
 
@@ -86,7 +106,7 @@
       camera.updateProjectionMatrix();
     }
 
-    function launch(weapon) {
+    function launch(weapon, route = null) {
       if (!weapon || weapon.kind !== 'missile') {
         throw new TypeError('The continental overlay only accepts existing missile weapons');
       }
@@ -94,22 +114,23 @@
         THREE, weapon.visualProfile || 'strategic',
         lowQuality ? 'low' : 'high', 10
       );
-      // Use the native model's *actual body dimensions* for a predictable
-      // 82–148 CSS-pixel silhouette, rather than multiplying the orbital
-      // scale by a constant (which made it nearly invisible on the map).
+      // The original mesh uses +Z as its nose direction. Preserve its
+      // geometry, decals and fins; only its screen-space root transform
+      // changes. The actual size is calculated when the route/view is known.
       resize();
+      const profileName = weapon.visualProfile || 'strategic';
       const profile = typeof projectileModels.getProfile === 'function'
-        ? projectileModels.getProfile(weapon.visualProfile || 'strategic')
+        ? projectileModels.getProfile(profileName)
         : {length: 2, nose: 0.7};
       const bodyLength = Math.max(0.4, profile.length + profile.nose);
-      const displayLength = missileDisplayLength(size.width);
-      model.group.scale.setScalar(displayLength / bodyLength);
-      // Keep recognizable fins, nose, labels and steel materials. Shorten
-      // the original very long exhaust for a cleaner aerial silhouette.
-      if (model.plume && model.plume.scale) model.plume.scale.setScalar(0.67);
+      model.group.scale.setScalar(1);
+      if (model.plume && model.plume.scale) model.plume.scale.setScalar(0.52);
       model.group.visible = false;
       scene.add(model.group);
-      const item = {model, position: null, heading: null, view: null, bodyLength, displayLength};
+      const item = {
+        model, position: null, heading: null, view: null, route,
+        bodyLength, displayLength: 0, profileName
+      };
       live.add(item);
       return item;
     }
@@ -123,20 +144,31 @@
       const end = projectPoint({
         x: ahead.x + wrapped.offset, y: ahead.y
       }, view, size.width, size.height);
-      // Keep the solid missile above the image plane and glow trail.
+      // Recalculate size while zooming, using the entire country-to-country
+      // flight instead of the tiny tangent segment used for orientation.
+      const routePixels = routePixelLength(item.route, view, size.width, size.height);
+      item.displayLength = missileDisplayLength(size.width, routePixels, item.profileName);
+      item.model.group.scale.setScalar(item.displayLength / item.bodyLength);
       item.model.group.position.set(start.x, -start.y, 85);
+
       const dx = end.x - start.x, dy = end.y - start.y;
-      const length = Math.hypot(dx, dy);
-      if (length > 0.01) {
-        direction.set(dx / length, -dy / length, 0);
+      const headingLength = Math.hypot(dx, dy);
+      if (headingLength > 0.01) {
+        // A rocket's nose is +Z in createMissile. Set that axis to the
+        // direction of travel in the map plane, with a subtle pitch toward
+        // the viewer. Roll about LOCAL +Z, never rotateY: rotating Y after
+        // alignment would steer the nose away from the drawn flight path.
+        const elevation = 0.21;
+        const normalizer = Math.hypot(dx, dy, elevation * headingLength);
+        direction.set(dx / normalizer, -dy / normalizer,
+          elevation * headingLength / normalizer);
         item.model.group.quaternion.setFromUnitVectors(axis, direction);
-        // Three-quarter bank reveals the actual body panels, wings and fins
-        // rather than displaying a nearly edge-on cylinder.
-        item.model.group.rotateY(0.48);
+        item.model.group.rotateZ(0.16);
       }
+      const margin = item.displayLength;
       item.model.group.visible =
-        start.x >= -90 && start.x <= size.width + 90 &&
-        start.y >= -90 && start.y <= size.height + 90;
+        start.x >= -margin && start.x <= size.width + margin &&
+        start.y >= -margin && start.y <= size.height + margin;
     }
 
     function refreshView(view) {
@@ -189,7 +221,10 @@
     return api;
   }
 
-  const api = Object.freeze({mount, projectPoint, pickWrappedPoint});
+  const api = Object.freeze({
+    mount, projectPoint, pickWrappedPoint,
+    missileDisplayLength, routePixelLength
+  });
   root.GodSmashContinentProjectiles = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
