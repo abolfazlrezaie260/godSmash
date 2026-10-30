@@ -161,6 +161,43 @@
   });
 
 
+
+  // Three original arcade-only missile classes. All share the same 3D model
+  // factory in planet mode and the flat continent missile overlay.
+  registerWeapon({
+    id: 'specter', nameFa: 'موشک شبح', subtitle: 'GS-07 · SPECTER',
+    shortLabel: 'شبح', kind: 'missile', icon: '🚀', visualProfile: 'specter',
+    blastRadius: 1.25, damage: 2.85, damageVariance: 0.7,
+    casualties: 58000000, casualtiesVariance: 90000000,
+    flightPace: 0.18, interceptHealth: 2.1,
+    speed: 1.48, launchSpeed: 0.42, acceleration: 2.05,
+    maxSpeed: 2.42, fuelDuration: 0.52, drag: 0.10,
+    shake: 0.29, debrisCount: 12,
+    fireColor: '#a7f3d0', plasmaColor: '#14b8a6', waveColor: '#5eead4'
+  });
+  registerWeapon({
+    id: 'aurora', nameFa: 'موشک شفق', subtitle: 'GS-08 · AURORA',
+    shortLabel: 'شفق', kind: 'missile', icon: '🚀', visualProfile: 'aurora',
+    blastRadius: 1.85, damage: 3.95, damageVariance: 0.9,
+    casualties: 105000000, casualtiesVariance: 124000000,
+    flightPace: 0.24, interceptHealth: 3.15,
+    speed: 1.12, launchSpeed: 0.28, acceleration: 1.4,
+    maxSpeed: 1.9, fuelDuration: 0.70, drag: 0.055,
+    shake: 0.44, debrisCount: 21,
+    fireColor: '#f5d0fe', plasmaColor: '#c084fc', waveColor: '#67e8f9'
+  });
+  registerWeapon({
+    id: 'phoenix', nameFa: 'موشک ققنوس', subtitle: 'GS-09 · PHOENIX',
+    shortLabel: 'ققنوس', kind: 'missile', icon: '🚀', visualProfile: 'phoenix',
+    blastRadius: 2.25, damage: 5.15, damageVariance: 1.3,
+    casualties: 190000000, casualtiesVariance: 220000000,
+    flightPace: 0.26, interceptHealth: 4.25,
+    speed: 0.77, launchSpeed: 0.17, acceleration: 0.88,
+    maxSpeed: 1.36, fuelDuration: 0.82, drag: 0.035,
+    shake: 0.66, debrisCount: 29,
+    fireColor: '#fef3c7', plasmaColor: '#f97316', waveColor: '#fbbf24'
+  });
+
   registerWeapon({
     id: 'drone-swarm', nameFa: 'ازدحام پهپادها', subtitle: 'SWARM · 192–312 DRONES',
     shortLabel: 'ازدحام', kind: 'swarm', icon: '◈', blastRadius: 0.54,
