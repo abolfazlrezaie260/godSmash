@@ -1852,6 +1852,62 @@
         });
       }
 
+      let continentMode = null;
+      function clearGeographyVisuals() {
+        while (geographyVisuals.children.length) {
+          const child = geographyVisuals.children[0];
+          geographyVisuals.remove(child);
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        }
+      }
+      function drawGeographyRoute(route) {
+        clearGeographyVisuals();
+        if (!route) return;
+        const from = new THREE.Vector3(route.start.x,route.start.y,route.start.z)
+          .normalize().multiplyScalar(EARTH_RADIUS + 0.34);
+        const to = new THREE.Vector3(route.target.x,route.target.y,route.target.z)
+          .normalize().multiplyScalar(EARTH_RADIUS + 0.34);
+        const control = new THREE.Vector3(route.control.x,route.control.y,route.control.z);
+        const routeLine = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(
+            new THREE.QuadraticBezierCurve3(from, control, to).getPoints(48)
+          ),
+          new THREE.LineBasicMaterial({color:0x67e8f9,transparent:true,opacity:0.8,
+            depthTest:false})
+        );
+        geographyVisuals.add(routeLine);
+        for (const [point, color] of [[from,0x22d3ee],[to,0xfb7185]]) {
+          const pin = new THREE.Mesh(
+            new THREE.SphereGeometry(0.22,12,10),
+            new THREE.MeshBasicMaterial({color,depthTest:false})
+          );
+          pin.position.copy(point);
+          geographyVisuals.add(pin);
+        }
+        // Center the orbit camera on the selected geographic route.
+        const midpoint = control.clone().normalize();
+        state.cameraTheta = Math.atan2(midpoint.x,midpoint.z);
+        state.cameraPhi = Math.acos(Math.max(-0.98,Math.min(0.98,midpoint.y)));
+        state.targetCameraDistance = 21;
+      }
+      function fireCountryRoute(route) {
+        if (!route || state.shattered) return;
+        if (weapon.kind !== 'missile') {
+          showImpactToast('در حالت کشورها یکی از موشک‌ها را از فهرست سلاح‌ها انتخاب کنید.');
+          return;
+        }
+        const destinationWorld = earthGroup.localToWorld(
+          new THREE.Vector3(route.target.x,route.target.y,route.target.z)
+        );
+        const count = state.salvoMode ? 3 : 1;
+        for (let i=0;i<count;i++) {
+          launchMissileAtWorldPoint(destinationWorld, i*170, weapon, route);
+        }
+        showImpactToast('شلیک ' + weapon.nameFa + ' از ' +
+          route.source.nameFa + ' به ' + route.destination.nameFa);
+      }
+
       const planetPicker = window.GodSmashPlanetPicker.mount({
         modal: document.getElementById('planet-modal'),
         container: document.getElementById('planet-options'),
@@ -1860,7 +1916,34 @@
         planets: catalog.listPlanets(),
         selectedId: planet.id,
         textures: window.GodSmashTextures,
+        allowReselect: true,
         onSelect: id => selectPlanet(id)
+      });
+      continentMode = window.GodSmashContinentMode.mount({
+        geography,
+        continentContainer: document.getElementById('continent-options'),
+        panel: document.getElementById('geo-route-panel'),
+        fromSelect: document.getElementById('geo-from'),
+        toSelect: document.getElementById('geo-to'),
+        continentLabel: document.getElementById('geo-continent-label'),
+        routeSummary: document.getElementById('geo-route-summary'),
+        launchButton: document.getElementById('geo-launch'),
+        onChoose: id => {
+          selectPlanet('earth');
+          continentMode.setContinent(id);
+          const continent = geography.getContinent(id);
+          state.autoRotate = false;
+          autoRotateLabel.textContent = 'چرخش: خاموش';
+          document.getElementById('selected-planet-name').textContent = continent.nameFa;
+          document.getElementById('planet-name').textContent = 'زمین · ' + continent.nameFa;
+          if (weapon.kind !== 'missile') selectWeapon('icbm');
+          planetPicker.close();
+        },
+        onRoute: drawGeographyRoute,
+        onLaunch: fireCountryRoute
+      });
+      document.getElementById('geo-exit').addEventListener('click',()=>{
+        selectPlanet('earth');
       });
       document.getElementById('weapon-shortcuts').textContent =
         'کلیدهای ۱ تا ' + Math.min(9, catalog.listWeapons().length);
@@ -1906,6 +1989,7 @@
       function selectPlanet(id) {
         const p = catalog.getPlanet(id);
         if (!p) return;
+        if (continentMode) continentMode.clear();
         planet = p;
         cancelDefensePlacement();
         orbitalDefense.loadDeployment(defenseFleetsByPlanet.get(p.id) || []);
@@ -2014,6 +2098,10 @@
 
       function fireMissileAtRay(clientX, clientY) {
         if (state.shattered) return;
+        if (continentMode && continentMode.getRoute() && !awaitingDefensePlacement) {
+          fireCountryRoute(continentMode.getRoute());
+          return;
+        }
         const rect = renderer.domElement.getBoundingClientRect();
         const point = landscape.point(clientX,clientY,rect);
         pointerNDC.x = point.x * 2 - 1;
