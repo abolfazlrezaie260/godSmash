@@ -1546,7 +1546,8 @@
           : `${selected.nameFa}؛ تلفات: ${casMillions} میلیون نفر`);
         updateHUD();
 
-        const blast = impactEffects.createEffect(THREE, selected, blastRadius, lowImpactQuality);
+        const blast = impactEffects.createEffect(THREE, selected, blastRadius,
+          lowImpactQuality, {planetId:planet.id, planetRadius:EARTH_RADIUS});
         blast.group.position.copy(localTarget);
         earthGroup.add(blast.group);
         // Object3D.lookAt takes a world-space target and accounts for the parent transform.
@@ -1562,16 +1563,22 @@
           dustStage: 0,
           dustWorldPosition: blastWorldPosition.clone(),
           dustWorldNormal: worldImpactNormal.clone(),
-          dustColor: planet.id==='mars' ? 0xb37b5c : 0x827d76
+          dustColor: ({
+            earth:0x77716b, mars:0xb37b5c, moon:0x96969a, venus:0xbca17a
+          })[planet.id] || 0x827d76,
+          atmosphericDust: planet.id!=='moon'
         });
 
         // Initial impact: muted fragments and sparks; ash rises as the bloom
         // develops instead of flashing a giant orange screen-filling sphere.
         const worldImpactPos = blastWorldPosition;
         const worldNormal = worldImpactNormal;
-        rocketFx.burst(worldImpactPos, worldNormal,
-          damageResult.breached ? (lowImpactQuality ? 6 : 12) : (lowImpactQuality ? 4 : 8),
-          planet.id==='mars' ? 0xc39071 : 0xb9a58f);
+        if (planet.id !== 'moon') {
+          rocketFx.burst(worldImpactPos, worldNormal,
+            damageResult.breached ? (lowImpactQuality ? 6 : 12) : (lowImpactQuality ? 4 : 8),
+            planet.id==='mars' ? 0xc39071 :
+              planet.id==='venus' ? 0xdcb68b : 0xb9a58f);
+        }
 
         const debrisBudget = Math.max(0, maxActiveDebris - activeDebris.length);
         const debrisCount = Math.min(debrisBudget,
@@ -2494,7 +2501,8 @@
             effect.update(effect.age / effect.maxAge);
             // A few spaced, long-lived dust puffs sell the settling ash plume
             // without allocating hundreds of particles on mid-range phones.
-            if (effect.dustWorldPosition && effect.dustWorldNormal) {
+            if (effect.atmosphericDust &&
+              effect.dustWorldPosition && effect.dustWorldNormal) {
               const nextStage = effect.age >= 1.25 ? 2 : effect.age >= 0.38 ? 1 : 0;
               while (effect.dustStage < nextStage) {
                 effect.dustStage++;
