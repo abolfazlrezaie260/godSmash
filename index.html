@@ -407,9 +407,11 @@
     .geo-missile { filter:drop-shadow(0 0 2px #fed7aa); }
     .geo-trail { stroke:#fdba74; stroke-width:3px; stroke-linecap:round;
       filter:drop-shadow(0 0 2px #fb923c); }
-    .geo-shockwave { fill:none; stroke:#fff7ed; stroke-width:3px;
-      filter:drop-shadow(0 0 6px #f97316); }
-    .geo-fireball { fill:#ffcc62; filter:drop-shadow(0 0 8px #f97316); }
+    .geo-shockwave { fill:none; stroke:#fed7aa; stroke-width:2.5px;
+      vector-effect:non-scaling-stroke; pointer-events:none;
+      filter:drop-shadow(0 0 4px #f97316); }
+    .geo-fireball { fill:#ffcc62; vector-effect:non-scaling-stroke;
+      pointer-events:none; filter:drop-shadow(0 0 5px #f97316); }
     #geo-map-title { position:absolute; top:88px; left:16px; color:#e2f9ff;
       background:rgba(3,18,32,.7); border:1px solid #326477; border-radius:12px;
       padding:8px 12px; font-size:12px; pointer-events:none; }
