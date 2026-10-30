@@ -83,6 +83,14 @@ test('real missile model uses the selected weapon profile and is disposed',()=>{
   renderer.position(missile,{x:185,y:5},{x:190,y:6},view);
   assert.equal(missile.model.group.visible,true);
   assert.ok(missile.model.group.position.x<120);
+  // Heading must follow all cardinal directions without the previous
+  // rotateY side-slip: the nose tracks travel, even when firing west.
+  renderer.position(missile,{x:250,y:40},{x:245,y:40},view);
+  assert.ok(missile.model.group.quaternion.heading.x < -0.9);
+  renderer.position(missile,{x:240,y:35},{x:240,y:40},view);
+  assert.ok(missile.model.group.quaternion.heading.y < -0.9);
+  renderer.position(missile,{x:240,y:45},{x:240,y:40},view);
+  assert.ok(missile.model.group.quaternion.heading.y > 0.9);
   const beforeZoom=missile.displayLength;
   renderer.position(missile,{x:185,y:5},{x:190,y:6},
     {x:180,y:0,w:360,h:180});
@@ -101,7 +109,7 @@ test('continental flight uses WebGL model rather than the old arrow',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
   assert.doesNotMatch(src,/const body=svgEl/);
   assert.doesNotMatch(src,/const plume=svgEl/);
-  assert.match(src,/missileVisuals.launch\(weapon\)/);
+  assert.match(src,/missileVisuals.launch\(weapon, r\)/);
   assert.match(src,/missileVisuals.position\(s.model,p,q,view\)/);
   assert.match(html,/id="geo-projectile-canvas"/);
   assert.match(html,/missileVisuals: continentProjectiles/);
