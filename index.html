@@ -1380,7 +1380,11 @@
           SoundEngine.playLaunch();
 
           // Convert world target point into Earth's local space so it tracks Earth's rotation!
-          const localTarget = earthGroup.worldToLocal(worldTargetPoint.clone());
+          const localTarget = geographicRoute
+            ? new THREE.Vector3(
+              geographicRoute.target.x,geographicRoute.target.y,geographicRoute.target.z
+            )
+            : earthGroup.worldToLocal(worldTargetPoint.clone());
           const localNormal = localTarget.clone().normalize();
           localTarget.copy(localNormal).multiplyScalar(EARTH_RADIUS);
 
