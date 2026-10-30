@@ -1885,59 +1885,15 @@
       }
 
       let continentMode = null;
-      function clearGeographyVisuals() {
-        while (geographyVisuals.children.length) {
-          const child = geographyVisuals.children[0];
-          geographyVisuals.remove(child);
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) child.material.dispose();
-        }
-      }
-      function drawGeographyRoute(route) {
-        clearGeographyVisuals();
-        if (!route) return;
-        const from = new THREE.Vector3(route.start.x,route.start.y,route.start.z)
-          .normalize().multiplyScalar(EARTH_RADIUS + 0.34);
-        const to = new THREE.Vector3(route.target.x,route.target.y,route.target.z)
-          .normalize().multiplyScalar(EARTH_RADIUS + 0.34);
-        const control = new THREE.Vector3(route.control.x,route.control.y,route.control.z);
-        const routeLine = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints(
-            new THREE.QuadraticBezierCurve3(from, control, to).getPoints(48)
-          ),
-          new THREE.LineBasicMaterial({color:0x67e8f9,transparent:true,opacity:0.8,
-            depthTest:false})
+      function fireCountryImpact(country, selected) {
+        // Keep the existing destructible Earth simulation and HUD behind the
+        // aerial map, but draw flight and impact visuals on the 2D atlas.
+        if(state.shattered || planet.id!=='earth')return;
+        const local=geography.toCartesian(
+          country.anchor.lat,country.anchor.lon,EARTH_RADIUS
         );
-        geographyVisuals.add(routeLine);
-        for (const [point, color] of [[from,0x22d3ee],[to,0xfb7185]]) {
-          const pin = new THREE.Mesh(
-            new THREE.SphereGeometry(0.22,12,10),
-            new THREE.MeshBasicMaterial({color,depthTest:false})
-          );
-          pin.position.copy(point);
-          geographyVisuals.add(pin);
-        }
-        // Center the orbit camera on the selected geographic route.
-        const midpoint = control.clone().normalize();
-        state.cameraTheta = Math.atan2(midpoint.x,midpoint.z);
-        state.cameraPhi = Math.acos(Math.max(-0.98,Math.min(0.98,midpoint.y)));
-        state.targetCameraDistance = 21;
-      }
-      function fireCountryRoute(route) {
-        if (!route || state.shattered) return;
-        if (weapon.kind !== 'missile') {
-          showImpactToast('در حالت کشورها یکی از موشک‌ها را از فهرست سلاح‌ها انتخاب کنید.');
-          return;
-        }
-        const destinationWorld = earthGroup.localToWorld(
-          new THREE.Vector3(route.target.x,route.target.y,route.target.z)
-        );
-        const count = state.salvoMode ? 3 : 1;
-        for (let i=0;i<count;i++) {
-          launchMissileAtWorldPoint(destinationWorld, i*170, weapon, route);
-        }
-        showImpactToast('شلیک ' + weapon.nameFa + ' از ' +
-          route.source.nameFa + ' به ' + route.destination.nameFa);
+        const point=new THREE.Vector3(local.x,local.y,local.z);
+        triggerNuclearDetonation(point,point.clone().normalize(),selected);
       }
 
       const planetPicker = window.GodSmashPlanetPicker.mount({
@@ -1955,24 +1911,32 @@
         geography,
         continentContainer: document.getElementById('continent-options'),
         panel: document.getElementById('geo-route-panel'),
-        fromSelect: document.getElementById('geo-from'),
-        toSelect: document.getElementById('geo-to'),
+        mapShell: document.getElementById('geo-map-shell'),
+        svg: document.getElementById('geo-map-svg'),
         continentLabel: document.getElementById('geo-continent-label'),
         routeSummary: document.getElementById('geo-route-summary'),
         launchButton: document.getElementById('geo-launch'),
+        changeSourceButton: document.getElementById('geo-change-source'),
+        worldButton: document.getElementById('geo-world'),
+        fitButton: document.getElementById('geo-fit'),
+        getWeapon: () => weapon,
+        getSalvoMode: () => state.salvoMode,
+        onSound: () => SoundEngine.playLaunch(),
+        onImpact: fireCountryImpact,
+        onError: error => console.error('Unable to load the country map',error),
         onChoose: id => {
           selectPlanet('earth');
-          continentMode.setContinent(id);
           const continent = geography.getContinent(id);
+          if (!continent) return;
+          gameShell.classList.add('is-continent-mode');
           state.autoRotate = false;
           autoRotateLabel.textContent = 'چرخش: خاموش';
           document.getElementById('selected-planet-name').textContent = continent.nameFa;
-          document.getElementById('planet-name').textContent = 'زمین · ' + continent.nameFa;
+          document.getElementById('planet-name').textContent = 'نقشهٔ ' + continent.nameFa;
           if (weapon.kind !== 'missile') selectWeapon('icbm');
+          continentMode.setContinent(id);
           planetPicker.close();
-        },
-        onRoute: drawGeographyRoute,
-        onLaunch: fireCountryRoute
+        }
       });
       document.getElementById('geo-exit').addEventListener('click',()=>{
         selectPlanet('earth');
@@ -1982,6 +1946,10 @@
       function selectWeapon(id) {
         const next = catalog.getWeapon(id);
         if (!next) return;
+        if(continentMode?.isActive() && next.kind!=='missile'){
+          showImpactToast('در نمای قاره‌ای یکی از مدل‌های موشک را انتخاب کنید.');
+          return;
+        }
         if(next.id!==weapon.id && weapon.kind==='swarm')clearDroneSwarm();
         if(next.id!==weapon.id && weapon.kind==='harvester')clearHarvesterFleet();
         weapon = next;
@@ -2021,6 +1989,7 @@
       function selectPlanet(id) {
         const p = catalog.getPlanet(id);
         if (!p) return;
+        gameShell.classList.remove('is-continent-mode');
         if (continentMode) continentMode.clear();
         planet = p;
         cancelDefensePlacement();
@@ -2129,11 +2098,7 @@
       let downTime = 0;
 
       function fireMissileAtRay(clientX, clientY) {
-        if (state.shattered) return;
-        if (continentMode && continentMode.getRoute() && !awaitingDefensePlacement) {
-          fireCountryRoute(continentMode.getRoute());
-          return;
-        }
+        if (state.shattered || continentMode?.isActive()) return;
         const rect = renderer.domElement.getBoundingClientRect();
         const point = landscape.point(clientX,clientY,rect);
         pointerNDC.x = point.x * 2 - 1;
@@ -2180,6 +2145,7 @@
       }
 
       function fireAtScreenCenter() {
+        if (continentMode?.isActive()) { continentMode.fire(); return; }
         const rect = renderer.domElement.getBoundingClientRect();
         fireMissileAtRay(rect.left + rect.width / 2, rect.top + rect.height / 2);
       }
@@ -2233,6 +2199,7 @@
       });
 
       btnReset.addEventListener('click', () => {
+        if(continentMode?.isActive())continentMode.resetEffects();
         resetEarth();
       });
 
@@ -2265,10 +2232,12 @@
       });
 
       btnZoomIn.addEventListener('click', () => {
+        if(continentMode?.isActive()){continentMode.zoom(0.8);return;}
         state.targetCameraDistance = Math.max(16, state.targetCameraDistance - 3.5);
       });
 
       btnZoomOut.addEventListener('click', () => {
+        if(continentMode?.isActive()){continentMode.zoom(1.25);return;}
         state.targetCameraDistance = Math.min(52, state.targetCameraDistance + 3.5);
       });
 
@@ -2313,6 +2282,7 @@
         qualityController.sample(realFrameDt, !document.hidden);
         const dt = frameDt * state.timeScale;
         gameTime += dt;
+        if(continentMode?.isActive())continentMode.update(dt);
 
         // 1. Rotate Earth & Clouds
         if (state.autoRotate && !state.shattered) {
@@ -2543,7 +2513,7 @@
           }
         }
 
-        renderer.render(scene, camera);
+        if(!continentMode?.isActive())renderer.render(scene, camera);
         if (showPerformance && !document.hidden) {
           performanceOverlayClock += Math.min(realFrameDt, 0.1);
           if (performanceOverlayClock >= 1) {
