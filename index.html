@@ -1301,6 +1301,48 @@
           surfaceCtx.fill();
           surfaceCtx.restore();
 
+          // A shallow, nonuniform bowl with a shaded lip is more convincing
+          // than a flat black circular decal. Keep the shape small, locked to
+          // the crater center, and repeated at longitude texture seams.
+          // Moon uses pale regolith, Mars iron-rich dust, and Venus warm ash.
+          const lunarDust = planet.id === 'moon';
+          const venusAsh = planet.id === 'venus';
+          surfaceCtx.save();
+          surfaceCtx.translate(x, cy);
+          surfaceCtx.rotate(markAngle);
+          surfaceCtx.scale(elongation, 1);
+          const edge = [];
+          for (let j=0;j<=36;j++) {
+            const theta=j*Math.PI*2/36;
+            const irregular=1+0.09*Math.sin(theta*5+cx*.013)
+              +0.055*Math.sin(theta*9+cy*.019);
+            edge.push({
+              x:Math.cos(theta)*rPx*.47*irregular,
+              y:Math.sin(theta)*rPx*.47*irregular
+            });
+          }
+          surfaceCtx.beginPath();
+          edge.forEach((p,j) => j === 0
+            ? surfaceCtx.moveTo(p.x,p.y) : surfaceCtx.lineTo(p.x,p.y));
+          surfaceCtx.closePath();
+          const basin = surfaceCtx.createRadialGradient(
+            -rPx*.1,rPx*.1,0,0,0,rPx*.56);
+          basin.addColorStop(0,lunarDust ? 'rgba(59,61,65,0.63)'
+            : martianDust ? 'rgba(57,34,28,0.66)'
+            : venusAsh ? 'rgba(74,51,39,0.63)' : 'rgba(18,19,22,0.68)');
+          basin.addColorStop(.73,lunarDust ? 'rgba(86,88,91,0.49)'
+            : martianDust ? 'rgba(74,43,36,0.48)'
+            : venusAsh ? 'rgba(98,68,48,0.46)' : 'rgba(34,34,36,0.48)');
+          basin.addColorStop(1,'rgba(44,40,39,0.06)');
+          surfaceCtx.fillStyle=basin;
+          surfaceCtx.fill();
+          surfaceCtx.lineWidth=Math.max(0.7,TEX_W/2048);
+          surfaceCtx.strokeStyle=lunarDust ? 'rgba(199,198,193,0.26)'
+            : martianDust ? 'rgba(190,129,100,0.26)'
+            : venusAsh ? 'rgba(211,171,119,0.19)' : 'rgba(160,152,143,0.19)';
+          surfaceCtx.stroke();
+          surfaceCtx.restore();
+
           // Hairline dark fractures, not incandescent orange radial strokes.
           surfaceCtx.strokeStyle = martianDust
             ? 'rgba(69,44,36,0.26)' : 'rgba(24,23,23,0.34)';
