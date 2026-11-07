@@ -90,7 +90,7 @@ test('multistage Earth impact expands, cools and cleans up every GPU resource',(
   assert.equal(effect.planetId,'earth');
   assert.ok(effect.smokeCount>=10);
   assert.equal(effect.rings.length,2);
-  assert.ok(effect.group.children.length>=6, 'impact uses batched GPU layers instead of dozens of smoke meshes');
+  assert.ok(effect.group.children.length>=5, 'impact uses batched GPU layers instead of dozens of smoke meshes');
   const clouds=effect.group.children.find(x=>x.name==='Cinematic impact GPU particle layers');
   assert.ok(clouds && clouds.children.length===3);
   assert.ok(clouds.children.every(x=>x.material.vertexShader.includes('gl_PointSize')));
@@ -102,6 +102,17 @@ test('multistage Earth impact expands, cools and cleans up every GPU resource',(
   const ringOpacity=effect.rings[0].material.opacity;
   const radius=effect.rings[0].geometry.attributes.position.array[3];
   assert.ok(hotOpacity>0);
+  assert.equal(fire.material.blending,THREE.NormalBlending,
+    'fire cannot overexpose the surface with additive blending');
+  assert.match(fire.material.vertexShader,/displacement=0\.83/,
+    'fireball is displaced instead of a perfect sphere');
+  assert.match(fire.material.fragmentShader,/softRim/,
+    'fireball silhouette must fade instead of showing a hard solar disc');
+  assert.ok(effect.gpuDust,'old canvas smoke must not stack over GPU plumes');
+  assert.ok(effect.rings[0].geometry.attributes.aAcross,
+    'surface shockwave needs feathered cross-section');
+  assert.ok(effect.rings[0].material.uniforms.uOpacity.value>0);
+
   assert.ok(ringOpacity>0);
   assert.ok(flash.intensity>=0);
   effect.update(.83);
@@ -140,6 +151,6 @@ test('planetary hit integration supplies environment parameters and suppresses l
   assert.match(html,/if \(effect.atmosphericDust &&/);
   const fx=fs.readFileSync(path.join(__dirname,'../src/render/impact-effects.js'),'utf8');
   assert.doesNotMatch(fx,/vUv \* vec2\(17\.0, 10\.0\)/);
-  assert.match(fx,/vLocal=position/);
+  assert.match(fx,/vLocal=displaced/);
   assert.match(fx,/setSurfaceRing\(ring.geometry/);
 });

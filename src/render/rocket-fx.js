@@ -28,6 +28,16 @@
           Math.random() * Math.PI, 0, Math.PI * 2);
         ctx.fill();
       }
+      // Protect the transparent border even when random lobes extend beyond
+      // the 128px canvas. Without this mask the sprite can look rectangular.
+      const edgeMask = ctx.createRadialGradient(64, 64, 8, 64, 64, 63);
+      edgeMask.addColorStop(0, 'rgba(255,255,255,1)');
+      edgeMask.addColorStop(0.65, 'rgba(255,255,255,1)');
+      edgeMask.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.fillStyle = edgeMask;
+      ctx.fillRect(0, 0, size, size);
+      ctx.globalCompositeOperation = 'source-over';
     } else {
       const gradient = ctx.createRadialGradient(64, 64, 1, 64, 64, 63);
       gradient.addColorStop(0, 'rgba(255,255,255,1)');

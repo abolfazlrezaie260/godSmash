@@ -82,7 +82,7 @@
       const bitangent = normal.clone().cross(tangent).normalize();
       const rings = [
         { angle: 1.35, altitude: 0.012 },
-        { angle: 1.035, altitude: 0.14 + power * 0.018 },
+        { angle: 1.035, altitude: 0.065 + power * 0.008 },
         { angle: 0.85, altitude: -0.06 },
         { angle: 0.50, altitude: -radius * 0.125 },
         { angle: 0.24, altitude: -radius * 0.195 }
@@ -93,10 +93,10 @@
       const indices = [];
       const isCold = planet.id === 'moon';
       const shades = isCold
-        ? ['#595b65', '#8a8c92', '#34343d', '#1e2026', '#282c33']
+        ? ['#55575c', '#66676b', '#414148', '#282930', '#313238']
         : planet.id === 'mars'
-          ? ['#744d3d', '#a77759', '#694b3f', '#4d3530', '#634638']
-          : ['#46423e', '#806f62', '#363330', '#292523', '#453c36'];
+          ? ['#654639', '#815846', '#664b3f', '#4d3832', '#583f35']
+          : ['#403c39', '#58514c', '#373433', '#292625', '#38332f'];
       const randomScale = [];
       for (let s = 0; s <= segments; s++) {
         const angle = (s / segments) * Math.PI * 2;
