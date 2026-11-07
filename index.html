@@ -1606,9 +1606,9 @@
           dustStage: 0,
           dustWorldPosition: blastWorldPosition.clone(),
           dustWorldNormal: worldImpactNormal.clone(),
-          dustColor: ({
-            earth:0x77716b, mars:0xb37b5c, moon:0x96969a, venus:0xbca17a
-          })[planet.id] || 0x827d76,
+          dustColor: planet.id==='mars' ? 0xb37b5c :
+            planet.id==='moon' ? 0x96969a :
+              planet.id==='venus' ? 0xbca17a : 0x77716b,
           atmosphericDust: planet.id!=='moon'
         });
 
