@@ -46,7 +46,13 @@
   border-color: rgba(100, 116, 139, .38);
   background: linear-gradient(150deg, rgba(14, 27, 47, .94), rgba(8, 17, 32, .9));
 }
-.weapon-dock-top { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.weapon-dock-top {
+  display: grid; grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center; gap: 8px; flex-shrink: 0;
+}
+.weapon-dock-top .weapon-dock-heading { grid-column: 1; grid-row: 1; }
+.weapon-dock-top .weapon-dock-filters { grid-column: 1 / -1; grid-row: 2; }
+.weapon-dock-top .weapon-dock-collapse { grid-column: 2; grid-row: 1; }
 .weapon-dock-heading { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
 .weapon-dock-caption { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .weapon-dock-caption > span { color: #e2e8f0; font-size: 12px; font-weight: 800; }
@@ -108,7 +114,8 @@
   }
   #weapon-dock .weapon-dock-top { gap: 5px; }
   #weapon-dock .weapon-dock-heading { display: flex; }
-  #weapon-dock .weapon-dock-heading small { display: none; }
+  #weapon-shortcuts { display: none; }
+  #weapon-dock #equipped-weapon-label { display: block; }
   #weapon-dock .weapon-dock-items { min-height: 0; }
   #weapon-dock .weapon-dock-button {
     flex: 0 0 66px; min-width: 66px; max-width: 66px;
@@ -116,7 +123,7 @@
   }
   #weapon-dock .weapon-dock-icon { flex-basis: 26px; height: 26px; width: 26px; font-size: 16px; }
   #weapon-dock .weapon-dock-short { font-size: 9px; }
-  .weapon-dock-top { flex-direction: row; align-items: center; }
+  .weapon-dock-top { display: flex; flex-direction: row; align-items: center; }
   .weapon-dock-caption > span { font-size: 10px; }
   #equipped-weapon-label { max-width: 105px; font-size: 9px; }
   .weapon-dock-filters { margin-inline-start: auto; width: min(215px, 50%); }
