@@ -42,10 +42,10 @@ function fakeTHREE(){
   return {
     created,
     THREE:{
-      Group:Node, Mesh:Node, PointLight:Light, Color:class {constructor(c){this.value=c;}},
+      Group:Node, Mesh:Node, Points:Node, PointLight:Light, Color:class {constructor(c){this.value=c;}},
       ShaderMaterial:Material,MeshBasicMaterial:Material,
-      IcosahedronGeometry:Geometry,BufferGeometry:Geometry,BufferAttribute:Attribute,
-      DoubleSide:'both',AdditiveBlending:'add'
+      IcosahedronGeometry:Geometry,SphereGeometry:Geometry,BufferGeometry:Geometry,BufferAttribute:Attribute,
+      DoubleSide:'both',AdditiveBlending:'add',NormalBlending:'normal'
     }
   };
 }
@@ -90,7 +90,12 @@ test('multistage Earth impact expands, cools and cleans up every GPU resource',(
   assert.equal(effect.planetId,'earth');
   assert.ok(effect.smokeCount>=10);
   assert.equal(effect.rings.length,2);
-  assert.ok(effect.group.children.length>15);
+  assert.ok(effect.group.children.length>=6, 'impact uses batched GPU layers instead of dozens of smoke meshes');
+  const clouds=effect.group.children.find(x=>x.name==='Cinematic impact GPU particle layers');
+  assert.ok(clouds && clouds.children.length===3);
+  assert.ok(clouds.children.every(x=>x.material.vertexShader.includes('gl_PointSize')));
+  assert.ok(clouds.children[1].material.vertexShader.includes('uSphereRadius'));
+  assert.equal(clouds.children[0].frustumCulled,false);
   const fire=effect.group.children[0],flash=effect.group.children.find(x=>x instanceof THREE.PointLight);
   effect.update(.16);
   const hotOpacity=fire.material.uniforms.uAlpha.value;
