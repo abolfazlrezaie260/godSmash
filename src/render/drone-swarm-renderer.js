@@ -1,13 +1,13 @@
-/* Single-draw-call low-poly attack-drone visual for Three.js r128.
+/* Single-draw-call returning attack-drone visual for Three.js r128.
  * Every drone shares one BufferGeometry and one material via InstancedMesh.
- * Device quality controls instance count; no per-drone Mesh or GPU material.
+ * Device quality controls squad count; no visible idle orbit, per-drone meshes or materials.
  */
 (function(root){
   'use strict';
   function createRenderer(THREE,scene,options={}){
     if(!THREE?.InstancedMesh||!THREE?.BufferGeometry||!scene)
       throw new TypeError('Three.js InstancedMesh renderer is required');
-    const count=options.count||240;
+    const count=options.count||36;
     if(!Number.isInteger(count)||count<1||count>360)throw new RangeError('Invalid instance count');
     const geo=new THREE.BufferGeometry();
     const v=[];
@@ -25,11 +25,11 @@
     geo.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
     geo.computeVertexNormals();
     const material=new THREE.MeshStandardMaterial({
-      color:0x77879b,metalness:.66,roughness:.38,
-      emissive:0x122638,emissiveIntensity:.24,side:THREE.DoubleSide
+      color:0x64768a,metalness:.42,roughness:.55,
+      emissive:0x102332,emissiveIntensity:.16,side:THREE.DoubleSide
     });
     const mesh=new THREE.InstancedMesh(geo,material,count);
-    mesh.name='GodSmash instanced kamikaze drones';
+    mesh.name='GodSmash returning attack drones';
     mesh.frustumCulled=false;
     if(mesh.instanceMatrix?.setUsage && THREE.DynamicDrawUsage)
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -46,9 +46,11 @@
         const d=drones[i];
         dummy.position.set(d.position.x,d.position.y,d.position.z);
         if(d.visible){
-          dummy.lookAt(aim.set(d.position.x+d.direction.x,
-            d.position.y+d.direction.y,d.position.z+d.direction.z));
-          dummy.scale.setScalar(.68);
+          // Object3D.lookAt aims local +Z toward the input; our nose is -Z.
+          // Point +Z backward so the nose actually faces the flight path.
+          dummy.lookAt(aim.set(d.position.x-d.direction.x,
+            d.position.y-d.direction.y,d.position.z-d.direction.z));
+          dummy.scale.setScalar(.58);
           visible++;
         }else{
           dummy.scale.setScalar(0.000001);
