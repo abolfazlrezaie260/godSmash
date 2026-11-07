@@ -52,6 +52,22 @@
     inner.visible = false;
     group.add(inner);
     let shattered = false;
+    let activePlanetId = 'earth';
+
+    // A breach first exposes unlit geological strata. Molten illumination only
+    // appears after accumulated penetration reaches the inner crust. A crater
+    // that is not physically open must never show the planet's core.
+    function updateInteriorAppearance() {
+      const hasOpening = holes.length > 0 && !shattered;
+      const exposed = hasOpening && impactSites.some(site => site.coreExposed);
+      inner.visible = hasOpening;
+      coreGlow.visible = exposed;
+      inner.material.emissiveIntensity = exposed
+        ? activePlanetId === 'moon' ? 0.35
+          : activePlanetId === 'mars' ? 1.8 : 2.2
+        : 0.06;
+    }
+    updateInteriorAppearance();
 
     function rebuildIndex() {
       if (!holes.length) {
@@ -268,10 +284,8 @@
       const effectiveRadius = blastRadius * (1 + (1 - incidence) * 0.72);
       const depth = deform(normal, blastRadius, power, incidence, config.impactDirection);
       const site = recordImpact(normal, effectiveRadius, power, depth);
-      // The core only becomes visible once accumulated penetration reaches its radius.
-      // It remains hidden behind intact crust, but appears naturally at a sufficiently deep crater floor.
-      if (site.coreExposed && !shattered) inner.visible = true;
-
+      // Deep damage is tracked, but cannot reveal the interior through
+      // triangles that have not actually been removed.
       let breached = false;
       let aperture = 0;
       if (config.breach && holes.length < maxBreaches) {
@@ -286,11 +300,11 @@
           const scar = makeRim(normal, aperture, power, p);
           group.add(scar);
           scars.push(scar);
-          inner.visible = !shattered;
           breached = true;
         }
       }
       if (breached) rebuildIndex();
+      updateInteriorAppearance();
       geometry.computeVertexNormals();
       geometry.computeBoundingSphere();
       return {
@@ -339,7 +353,8 @@
         geometry.computeBoundingSphere();
       }
       const site=recordImpact(normal,width,1.2,amount);
-      if(site.coreExposed)inner.visible=true;
+      // Harvesting does not punch a hole through the surface.
+      updateInteriorAppearance();
       return {extracted:affected>0,vertices:affected,depth:amount,
         siteHits:site.hits,damagePercent,coreExposed:site.coreExposed};
     }
@@ -375,30 +390,32 @@
     }
 
     function setPlanet(planet) {
+      activePlanetId = planet.id;
       if (planet.id === 'moon') {
         inner.material.color.set('#252831');
         inner.material.emissive.set('#2d303c');
-        inner.material.emissiveIntensity = 0.35;
+        inner.material.emissiveIntensity = 0.06;
         coreGlow.material.color.set('#7b8296');
         coreGlow.material.opacity = 0.12;
       } else if (planet.id === 'mars') {
         inner.material.color.set('#492019');
         inner.material.emissive.set('#f05418');
-        inner.material.emissiveIntensity = 1.8;
+        inner.material.emissiveIntensity = 0.06;
         coreGlow.material.color.set('#ff4d20');
         coreGlow.material.opacity = 0.36;
       } else {
         inner.material.color.set('#351917');
         inner.material.emissive.set('#ed621a');
-        inner.material.emissiveIntensity = 2.2;
+        inner.material.emissiveIntensity = 0.06;
         coreGlow.material.color.set('#ff641f');
         coreGlow.material.opacity = 0.42;
       }
+      updateInteriorAppearance();
     }
 
     function setShattered(value) {
       shattered = !!value;
-      inner.visible = (holes.length > 0 || impactSites.some(site => site.coreExposed)) && !shattered;
+      updateInteriorAppearance();
       for (const scar of scars) scar.visible = !shattered;
     }
 
@@ -418,7 +435,7 @@
       }
       scars.length = 0;
       shattered = false;
-      inner.visible = false;
+      updateInteriorAppearance();
     }
 
     return Object.freeze({
