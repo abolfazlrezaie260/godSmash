@@ -33,7 +33,7 @@ function mockThree(){
     }
     lookAt(v){this.aim={x:v.x,y:v.y,z:v.z};}
     updateMatrix(){this.matrix={x:this.position.x,y:this.position.y,
-      z:this.position.z,scale:this.scale.value};}
+      z:this.position.z,scale:this.scale.value,aim:this.aim};}
   }
   class Vector3{set(x,y,z){this.x=x;this.y=y;this.z=z;return this;}}
   return {THREE:{BufferGeometry,Float32BufferAttribute,MeshStandardMaterial,
@@ -45,7 +45,7 @@ function makeScene(){
 }
 
 test('hundreds of drones use exactly one InstancedMesh, geometry and material',()=>{
-  for(const count of [192,312]){
+  for(const count of [24,36]){
     const {THREE,created}=mockThree(),scene=makeScene();
     const renderer=createRenderer(THREE,scene,{count});
     const sim=createSwarm({count});
@@ -56,15 +56,25 @@ test('hundreds of drones use exactly one InstancedMesh, geometry and material',(
     assert.equal(renderer.mesh.count,count);
     renderer.sync(sim.getDrones());
     assert.equal(renderer.mesh.matrices.length,count);
+    assert.equal(renderer.mesh.visible,false,'idle drones are not rendered');
+    assert.ok(renderer.mesh.matrices.every(m=>m.scale<.01));
     assert.ok(renderer.mesh.instanceMatrix.needsUpdate);
     assert.equal(renderer.mesh.instanceMatrix.usage,'dynamic');
     assert.equal(renderer.getDrawCallCount(),1);
     assert.ok(created.geometries[0].attributes.position.array.length>=80);
     sim.attack({x:1,y:0,z:0});
-    for(let i=0;i<200;i++)sim.step(.05);
+    sim.step(.05);
     renderer.sync(sim.getDrones());
-    assert.ok(renderer.mesh.matrices.some(m=>m.scale<.01),
-      'impacted drones disappear without mesh creation');
+    assert.equal(renderer.mesh.visible,true);
+    const drone=sim.getDrones().find(d=>d.visible);
+    const matrix=renderer.mesh.matrices[drone.id];
+    assert.ok(Math.abs(matrix.aim.x-(drone.position.x-drone.direction.x))<1e-6,
+      'the -Z nose must face the forward flight direction, not backward');
+    for(let i=0;i<230&&sim.getState().mode==='attack';i++)sim.step(.05);
+    renderer.sync(sim.getDrones());
+    assert.equal(sim.getState().mode,'ready');
+    assert.equal(renderer.mesh.visible,false,'all drones leave the scene after returning');
+    assert.ok(renderer.mesh.matrices.every(m=>m.scale<.01));
     renderer.dispose();renderer.dispose();
     assert.equal(scene.children.length,0);
     assert.equal(created.geometries[0].disposed,1);
