@@ -1,0 +1,37 @@
+name: Vendor NASA Moon textures
+
+on:
+  push:
+    paths:
+      - '.github/workflows/vendor-nasa-moon.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render-moon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install image converter
+        run: python -m pip install Pillow==11.3.0
+      - name: Download NASA lunar color and height data
+        run: python scripts/vendor_nasa_moon.py
+      - name: Commit locally hosted high-resolution Moon textures
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/textures/moon/moon_4096.jpg assets/textures/moon/moon_height_1024.jpg
+          if git diff --cached --quiet; then
+            echo "Moon textures already up to date"
+          else
+            git commit -m "assets: vendor NASA LRO lunar texture and LOLA relief"
+            git push origin HEAD:main
+          fi
