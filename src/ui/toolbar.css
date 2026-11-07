@@ -205,3 +205,19 @@
     width: auto;
   }
 }
+
+/* Allow native scrolling in overlays and weapon inventory. The WebGL canvas
+   and continent map independently use touch-action:none for game gestures. */
+#game-shell { touch-action: auto; }
+#weapon-dock-items { touch-action: pan-y; overscroll-behavior: contain; }
+#game-shell .score-sheet,
+#game-shell .planet-sheet,
+#game-shell .defense-panel { touch-action: pan-y; }
+@media (max-width: 1024px) {
+  #weapon-dock-items { touch-action: pan-x; scrollbar-width: none; }
+  #weapon-dock-items::-webkit-scrollbar { display: none; }
+  .weapon-dock-button { min-height: 60px; }
+  .weapon-filter-button { min-height: 34px; }
+  #game-shell .game-control-bar button { min-height: 44px; }
+  .utility-trigger { min-height: 44px; }
+}
