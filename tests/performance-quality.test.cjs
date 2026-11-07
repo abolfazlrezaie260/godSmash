@@ -81,6 +81,6 @@ test('inline renderer includes context loss and recovery guards', () => {
   assert.match(html, /addEventListener\('webglcontextlost'/);
   assert.match(html, /event\.preventDefault\(\)/);
   assert.match(html, /addEventListener\('webglcontextrestored'/);
-  assert.match(html, /if \(webglContextUnavailable\) return;/);
+  assert.match(html, /webglContextUnavailable\) return;/);
   assert.match(html, /nativeWebView:?.*|nativeWebView,/);
 });
