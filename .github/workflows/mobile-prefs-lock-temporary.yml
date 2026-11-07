@@ -1,0 +1,17 @@
+name: Temporary preferences lockfile
+on:
+  push:
+    branches: [mobile/50-persistent-state]
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          echo 'GODSMASH_PREF_LOCK_BEGIN'
+          base64 -w 120 package-lock.json
+          echo 'GODSMASH_PREF_LOCK_END'
