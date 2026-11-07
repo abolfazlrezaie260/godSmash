@@ -33,7 +33,7 @@ function verifyWeb(webDir, options = {}) {
   }
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   if (options.offline) {
-    if (/<(?:script|link)\\b[^>]*?\\b(?:src|href)\\s*=\\s*["'](?:https?:)?\\/\\//i.test(html)) {
+    if (/<(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*["'](?:https?:)?\/\//i.test(html)) {
       throw new Error('Offline build still contains a remote executable or stylesheet');
     }
     for (const name of ['vendor/three.min.js', 'vendor/tailwind.css', 'vendor/fonts.css']) {
@@ -66,11 +66,11 @@ function verifyWeb(webDir, options = {}) {
 // entrypoint stays unchanged until the web deployment migrates separately.
 function localizeEntrypoint(html) {
   const replacements = [
-    [/<script\\s+src=["']https:\\/\\/cdn\\.tailwindcss\\.com\\/3\\.4\\.17["']><\\/script>/,
+    [/<script\s+src=["']https:\/\/cdn\.tailwindcss\.com\/3\.4\.17["']><\/script>/,
       '<link rel="stylesheet" href="./vendor/tailwind.css">'],
-    [/<script\\s+src=["']https:\\/\\/cdnjs\\.cloudflare\\.com\\/ajax\\/libs\\/three\\.js\\/r128\\/three\\.min\\.js["']><\\/script>/,
+    [/<script\s+src=["']https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/three\.js\/r128\/three\.min\.js["']><\/script>/,
       '<script src="./vendor/three.min.js"></script>'],
-    [/<link\\s+href=["']https:\\/\\/fonts\\.googleapis\\.com\\/css2[^"']*["']\\s+rel=["']stylesheet["']\\s*\\/?>/,
+    [/<link\s+href=["']https:\/\/fonts\.googleapis\.com\/css2[^"']*["']\s+rel=["']stylesheet["']\s*\/?>/,
       '<link rel="stylesheet" href="./vendor/fonts.css">']
   ];
   let result = html;
@@ -79,8 +79,8 @@ function localizeEntrypoint(html) {
     result = result.replace(pattern, replacement);
   }
   result = result
-    .replace(/\\s*<link\\s+rel=["']preconnect["']\\s+href=["']https:\\/\\/fonts\\.googleapis\\.com["']\\s*\\/?>/g, '')
-    .replace(/\\s*<link\\s+rel=["']preconnect["']\\s+href=["']https:\\/\\/fonts\\.gstatic\\.com["'][^>]*>/g, '');
+    .replace(/\s*<link\s+rel=["']preconnect["']\s+href=["']https:\/\/fonts\.googleapis\.com["']\s*\/?>/g, '')
+    .replace(/\s*<link\s+rel=["']preconnect["']\s+href=["']https:\/\/fonts\.gstatic\.com["'][^>]*>/g, '');
   return result;
 }
 
@@ -110,7 +110,7 @@ function copyFontFamilies(projectRoot, staging) {
     }
     copyLicense(pkg, path.join(vendor, 'licenses'), item.packageName);
   }
-  fs.writeFileSync(path.join(vendor, 'fonts.css'), css.join('\\n') + '\\n');
+  fs.writeFileSync(path.join(vendor, 'fonts.css'), css.join('\n') + '\n');
 }
 
 function copyLicense(packageDir, destination, name) {
