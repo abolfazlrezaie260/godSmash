@@ -1,0 +1,64 @@
+name: Mobile native smoke builds
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'ios/**'
+      - 'src/**'
+      - 'assets/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.json'
+      - 'scripts/build-web.cjs'
+      - '.github/workflows/mobile-native.yml'
+jobs:
+  android-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install and prepare web assets
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npx cap sync android
+      - name: Compile debug APK (unsigned release not attempted)
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon
+      - name: Upload debuggable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: godsmash-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+  ios-simulator:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Build web and sync native iOS project
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npx cap sync ios
+      - name: Compile unsigned iOS simulator app
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build
