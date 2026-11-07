@@ -9,3 +9,14 @@ android/local.properties
 android/**/build/
 ios/Pods/
 ios/DerivedData/
+
+# Capacitor copies the web build into native workspaces during cap sync
+android/app/src/main/assets/public/
+ios/App/App/public/
+# IDE + signing secrets
+*.keystore
+*.jks
+*.mobileprovision
+*.p12
+ios/**/*.xcuserstate
+ios/**/*.xcuserdata/

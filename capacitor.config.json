@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.abolfazlrezaie260.godsmash",
+  "appName": "GodSmash",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

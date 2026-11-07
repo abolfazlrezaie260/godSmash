@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GodSmash</string>
+    <string name="title_activity_main">GodSmash</string>
+    <string name="package_name">io.github.abolfazlrezaie260.godsmash</string>
+    <string name="custom_url_scheme">io.github.abolfazlrezaie260.godsmash</string>
+</resources>
