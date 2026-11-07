@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { buildWeb, verifyWeb, localUrlPath, localizeEntrypoint } = require('../scripts/build-web.cjs');
+const { buildWeb, verifyWeb, localUrlPath, localizeEntrypoint,
+  writeAssetManifest, verifyAssetManifest, REQUIRED_OFFLINE_ASSETS } = require('../scripts/build-web.cjs');
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'godsmash-web-build-'));
@@ -85,4 +86,46 @@ test('verify rejects remote runtime links when offline mode is enforced', t => {
   const entry = path.join(root, 'dist/index.html');
   fs.appendFileSync(entry, '<script src="https://example.test/runtime.js"></script>');
   assert.throws(() => verifyWeb(path.join(root, 'dist'), { offline: true }), /remote executable/);
+});
+
+test('packaged essential planet assets have a stable checksum manifest', t => {
+  const root = fixture(t);
+  const dist = path.join(root, 'dist');
+  buildWeb(root, {skipOfflineRuntime:true});
+  for (const asset of REQUIRED_OFFLINE_ASSETS) {
+    const target = path.join(dist, asset);
+    fs.mkdirSync(path.dirname(target), {recursive:true});
+    fs.writeFileSync(target, 'fixture:' + asset);
+  }
+  const manifest = writeAssetManifest(dist);
+  assert.equal(manifest.schemaVersion,1);
+  assert.ok(manifest.totalBytes > 100);
+  assert.ok(manifest.files.every(file => file.sha256.length === 64));
+  assert.equal(verifyAssetManifest(dist).count,manifest.files.length);
+
+  // The artifact is deterministic across repeated builds.
+  const first = fs.readFileSync(path.join(dist,'asset-manifest.json'),'utf8');
+  writeAssetManifest(dist);
+  assert.equal(fs.readFileSync(path.join(dist,'asset-manifest.json'),'utf8'),first);
+
+  fs.writeFileSync(path.join(dist,REQUIRED_OFFLINE_ASSETS[0]),'corrupted');
+  assert.throws(() => verifyAssetManifest(dist), /checksum mismatch/);
+});
+
+test('missing local texture is rejected before a release is produced', t => {
+  const root = fixture(t);
+  buildWeb(root, {skipOfflineRuntime:true});
+  const dist = path.join(root,'dist');
+  writeAssetManifest(dist);
+  assert.throws(() => verifyAssetManifest(dist), /Required offline asset missing/);
+});
+
+test('optional country imagery remains a local fallback when offline', () => {
+  const fs = require('node:fs');
+  const map = fs.readFileSync(path.join(__dirname,'../src/ui/continent-mode.js'),'utf8');
+  assert.match(map,/root\.navigator\?\.onLine === false/);
+  assert.match(map,/earth_atmos_4096\.jpg/);
+  const moon = fs.readFileSync(path.join(__dirname,'../src/render/real-moon.js'),'utf8');
+  assert.match(moon,/root\.Capacitor\?\.isNativePlatform\?\.\(\)/);
+  assert.match(moon,/url\.startsWith\('\.\/assets\/'\)/);
 });
