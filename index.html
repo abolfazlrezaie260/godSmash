@@ -1794,6 +1794,7 @@
             showImpactToast('ظرفیت موشک‌های فعال پر است؛ کمی صبر کنید.');
             return;
           }
+          scores.recordLaunch(selected);
           SoundEngine.playLaunch();
 
           // Convert world target point into Earth's local space so it tracks Earth's rotation!
@@ -1877,6 +1878,7 @@
         // Pending salvos can land after an earlier missile has shattered the planet.
         // Never carve a new free-floating crater or count damage against empty space.
         if (state.shattered) return;
+        scores.recordImpact(selected);
         const blastWorldPosition = earthGroup.localToWorld(localTarget.clone());
         const worldImpactNormal = localNormal.clone()
           .applyQuaternion(earthGroup.quaternion).normalize();
@@ -2043,10 +2045,25 @@
             decay: 0.08 // linger in space until reset
           });
         }
+        const report = scores.complete(planet, {
+          breaches:planetDamage.getBreachCount(),
+          surfaceDamage:planetDamage.getDamagePercent()
+        });
+        if (report) {
+          updateScoreHUD();
+          // Let the final rupture bloom play before the debrief takes focus.
+          const finishedGeneration = generation;
+          setTimeout(()=>{
+            if(finishedGeneration===generation && state.shattered)
+              openScoreModal(report);
+          },1450);
+        }
       }
 
       function resetEarth() {
         generation++;
+        closeScoreModal();
+        scores.resetRun();
         clearDroneSwarm();
         clearHarvesterFleet();
         // Restore surface vertices, index topology and persistent scars.
@@ -2088,6 +2105,7 @@
         state.impacts = 0;
         state.integrity = 100;
         state.shattered = false;
+        updateScoreHUD();
         if(weapon.kind==='swarm')ensureDroneSwarm();
         if(weapon.kind==='harvester')ensureHarvesterFleet();
         updateHUD();
@@ -2446,8 +2464,10 @@
             const fleet=ensureHarvesterFleet();
             if(!fleet)return;
             const target=earthGroup.worldToLocal(point.clone()).normalize();
-            if(fleet.sim.pointAt({x:target.x,y:target.y,z:target.z}))
+            if(fleet.sim.pointAt({x:target.x,y:target.y,z:target.z})){
+              scores.recordLaunch(selected);
               showImpactToast('سفینه‌ها در حال حرکت به محل برداشت هستند.');
+            }
           },delay/state.timeScale);
           return;
         }
@@ -2459,6 +2479,7 @@
             if(!fleet)return;
             const target=earthGroup.worldToLocal(point.clone()).normalize();
             if(fleet.sim.attack({x:target.x,y:target.y,z:target.z})){
+              scores.recordLaunch(selected);
               SoundEngine.playLaunch();
               showImpactToast('پهپادها به هدف نزدیک می‌شوند، حمله می‌کنند و بازمی‌گردند.');
             }
@@ -2481,6 +2502,7 @@
           beam.position.copy(from).add(to).multiplyScalar(0.5);
           beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
           scene.add(beam);
+          scores.recordLaunch(selected);
           setTimeout(() => {scene.remove(beam); beam.geometry.dispose(); beam.material.dispose();}, 200);
           triggerNuclearDetonation(target, normal, selected);
         }, delay);
@@ -2644,6 +2666,8 @@
 
       window.addEventListener('keydown', (e) => {
         if (e.target && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) return;
+        if(!scoreModal.hidden || !defenceModal.hidden ||
+          !document.getElementById('planet-modal').hidden) return;
         if (e.ctrlKey || e.altKey || e.metaKey) return;
         const digit = /^Digit([1-9])$/.exec(e.code);
         if (digit && weaponDock.selectAt(Number(digit[1]) - 1)) {
@@ -2683,6 +2707,8 @@
         qualityController.sample(realFrameDt, !document.hidden);
         const dt = frameDt * state.timeScale;
         gameTime += dt;
+        // Count visible, unscaled elapsed play-time (not 2× or 0.5× simulation time).
+        if(!document.hidden) scores.tick(frameDt);
         if(continentMode?.isActive())continentMode.update(dt);
 
         // 1. Rotate Earth & Clouds
@@ -2792,6 +2818,7 @@
             const point = m.mesh.position.clone();
             rocketFx.burst(point, point.clone().normalize(),
               lowImpactQuality ? 5 : 9, 0x67e8f9);
+            scores.recordIntercept(m.weapon);
             removeMissile(m);
             activeMissiles.splice(i,1);
           }
@@ -2847,9 +2874,11 @@
               normal.clone().multiplyScalar(EARTH_RADIUS),event.radius,event.depth
             );
             if(result.extracted){
+              scores.recordImpact(catalog.getWeapon('harvester'));
               state.impacts+=1;
               state.integrity=Math.max(0,state.integrity-.13);
               updateHUD();
+              if(state.integrity<=0 && !state.shattered)triggerPlanetaryShatter();
             }
           });
           if(harvestFleet===current){
