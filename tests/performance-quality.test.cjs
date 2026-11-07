@@ -53,3 +53,34 @@ test('quality controller honors low pixel-ratio devices', () => {
   assert.ok(quality.getStats().pixelRatio >= 0.75);
   assert.ok(quality.getStats().particleBudget <= 24);
 });
+
+test('native WebView caps DPR on high-density devices without ignoring physical DPR', () => {
+  const native = controller.createController({devicePixelRatio:3,maxParticles:92,
+    lowQuality:true,nativeWebView:true});
+  const browser = controller.createController({devicePixelRatio:3,maxParticles:92,lowQuality:true});
+  assert.equal(native.getStats().maxPixelRatio,1.15);
+  assert.equal(native.getStats().nativeWebView,true);
+  assert.equal(browser.getStats().maxPixelRatio,1.25);
+  feed(native,28,22);
+  assert.ok(native.getStats().pixelRatio < 1.15);
+  assert.ok(native.getStats().pixelRatio >= 0.75);
+  assert.ok(native.getStats().particleBudget <= 92);
+});
+
+test('native WebView sampling ignores background/context-loss frames', () => {
+  const native = controller.createController({devicePixelRatio:2,nativeWebView:true,lowQuality:true});
+  const initial = native.getStats();
+  for (let i=0;i<500;i++) native.sample(1/16,false);
+  assert.deepEqual(native.getStats(),initial);
+});
+
+test('inline renderer includes context loss and recovery guards', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+  assert.match(html, /addEventListener\('webglcontextlost'/);
+  assert.match(html, /event\.preventDefault\(\)/);
+  assert.match(html, /addEventListener\('webglcontextrestored'/);
+  assert.match(html, /if \(webglContextUnavailable\) return;/);
+  assert.match(html, /nativeWebView:?.*|nativeWebView,/);
+});
