@@ -1356,6 +1356,24 @@
       renderer.setSize(initialView.width, initialView.height);
       gameRendererReady = true;
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      let webglContextUnavailable = false;
+      let webglLossCount = 0;
+      renderer.domElement.addEventListener('webglcontextlost', event => {
+        // The renderer listens for WebGL recovery internally. Keep the
+        // simulation frozen until the context and framebuffers are ready.
+        event.preventDefault();
+        webglContextUnavailable = true;
+        webglLossCount++;
+        showImpactToast('اتصال گرافیکی موقتاً قطع شد؛ در حال بازیابی صحنه…');
+      });
+      renderer.domElement.addEventListener('webglcontextrestored', () => {
+        webglContextUnavailable = false;
+        const view = landscape.getViewport();
+        renderer.setPixelRatio(qualityController.getStats().pixelRatio);
+        renderer.setSize(view.width, view.height);
+        lastTime = performance.now(); // never integrate a huge recovery delta
+        showImpactToast('نمای سه‌بعدی بازیابی شد.');
+      });
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.15;
       container.appendChild(renderer.domElement);
@@ -1550,7 +1568,9 @@
       });
       const atmosMesh = new THREE.Mesh(atmosGeo, atmosMat);
       scene.add(atmosMesh);
-      const lowImpactQuality = Math.min(window.innerWidth, window.innerHeight) < 750 ||
+      const nativeWebView = landscape.isNative();
+      const lowImpactQuality = nativeWebView ||
+        Math.min(window.innerWidth, window.innerHeight) < 750 ||
         !!(navigator.connection && navigator.connection.saveData);
       let marsBumpMap = null; // Created once, shared on subsequent Mars resets.
       function enableLunarRelief(){
@@ -1592,6 +1612,7 @@
       const qualityController = window.GodSmashPerformance.createController({
         devicePixelRatio: window.devicePixelRatio || 1,
         lowQuality: lowImpactQuality,
+        nativeWebView,
         maxParticles: rocketFx.getMaxParticles(),
         onChange: ({pixelRatio, particleBudget}) => {
           // Renderer resizes its drawing buffer internally when DPR changes.
@@ -2721,7 +2742,8 @@
         const realFrameDt = Math.max(0, (now - lastTime) / 1000);
         const frameDt = Math.min(0.05, realFrameDt);
         lastTime = now;
-        qualityController.sample(realFrameDt, !document.hidden);
+        qualityController.sample(realFrameDt, !document.hidden && !webglContextUnavailable);
+        if (webglContextUnavailable) return;
         const dt = frameDt * state.timeScale;
         gameTime += dt;
         // Count visible, unscaled elapsed play-time (not 2× or 0.5× simulation time).
@@ -2974,7 +2996,8 @@
               ? (performance.memory.usedJSHeapSize / 1048576).toFixed(1) + ' MB'
               : 'N/A';
             performanceOverlay.textContent = [
-              'GodSmash performance (' + (lowImpactQuality ? 'mobile' : 'desktop') + ')',
+              'GodSmash performance (' + (nativeWebView ? 'native-webview' : lowImpactQuality ? 'mobile-web' : 'desktop') + ')',
+              'WebGL context: ' + (webglContextUnavailable ? 'lost' : 'ready') + ' | losses: ' + webglLossCount,
               'FPS: ' + stats.fps.toFixed(1) + ' | pixel ratio: ' + stats.pixelRatio.toFixed(2),
               'Draw calls: ' + renderer.info.render.calls + ' | triangles: ' + renderer.info.render.triangles,
               'GPU geometries: ' + gpu.geometries + ' | textures: ' + gpu.textures,
