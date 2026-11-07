@@ -628,6 +628,7 @@
       .score-stats {margin:8px 0;}
     }
   </style>
+  <link rel="stylesheet" href="./src/ui/toolbar.css" />
 </head>
 <body class="relative w-full h-full overflow-hidden select-none">
   <main id="game-shell" aria-label="بازی GodSmash" data-landscape-mode="native">
@@ -714,23 +715,32 @@
         <strong id="score-total" class="num-mono" dir="ltr">0</strong>
         <span id="score-completions" class="score-chip-count">۰ عملیات</span>
       </button>
-      <button id="btn-defenses" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-semibold text-cyan-300" aria-haspopup="dialog" aria-controls="defense-modal" aria-expanded="false" title="مدیریت دفاع سیاره‌ای">
-        <span>دفاع: <b id="defense-status">بدون ماهواره</b></span>
-      </button>
-      <button id="btn-autorotate" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-medium text-slate-200 flex items-center gap-1.5" title="چرخش خودکار زمین">
-        <span id="autorotate-icon">🔄</span>
-        <span class="hidden md:inline" id="autorotate-label">چرخش: روشن</span>
-      </button>
-
-      <button id="btn-audio" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-medium text-slate-200 flex items-center gap-1.5" title="صدا و افکت صوتی">
-        <span id="audio-icon">🔊</span>
-        <span class="hidden md:inline" id="audio-label">صدا: فعال</span>
-      </button>
-
-      <button id="btn-reset" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-semibold text-sky-300 hover:text-white border-sky-500/30 flex items-center gap-1.5" title="بازسازی کامل سیاره زمین">
-        <span>↺</span>
-        <span>بازسازی سیاره</span>
-      </button>
+      <div id="utility-menu" class="utility-menu">
+        <button id="btn-tools" type="button" class="hud-btn utility-trigger glass-panel rounded-xl"
+          aria-expanded="false" aria-haspopup="true" aria-controls="utility-panel"
+          title="نمایش ابزارهای کمکی بازی">
+          <span aria-hidden="true">⚙</span><span>ابزارها</span>
+          <span class="utility-chevron" aria-hidden="true">⌄</span>
+        </button>
+        <div id="utility-panel" class="utility-panel" hidden role="group" aria-label="ابزارهای کمکی">
+          <div class="utility-panel-heading">کنترل‌ها و تنظیمات</div>
+          <button id="btn-defenses" type="button" class="hud-btn text-xs font-semibold text-cyan-300"
+            aria-haspopup="dialog" aria-controls="defense-modal" aria-expanded="false" title="مدیریت دفاع سیاره‌ای">
+            <span aria-hidden="true">◈</span><span>دفاع: <b id="defense-status">بدون ماهواره</b></span>
+          </button>
+          <button id="btn-autorotate" type="button" class="hud-btn text-xs font-medium text-slate-200" title="چرخش خودکار زمین">
+            <span id="autorotate-icon" aria-hidden="true">🔄</span>
+            <span id="autorotate-label">چرخش: روشن</span>
+          </button>
+          <button id="btn-audio" type="button" class="hud-btn text-xs font-medium text-slate-200" title="صدا و افکت صوتی">
+            <span id="audio-icon" aria-hidden="true">🔊</span>
+            <span id="audio-label">صدا: فعال</span>
+          </button>
+          <button id="btn-reset" type="button" class="hud-btn text-xs font-semibold" title="بازسازی کامل سیاره">
+            <span aria-hidden="true">↺</span><span>بازسازی سیاره</span>
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -875,9 +885,25 @@
     </div>
   </section>
 
-  <!-- Weapon inventory, laid out horizontally on phones/tablets. -->
-  <aside id="weapon-dock" class="weapon-dock glass-panel" aria-label="انتخاب سلاح">
-    <div class="weapon-dock-heading"><span>سلاح‌ها</span><small id="weapon-shortcuts">کلیدهای ۱ تا ۵</small></div>
+  <!-- Tactical armory: categorized weapons with a compact mode on small screens. -->
+  <aside id="weapon-dock" class="weapon-dock glass-panel" aria-label="تجهیزات و انتخاب سلاح">
+    <div class="weapon-dock-top">
+      <div class="weapon-dock-heading">
+        <div class="weapon-dock-caption">
+          <span>تجهیزات نبرد</span>
+          <small id="equipped-weapon-label" aria-live="polite">انتخاب‌شده: موشک</small>
+        </div>
+        <small id="weapon-shortcuts">کلیدهای ۱ تا ۹</small>
+      </div>
+      <div class="weapon-dock-filters" role="group" aria-label="دسته‌بندی تجهیزات">
+        <button type="button" class="weapon-filter-button" data-filter="all" aria-pressed="true">همه</button>
+        <button type="button" class="weapon-filter-button" data-filter="missile" aria-pressed="false">موشک‌ها</button>
+        <button type="button" class="weapon-filter-button" data-filter="special" aria-pressed="false">ویژه</button>
+      </div>
+      <button type="button" class="weapon-dock-collapse" aria-expanded="true"
+        aria-controls="weapon-dock-items" aria-label="جمع کردن فهرست سلاح‌ها"
+        title="جمع کردن تجهیزات"><span class="dock-collapse-glyph" aria-hidden="true">⌄</span></button>
+    </div>
     <div id="weapon-dock-items" class="weapon-dock-items" role="group" aria-label="فهرست سلاح‌ها"></div>
   </aside>
 
@@ -907,35 +933,40 @@
     </div>
 
     <!-- Dynamic selectors -->
-    <div class="game-control-bar glass-panel rounded-2xl px-3 py-2 flex flex-wrap items-center gap-2 pointer-events-auto w-full sm:w-auto justify-center">
-      <button id="btn-planet-picker" type="button"
-        class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-100 border border-slate-600/60"
-        aria-haspopup="dialog" aria-expanded="false" aria-controls="planet-modal" aria-label="انتخاب سیاره">
-        <span aria-hidden="true">◉</span> <span id="selected-planet-name">زمین</span>
-      </button>
-      <button id="btn-speed-toggle" type="button"
-        class="hud-btn rounded-xl px-2 py-2 text-xs font-bold bg-slate-800/90 text-slate-100 border border-slate-600/60"
-        aria-label="سرعت بازی: عادی، لمس کنید برای سرعت بعدی" title="تغییر سرعت بازی">
-        <span class="speed-glyph" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="13" r="8"></circle><path d="M12 13l3-4M9 2h6M12 5V2"></path>
-          </svg>
-        </span>
-        <span id="speed-indicator" dir="ltr">۱×</span>
-      </button>
-      <button id="btn-mode-toggle" type="button" class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-200 border border-slate-600/60 flex items-center gap-1.5">
-        <span>🎯</span>
-        <span id="mode-label">حالت: تک‌موشک</span>
-      </button>
-
-      <button id="btn-fire-center" type="button" class="hud-btn pulse-ring rounded-xl px-4 py-2 text-xs font-bold bg-gradient-to-r from-orange-500 to-rose-600 text-white border border-orange-400/50 flex items-center gap-2 shadow-lg">
-        <span>🔥</span>
-        <span class="hidden sm:inline">شلیک موشک</span><span class="sm:hidden">شلیک</span>
-      </button>
-
-      <button id="btn-zoom-in" type="button" class="hud-btn rounded-xl w-8 h-8 text-sm font-bold bg-slate-800/90 text-slate-200 border border-slate-700 flex items-center justify-center" title="نزدیک‌تر">+</button>
-      <button id="btn-zoom-out" type="button" class="hud-btn rounded-xl w-8 h-8 text-sm font-bold bg-slate-800/90 text-slate-200 border border-slate-700 flex items-center justify-center" title="دورتر">−</button>
+    <div class="game-control-bar glass-panel rounded-2xl px-3 py-2 pointer-events-auto w-full sm:w-auto">
+      <div class="battle-setup" role="group" aria-label="تنظیمات نبرد">
+        <button id="btn-planet-picker" type="button"
+          class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-100 border border-slate-600/60"
+          aria-haspopup="dialog" aria-expanded="false" aria-controls="planet-modal" aria-label="انتخاب سیاره">
+          <span aria-hidden="true">◉</span> <span id="selected-planet-name">زمین</span>
+        </button>
+        <button id="btn-speed-toggle" type="button"
+          class="hud-btn rounded-xl px-2 py-2 text-xs font-bold bg-slate-800/90 text-slate-100 border border-slate-600/60"
+          aria-label="سرعت بازی: عادی، لمس کنید برای سرعت بعدی" title="تغییر سرعت بازی">
+          <span class="speed-glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="13" r="8"></circle><path d="M12 13l3-4M9 2h6M12 5V2"></path>
+            </svg>
+          </span>
+          <span id="speed-indicator" dir="ltr">۱×</span>
+        </button>
+        <button id="btn-mode-toggle" type="button"
+          class="hud-btn rounded-xl px-3 py-2 text-xs font-semibold bg-slate-800/90 text-slate-200 border border-slate-600/60 flex items-center gap-1.5"
+          aria-label="تغییر حالت شلیک">
+          <span aria-hidden="true">🎯</span><span id="mode-label">حالت: تک‌موشک</span>
+        </button>
+      </div>
+      <div class="battle-primary" role="group" aria-label="شلیک">
+        <button id="btn-fire-center" type="button"
+          class="hud-btn pulse-ring rounded-xl px-4 py-2 text-xs font-bold bg-gradient-to-r from-orange-500 to-rose-600 text-white border border-orange-400/50 flex items-center justify-center gap-2 shadow-lg">
+          <span aria-hidden="true">🔥</span><span class="hidden sm:inline">شلیک موشک</span><span class="sm:hidden">شلیک</span>
+        </button>
+      </div>
+      <div class="battle-camera" role="group" aria-label="کنترل نمای دوربین">
+        <button id="btn-zoom-in" type="button" class="hud-btn rounded-xl w-8 h-8 text-sm font-bold bg-slate-800/90 text-slate-200 border border-slate-700 flex items-center justify-center" title="نزدیک‌تر" aria-label="بزرگ‌نمایی">+</button>
+        <button id="btn-zoom-out" type="button" class="hud-btn rounded-xl w-8 h-8 text-sm font-bold bg-slate-800/90 text-slate-200 border border-slate-700 flex items-center justify-center" title="دورتر" aria-label="کوچک‌نمایی">−</button>
+      </div>
     </div>
   </footer>
 
@@ -2337,10 +2368,10 @@
         'کلیدهای ۱ تا ' + Math.min(9, catalog.listWeapons().length);
       function selectWeapon(id) {
         const next = catalog.getWeapon(id);
-        if (!next) return;
+        if (!next) return false;
         if(continentMode?.isActive() && next.kind!=='missile'){
           showImpactToast('در نمای قاره‌ای یکی از مدل‌های موشک را انتخاب کنید.');
-          return;
+          return false;
         }
         if(next.id!==weapon.id && weapon.kind==='swarm')clearDroneSwarm();
         if(next.id!==weapon.id && weapon.kind==='harvester')clearHarvesterFleet();
@@ -2356,6 +2387,7 @@
           next.kind === 'harvester' ? 'برداشت' : next.speed.toFixed(2) + '×';
         document.getElementById("weapon-radius-stat").textContent = next.blastRadius.toFixed(1);
         weaponDock.setSelected(next.id);
+        return true;
       }
       const weaponDock = window.GodSmashWeaponDock.mount({
         container: document.getElementById('weapon-dock-items'),
@@ -3024,5 +3056,6 @@
       };
     })();
   </script>
+  <script src="./src/ui/tool-menu.js"></script>
 </body>
 </html>
