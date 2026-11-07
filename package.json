@@ -1,0 +1,16 @@
+{
+  "name": "godsmash",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GodSmash web and mobile application",
+  "scripts": {
+    "build": "node scripts/build-web.cjs",
+    "build:verify": "node scripts/build-web.cjs --verify",
+    "build:clean": "node scripts/build-web.cjs --clean",
+    "test": "node --test",
+    "test:build": "node --test tests/mobile-build.test.cjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
