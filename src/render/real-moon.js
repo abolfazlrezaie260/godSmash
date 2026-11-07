@@ -1,19 +1,24 @@
 /* Real lunar LRO photographic albedo and topographic relief.
  * Sources: NASA Scientific Visualization Studio CGI Moon Kit, LROC WAC / LOLA:
  * https://svs.gsfc.nasa.gov/4720/
- * The 4K browser-ready JPEG is a NASA-derived web mirror (bicubic upscale
- * of NASA's 2K web image); remote loading is optional and does not block Earth.
- * Surface painting remains on the existing canvas so crater scars persist.
+ * Preferred assets are the locally vendored ORIGINAL NASA 2025 4K color
+ * raster and LOLA height preview. Remote fallbacks remain available.
+ * Surface painting stays in the existing canvas so crater scars persist.
  */
 (function(root){
   'use strict';
 
   const sources=Object.freeze({
     albedo: Object.freeze([
+      './assets/textures/moon/moon_4096.jpg',
       'https://raw.githubusercontent.com/MaxwellLee/physics-lab/main/assets/textures/moon_4096.jpg',
       'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_2k.jpg'
     ]),
-    relief: 'https://raw.githubusercontent.com/MaxwellLee/physics-lab/main/assets/textures/moon_height_1024.jpg',
+    relief: Object.freeze([
+      './assets/textures/moon/moon_height_1024.jpg',
+      'https://raw.githubusercontent.com/MaxwellLee/physics-lab/main/assets/textures/moon_height_1024.jpg',
+      'https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/ldem_3_8bit.jpg'
+    ]),
     credits: 'https://svs.gsfc.nasa.gov/4720/'
   });
 
@@ -58,7 +63,7 @@
         albedo=color;
         // Relief is optional. Do not delay the color map or fail the whole
         // Moon when this secondary remote image is unavailable.
-        getImage(sources.relief).then(image=>{
+        loadFirstAvailable(sources.relief).then(image=>{
           relief=image;
           if(typeof onReliefReady==='function')onReliefReady();
         }).catch(()=>{});
