@@ -12,6 +12,7 @@
 <script src="./src/render/mars-surface.js"></script>
 <script src="./src/render/planet-textures.js"></script>
 <script src="./src/render/real-earth.js"></script>
+<script src="./src/render/real-moon.js"></script>
 <script src="./src/render/projectile-models.js"></script>
 <script src="./src/render/continent-projectiles.js"></script>
 <script src="./src/render/planet-damage.js"></script>
@@ -1096,7 +1097,12 @@
             emissiveCtx.fillStyle = '#000000';
             emissiveCtx.fillRect(0, 0, TEX_W, TEX_H);
           }
+        } else if (planet.id === 'moon' && window.GodSmashRealMoon.isReady()) {
+          // NASA LRO imagery is drawn directly into the existing mutable
+          // surface; crater scorch marks can still be painted on top.
+          window.GodSmashRealMoon.paint(surfaceCtx, emissiveCtx, TEX_W, TEX_H);
         } else {
+          // Offline fallback while the optional lunar photo is downloading.
           GodSmashTextures.paint(planet, surfaceCtx, emissiveCtx, TEX_W, TEX_H);
         }
       }
@@ -1205,6 +1211,17 @@
       const lowImpactQuality = Math.min(window.innerWidth, window.innerHeight) < 750 ||
         !!(navigator.connection && navigator.connection.saveData);
       let marsBumpMap = null; // Created once, shared on subsequent Mars resets.
+      function enableLunarRelief(){
+        if(planet.id!=='moon' || state.shattered)return;
+        const bump=window.GodSmashRealMoon.getBumpTexture(THREE);
+        if(!bump)return;
+        earthMat.bumpMap=bump;
+        earthMat.bumpScale=0.085;
+        earthMat.roughness=0.98;
+        earthMat.metalness=0;
+        earthMat.needsUpdate=true;
+      }
+      window.GodSmashRealMoon.setReliefReadyListener(enableLunarRelief);
       const planetDamage = window.GodSmashPlanetDamage.createSystem(THREE, {
         geometry: earthGeo, group: earthGroup, radius: EARTH_RADIUS,
         lowQuality: lowImpactQuality
@@ -2041,7 +2058,27 @@
         window.GodSmashRealEarth.configure(
           THREE, earthMat, cloudMat, fallbackCloudTexture, p.id === "earth"
         );
-        if(p.id === 'mars'){
+        if(p.id === 'moon'){
+          // Lunar regolith is matte and airless; the optional LOLA-based
+          // height image adds small-scale crater shadows without neon gloss.
+          earthMat.bumpMap=window.GodSmashRealMoon.getBumpTexture(THREE);
+          earthMat.bumpScale=earthMat.bumpMap?0.085:0;
+          earthMat.roughness=0.98;
+          earthMat.metalness=0;
+          earthMat.emissiveIntensity=0.12;
+          const requestedGeneration=generation;
+          window.GodSmashRealMoon.preload().then(()=>{
+            // Do not paint over fresh damage if the player fired while
+            // the remote photo was still being downloaded.
+            if(planet.id!=='moon' || generation!==requestedGeneration ||
+              state.impacts>0 || state.shattered)return;
+            paintPlanet();
+            surfaceTexture.needsUpdate=true;
+            enableLunarRelief();
+          }).catch(error=>{
+            console.warn('Lunar photographic map unavailable; using offline fallback',error);
+          });
+        } else if(p.id === 'mars'){
           if(!marsBumpMap){
             marsBumpMap = window.GodSmashMarsSurface.createBumpTexture(
               THREE, document, lowImpactQuality ? 384 : 768,
@@ -2605,6 +2642,11 @@
           requestAnimationFrame(animate);
         }
         function loadLocalMaps() {
+          // Background prefetch only. The live Earth scene never depends on
+          // network availability for the optional Moon image.
+          if(!(navigator.connection && navigator.connection.saveData)){
+            window.GodSmashRealMoon.preload().catch(()=>{});
+          }
           retryButton.hidden = true;
           loadingHeading.textContent = 'آماده‌سازی سیاره زمین';
           loadingMessage.textContent = 'در حال بارگذاری تصاویر واقعی زمین از فایل‌های بازی...';
