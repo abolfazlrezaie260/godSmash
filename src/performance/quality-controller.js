@@ -11,7 +11,12 @@
       Number.isFinite(options.devicePixelRatio) ? options.devicePixelRatio : 1,
       0.5, 4
     );
-    const maxRatio = Math.min(devicePixelRatio, options.lowQuality ? 1.25 : 2);
+    // Native WebViews share GPU memory with the OS and can be evicted under
+    // pressure. A modest default DPR keeps texture and framebuffer cost bounded.
+    const nativeWebView = !!options.nativeWebView;
+    const ratioCap = nativeWebView ? (options.lowQuality ? 1.15 : 1.5)
+      : (options.lowQuality ? 1.25 : 2);
+    const maxRatio = Math.min(devicePixelRatio, ratioCap);
     const minRatio = Math.min(maxRatio, options.lowQuality ? 0.75 : 0.85);
     let pixelRatio = maxRatio;
     const maxParticles = Math.max(1, Math.floor(options.maxParticles || 220));
@@ -82,7 +87,8 @@
       sample,
       getStats: () => Object.freeze({
         fps, pixelRatio, particleBudget, maxParticles,
-        minPixelRatio: minRatio, maxPixelRatio: maxRatio
+        minPixelRatio: minRatio, maxPixelRatio: maxRatio,
+        nativeWebView
       })
     });
   }
