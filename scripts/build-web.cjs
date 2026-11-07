@@ -4,9 +4,20 @@
 // #43 will replace external runtime CDN assets with local pinned dependencies.
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 
 const PAYLOAD = Object.freeze(['index.html', 'manifest.webmanifest', 'src', 'assets']);
+const REQUIRED_OFFLINE_ASSETS = Object.freeze([
+  'assets/data/countries-110m.json',
+  'assets/textures/earth/earth_atmos_4096.jpg',
+  'assets/textures/earth/earth_clouds_1024.png',
+  'assets/textures/earth/earth_lights_2048.png',
+  'assets/textures/earth/earth_normal_2048.jpg',
+  'assets/textures/earth/earth_specular_2048.jpg',
+  'assets/textures/moon/moon_4096.jpg',
+  'assets/textures/moon/moon_height_1024.jpg'
+]);
 
 function existsFile(target) {
   try { return fs.statSync(target).isFile(); }
@@ -24,6 +35,71 @@ function localUrlPath(reference) {
   }
 }
 
+function assetHash(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
+// Deterministic inventory allows the native build to fail on a missing or
+// truncated large texture before it ships. No timestamps or absolute paths.
+function writeAssetManifest(webDir) {
+  const root = path.resolve(webDir);
+  const assets = path.join(root, 'assets');
+  if (!fs.existsSync(assets)) throw new Error('Missing assets directory');
+  const files = [];
+  function visit(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes:true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) visit(file);
+      else if (entry.isFile()) {
+        const relative = path.relative(root, file).split(path.sep).join('/');
+        files.push({path:relative,bytes:fs.statSync(file).size,sha256:assetHash(file)});
+      }
+    }
+  }
+  visit(assets);
+  files.sort((a,b)=>a.path.localeCompare(b.path,'en'));
+  const manifest = {
+    schemaVersion:1,
+    totalBytes:files.reduce((sum,file)=>sum+file.bytes,0),
+    files
+  };
+  fs.writeFileSync(path.join(root,'asset-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
+  return manifest;
+}
+function verifyAssetManifest(webDir) {
+  const root = path.resolve(webDir);
+  const file = path.join(root,'asset-manifest.json');
+  if (!existsFile(file)) throw new Error('Offline asset manifest is missing');
+  const manifest = JSON.parse(fs.readFileSync(file,'utf8'));
+  if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.files)) {
+    throw new Error('Invalid offline asset manifest schema');
+  }
+  const provided = new Set();
+  let counted = 0;
+  for (const entry of manifest.files) {
+    if (typeof entry.path !== 'string' || !entry.path.startsWith('assets/') ||
+        entry.path.includes('\\') || !Number.isSafeInteger(entry.bytes) ||
+        entry.bytes < 1 || typeof entry.sha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(entry.sha256)) {
+      throw new Error('Invalid asset manifest entry');
+    }
+    const target = path.resolve(root,entry.path);
+    if (!target.startsWith(path.join(root,'assets')+path.sep) ||
+        !existsFile(target)) throw new Error('Offline asset missing: ' + entry.path);
+    if (fs.statSync(target).size !== entry.bytes || assetHash(target) !== entry.sha256) {
+      throw new Error('Offline asset checksum mismatch: ' + entry.path);
+    }
+    if (provided.has(entry.path)) throw new Error('Duplicate asset: ' + entry.path);
+    provided.add(entry.path);
+    counted += entry.bytes;
+  }
+  for (const required of REQUIRED_OFFLINE_ASSETS) {
+    if (!provided.has(required)) throw new Error('Required offline asset missing: ' + required);
+  }
+  if (counted !== manifest.totalBytes) throw new Error('Offline asset byte total mismatch');
+  return { count:provided.size,totalBytes:counted };
+}
+
 function verifyWeb(webDir, options = {}) {
   const root = path.resolve(webDir);
   for (const item of PAYLOAD) {
@@ -36,6 +112,7 @@ function verifyWeb(webDir, options = {}) {
     if (/<(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*["'](?:https?:)?\/\//i.test(html)) {
       throw new Error('Offline build still contains a remote executable or stylesheet');
     }
+    verifyAssetManifest(root);
     for (const name of ['vendor/three.min.js', 'vendor/tailwind.css', 'vendor/fonts.css']) {
       if (!existsFile(path.join(root, name))) throw new Error('Offline vendor asset missing: ' + name);
     }
@@ -147,6 +224,7 @@ function packageOfflineRuntime(root, staging) {
   copyFontFamilies(root, staging);
   const htmlFile = path.join(staging, 'index.html');
   fs.writeFileSync(htmlFile, localizeEntrypoint(fs.readFileSync(htmlFile, 'utf8')));
+  writeAssetManifest(staging);
 }
 
 function buildWeb(projectRoot, options = {}) {
@@ -199,4 +277,5 @@ if (require.main === module) {
   }
 }
 
-module.exports = { buildWeb, verifyWeb, localUrlPath, localizeEntrypoint };
+module.exports = { buildWeb, verifyWeb, localUrlPath, localizeEntrypoint,
+  writeAssetManifest, verifyAssetManifest, REQUIRED_OFFLINE_ASSETS };
