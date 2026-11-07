@@ -36,7 +36,7 @@
     let elapsed=0,flightTime=0,mode='ready',impacts=0,completed=0,sorties=0,disposed=false;
     let targetNormal=null;
     const drones=Array.from({length:count},(_,id)=>({
-      id,visible:false,done:false,struck:false,
+      id,visible:false,done:false,struck:false,waveRegistered:false,
       position:{x:0,y:0,z:0},direction:{x:0,y:0,z:1},
       start:{x:0,y:0,z:0},strike:{x:0,y:0,z:0},exit:{x:0,y:0,z:0},
       controlIn:{x:0,y:0,z:0},controlOut:{x:0,y:0,z:0},
@@ -80,7 +80,7 @@
         d.delay=wave*0.47+lane*0.035;
         d.duration=2.25+(i%5)*0.085;
         d.returnDuration=2.2+(i%4)*0.10;
-        d.struck=false;d.done=false;
+        d.struck=false;d.done=false;d.waveRegistered=false;
         d.visible=false;
         d.position={...d.start};
         d.direction=normalize(sub(d.controlIn,d.start));
