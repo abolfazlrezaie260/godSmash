@@ -81,8 +81,8 @@
       const tangent = up.clone().cross(normal).normalize();
       const bitangent = normal.clone().cross(tangent).normalize();
       const rings = [
-        { angle: 1.35, altitude: 0.012 },
-        { angle: 1.035, altitude: 0.065 + power * 0.008 },
+        { angle: 1.35, altitude: 0.006 },
+        { angle: 1.035, altitude: 0.028 + power * 0.004 },
         { angle: 0.85, altitude: -0.06 },
         { angle: 0.50, altitude: -radius * 0.125 },
         { angle: 0.24, altitude: -radius * 0.195 }
@@ -113,7 +113,7 @@
           const theta = aperture * row.angle * randomScale[s];
           const dir = normal.clone().multiplyScalar(Math.cos(theta))
             .addScaledVector(circle, Math.sin(theta)).normalize();
-          const distance = radius + row.altitude + (r === 1 ? 0.07 * Math.sin(s * 3.7) : 0);
+          const distance = radius + row.altitude + (r === 1 ? 0.025 * Math.sin(s * 3.7) : 0);
           const point = dir.multiplyScalar(distance);
           positions.push(point.x, point.y, point.z);
           colors.push(color.r, color.g, color.b);
@@ -154,28 +154,49 @@
         tangent = up.cross(normal).normalize();
       }
       const bitangent = normal.clone().cross(tangent).normalize();
-      const depth = clamp((0.3 + 0.11 * power) * (0.62 + 0.38 * incidence), 0.24, 1.85);
-      const rimHeight = clamp((0.1 + 0.025 * power) * (0.65 + 0.35 * incidence), 0.08, 0.38);
-      const elongation = 1 + (1 - incidence) * 0.72;
+      // Decouple actual surface displacement from the weapon's destructive radius.
+      // A wide blast can scorch an area without stretching a continent-sized
+      // swath of the satellite map into a deep cone.
+      const visualRadius = clamp(blastRadius, radius * 0.035, radius * 0.18);
+      const depth = clamp(
+        (0.12 + 0.045 * power) * (0.72 + 0.28 * incidence), 0.09, 0.54);
+      const rimHeight = clamp(
+        (0.028 + 0.007 * power) * (0.72 + 0.28 * incidence), 0.018, 0.12);
+      const elongation = 1 + (1 - incidence) * 0.28;
 
       for (let i = 0; i < positions.count; i++) {
         vertex.fromBufferAttribute(positions, i);
         const currentLength = vertex.length() || 1;
         direction.copy(vertex).multiplyScalar(1 / currentLength);
         const cosTheta = clamp(direction.dot(normal), -1, 1);
+        const offset = i * 3;
+        const baselineLength = Math.hypot(originalPositions[offset],
+          originalPositions[offset + 1], originalPositions[offset + 2]);
         // Use local tangent coordinates: grazing impacts create an elongated, shallower crater.
         const along = Math.atan2(direction.dot(tangent), cosTheta) * radius;
         const across = Math.atan2(direction.dot(bitangent), cosTheta) * radius;
         const t = Math.sqrt(
-          Math.pow(along / (blastRadius * elongation), 2) +
-          Math.pow(across / blastRadius, 2)
+          Math.pow(along / (visualRadius * elongation), 2) +
+          Math.pow(across / visualRadius, 2)
         );
-        if (t < 0.86) {
-          const bowl = Math.pow(Math.max(0, 1 - t * t / (0.86 * 0.86)), 1.5);
-          vertex.multiplyScalar(Math.max(radius * 0.66, currentLength - depth * bowl) / currentLength);
-        } else if (t < 1.38) {
-          const ridge = Math.sin((t - 0.86) * Math.PI / 0.52);
-          vertex.multiplyScalar((currentLength + rimHeight * Math.max(0, ridge)) / currentLength);
+        if (t < 0.60) {
+          // Compact shallow bowl: repeated hits must not drag the same
+          // geographic texture into a vertical tunnel.
+          const u = t / 0.60;
+          const bowl = Math.pow(Math.max(0, 1 - u * u), 1.8);
+          const maxTotalDepth = Math.min(radius * 0.068, depth * 1.58);
+          const minLength = baselineLength - maxTotalDepth * bowl;
+          const nextLength = Math.max(minLength, currentLength - depth * bowl);
+          if (nextLength >= currentLength) continue;
+          vertex.multiplyScalar(nextLength / currentLength);
+        } else if (t >= 0.82 && t < 1.05) {
+          // Very low discontinuous rim. Cap accumulated uplift on repeat hits.
+          const ridge = Math.sin((t - 0.82) * Math.PI / 0.23);
+          const maxLength = baselineLength + radius * 0.009;
+          const nextLength = Math.min(maxLength,
+            currentLength + rimHeight * Math.max(0, ridge));
+          if (nextLength <= currentLength) continue;
+          vertex.multiplyScalar(nextLength / currentLength);
         } else {
           continue;
         }
@@ -254,7 +275,9 @@
       let breached = false;
       let aperture = 0;
       if (config.breach && holes.length < maxBreaches) {
-        aperture = clamp((effectiveRadius / radius) * (0.65 + power * 0.065), 0.085, 0.39);
+        // Even a true breach remains local: avoid peeling off whole countries
+        // while the planet still has substantial integrity.
+        aperture = clamp((effectiveRadius / radius) * (0.42 + power * 0.038), 0.06, 0.22);
         const overlaps = holes.some(h => Math.acos(clamp(h.normal.dot(normal), -1, 1)) < (h.aperture + aperture) * 0.78);
         if (!overlaps) {
           holes.push({
