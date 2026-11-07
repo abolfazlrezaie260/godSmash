@@ -47,8 +47,12 @@
   }
 
   async function loadFirstAvailable(urls){
+    // Native packages are offline-first: never rely on a network mirror to
+    // recover a missing packaged texture. Fail fast into the local fallback.
+    const native=Boolean(root.Capacitor?.isNativePlatform?.());
+    const candidates=native ? urls.filter(url=>url.startsWith('./assets/')) : urls;
     let failure=null;
-    for(const url of urls){
+    for(const url of candidates){
       try{return await getImage(url);}
       catch(error){failure=error;}
     }
