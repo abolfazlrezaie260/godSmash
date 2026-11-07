@@ -32,6 +32,7 @@
   <script src="./src/ui/planet-picker.js"></script>
   <script src="./src/ui/continent-mode.js"></script>
   <script src="./src/ui/landscape.js"></script>
+  <script src="./src/ui/globe-gestures.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -2548,13 +2549,8 @@
       const raycaster = new THREE.Raycaster();
       const pointerNDC = new THREE.Vector2();
 
-      let isDragging = false;
-      let downX = 0;
-      let downY = 0;
-      let prevX = 0;
-      let prevY = 0;
-      let downTime = 0;
-
+      // Single-pointer drag rotates the scene; pinch uses camera distance.
+      // A tap fires only when no drag, second pointer or cancellation occurred.
       function fireMissileAtRay(clientX, clientY) {
         if (state.shattered || continentMode?.isActive()) return;
         const rect = renderer.domElement.getBoundingClientRect();
@@ -2608,34 +2604,20 @@
         fireMissileAtRay(rect.left + rect.width / 2, rect.top + rect.height / 2);
       }
 
-      renderer.domElement.addEventListener('pointerdown', (e) => {
-        isDragging = true;
-        downX = prevX = e.clientX;
-        downY = prevY = e.clientY;
-        downTime = performance.now();
-      });
 
-      window.addEventListener('pointermove', (e) => {
-        if (!isDragging) return;
-        const physicalDx = e.clientX - prevX;
-        const physicalDy = e.clientY - prevY;
-        const {x:dx,y:dy} = landscape.delta(physicalDx,physicalDy);
-        prevX = e.clientX;
-        prevY = e.clientY;
-
-        state.cameraTheta -= dx * 0.0065;
-        state.cameraPhi = Math.max(0.2, Math.min(Math.PI - 0.2, state.cameraPhi - dy * 0.0065));
-      });
-
-      window.addEventListener('pointerup', (e) => {
-        if (!isDragging) return;
-        isDragging = false;
-        const moveDist = Math.hypot(e.clientX - downX, e.clientY - downY);
-        const elapsed = performance.now() - downTime;
-
-        // If user clicked/tapped without dragging, fire missile at that point on Earth
-        if (moveDist < 7 && elapsed < 450 && e.target === renderer.domElement) {
-          fireMissileAtRay(e.clientX, e.clientY);
+      window.GodSmashGlobeGestures.mount({
+        target: renderer.domElement,
+        moveTarget: window,
+        onTap: (x,y) => fireMissileAtRay(x,y),
+        onDrag: (physicalDx,physicalDy) => {
+          const {x:dx,y:dy} = landscape.delta(physicalDx,physicalDy);
+          state.cameraTheta -= dx * 0.0065;
+          state.cameraPhi = Math.max(0.2, Math.min(Math.PI - 0.2, state.cameraPhi - dy * 0.0065));
+        },
+        onPinch: scale => {
+          state.targetCameraDistance = Math.max(16,Math.min(52,
+            state.targetCameraDistance / scale
+          ));
         }
       });
 
