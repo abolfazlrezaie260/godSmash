@@ -125,8 +125,10 @@
     group.name='Surface-bound multi-stage planetary impact';
     const span=clamp(Number(size)||1,0.4,sphereRadius*0.48);
     const quality=lowQuality?'low':'high';
-    const hot=weapon.fireColor||style.heat;
-    const outer=weapon.plasmaColor||style.outer;
+    // Ground-impact combustion/soot uses the planet's physical palette.
+    // Fictional purple/teal missile exhaust should not tint the explosion.
+    const hot=style.heat;
+    const outer=style.outer;
     const fireMat=new THREE.ShaderMaterial({
       uniforms:{
         uTime:{value:0},uAlpha:{value:0},
