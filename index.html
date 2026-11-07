@@ -17,6 +17,7 @@
 <script src="./src/render/continent-projectiles.js"></script>
 <script src="./src/render/planet-damage.js"></script>
 <script src="./src/simulation/missile-physics.js"></script>
+<script src="./src/simulation/score-system.js"></script>
 <script src="./src/simulation/geography.js"></script>
 <script src="./src/simulation/drone-swarm.js"></script>
 <script src="./src/simulation/harvesters.js"></script>
@@ -516,6 +517,116 @@
     @media (prefers-reduced-motion: reduce) {
       .planet-choice, #btn-speed-toggle { transition: none; }
     }
+
+    /* Mission debrief — compact orbital command interface. */
+    #score-modal[hidden] { display:none; }
+    .score-overlay {
+      position:fixed; inset:0; z-index:85; display:grid; place-items:center;
+      padding:12px; background:rgba(1,5,16,.88);
+      backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    }
+    .score-sheet {
+      position:relative; width:min(680px,100%);
+      max-height:calc(100dvh - 24px); overflow-y:auto; overscroll-behavior:contain;
+      border:1px solid rgba(251,146,60,.38); border-radius:22px;
+      background:radial-gradient(ellipse at 90% 2%,rgba(154,52,18,.22),transparent 43%),
+        radial-gradient(ellipse at 0 85%,rgba(14,116,144,.13),transparent 45%),#090f1f;
+      color:#f8fafc; box-shadow:0 25px 100px #000c, inset 0 1px rgba(255,255,255,.05);
+      padding:20px; scrollbar-color:#475569 transparent; touch-action:pan-y;
+    }
+    .score-sheet::before {
+      content:''; position:absolute; top:0; right:18px; left:18px; height:2px;
+      background:linear-gradient(90deg,transparent,#fb923c,#22d3ee,transparent);
+      pointer-events:none;
+    }
+    .score-topline {display:flex;justify-content:space-between;align-items:center;gap:10px;}
+    .score-eyebrow {font:700 10px Inter,monospace;letter-spacing:.18em;color:#fb923c;direction:ltr;}
+    .score-hero {display:flex;align-items:center;justify-content:space-between;gap:16px;margin:14px 0 17px;}
+    .score-kicker {font-size:11px;letter-spacing:.02em;color:#94a3b8;margin-bottom:4px;}
+    #score-title {font-size:clamp(18px,3vw,25px);font-weight:800;line-height:1.4;color:#fff7ed;}
+    .score-subtitle {font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.7;}
+    .score-grade {
+      display:flex; flex-direction:column;align-items:center;justify-content:center;
+      flex-shrink:0; width:91px; height:91px; border-radius:20px;
+      background:linear-gradient(135deg,rgba(234,88,12,.30),rgba(15,23,42,.95));
+      border:1px solid rgba(251,146,60,.5);box-shadow:0 0 32px rgba(234,88,12,.14);
+    }
+    #score-grade {font:800 44px Inter,monospace;line-height:1;color:#fdba74;}
+    .score-grade small {font:700 9px Inter,monospace;letter-spacing:.12em;color:#94a3b8;margin-top:5px;}
+    .score-points {
+      display:flex;justify-content:space-between;align-items:center;gap:12px;
+      border:1px solid rgba(251,146,60,.28);
+      border-radius:16px;padding:13px 17px;
+      background:linear-gradient(100deg,rgba(124,45,18,.24),rgba(15,23,42,.7));
+    }
+    .score-points-value {font:800 clamp(25px,4vw,37px) Inter,'Vazirmatn',sans-serif;color:#ffcb8b;direction:ltr;}
+    .score-hint {color:#94a3b8;font-size:10px;line-height:1.7;}
+    .score-stats {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0 16px;}
+    .score-stat {padding:10px 7px;text-align:center;background:rgba(15,23,42,.76);
+      border:1px solid #26344a;border-radius:12px;min-width:0;}
+    .score-stat strong {display:block;font:700 16px Inter,'Vazirmatn',sans-serif;
+      color:#e2e8f0;margin-bottom:4px;}
+    .score-stat span {font-size:10px;color:#94a3b8;}
+    .score-section-head {display:flex;justify-content:space-between;align-items:center;
+      margin:14px 0 8px;gap:8px;}
+    .score-section-head h3 {font-size:12px;font-weight:800;color:#bae6fd;}
+    .score-section-head span {font-size:10px;color:#64748b;}
+    .score-weapon-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+    .score-weapon {display:flex;align-items:center;gap:9px;padding:9px 10px;min-width:0;
+      background:rgba(18,29,49,.9);border:1px solid #334155;border-radius:12px;}
+    .score-weapon-icon {width:32px;height:32px;flex-shrink:0;display:grid;place-items:center;
+      background:rgba(251,146,60,.12);border-radius:9px;font-size:17px;}
+    .score-weapon-name {font-size:11px;font-weight:800;overflow:hidden;white-space:nowrap;
+      text-overflow:ellipsis;}
+    .score-weapon-meta {font-size:10px;color:#94a3b8;margin-top:3px;}
+    .score-breakdown {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;}
+    .score-part {padding:7px 5px;border:1px solid #24334a;border-radius:10px;
+      background:rgba(15,23,42,.45);text-align:center;}
+    .score-part small {display:block;font-size:9px;color:#94a3b8;margin-bottom:4px;}
+    .score-part b {font:700 13px Inter,'Vazirmatn',sans-serif;color:#67e8f9;}
+    .score-best-list {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
+    .score-best-item {background:rgba(8,22,37,.75);border:1px solid #25354c;
+      border-radius:11px;padding:9px 7px;text-align:center;min-width:0;}
+    .score-best-item.is-current {border-color:rgba(251,146,60,.6);}
+    .score-best-item span {display:block;font-size:10px;color:#cbd5e1;}
+    .score-best-item strong {display:block;font:700 14px Inter,'Vazirmatn',sans-serif;
+      color:#fdba74;margin:5px 0;}
+    .score-best-item small {display:block;font-size:9px;color:#64748b;}
+    .score-actions {display:flex;gap:8px;margin-top:17px;padding-top:13px;
+      border-top:1px solid rgba(148,163,184,.17);}
+    .score-actions button {flex:1;min-height:44px;border-radius:11px;padding:8px;
+      font-size:12px;font-weight:800;}
+    .score-actions .score-retry {background:#ea580c;color:#fff;border:1px solid #fb923c;}
+    .score-actions .score-planets {background:#13243c;color:#bae6fd;border:1px solid #285276;}
+    .score-chip {min-height:42px;display:flex;align-items:center;gap:6px;white-space:nowrap;
+      color:#fdba74;font-size:11px;font-weight:800;}
+    .score-chip strong {font:800 13px Inter,'Vazirmatn',sans-serif;color:#fff7ed;}
+    .score-chip .score-chip-count {font-size:10px;font-weight:500;color:#94a3b8;}
+    #btn-fire-center:disabled {cursor:not-allowed;transform:none;animation:none;}
+    #score-modal button:focus-visible,#btn-scores:focus-visible {
+      outline:2px solid #67e8f9;outline-offset:2px;
+    }
+    @media (max-width:620px) {
+      .score-sheet {padding:14px;border-radius:16px;}
+      .score-hero {margin:9px 0 12px;}
+      .score-grade {width:65px;height:65px;border-radius:15px;}
+      #score-grade {font-size:32px;}
+      .score-stats {gap:5px;margin:9px 0 12px;}
+      .score-stat {padding:8px 3px;}
+      .score-stat strong {font-size:13px;}
+      .score-stat span {font-size:9px;}
+      .score-chip .score-chip-count {display:none;}
+    }
+    @media (max-height:510px) {
+      .score-sheet {padding:12px 16px;}
+      .score-hero {margin:6px 0;}
+      .score-grade {width:57px;height:57px;}
+      #score-grade {font-size:28px;}
+      .score-points {padding:8px 12px;}
+      .score-points-value {font-size:26px;}
+      .score-stat {padding:7px 4px;}
+      .score-stats {margin:8px 0;}
+    }
   </style>
 </head>
 <body class="relative w-full h-full overflow-hidden select-none">
@@ -595,6 +706,14 @@
         <span id="impact-toast-text">اصابت ثبت شد</span>
       </div>
 
+
+      <button id="btn-scores" type="button" class="hud-btn score-chip glass-panel rounded-xl px-3 py-2"
+        aria-haspopup="dialog" aria-controls="score-modal" aria-expanded="false"
+        title="امتیازها و رکوردهای نابودی سیاره">
+        <span aria-hidden="true">✦</span><span>امتیاز</span>
+        <strong id="score-total" class="num-mono" dir="ltr">0</strong>
+        <span id="score-completions" class="score-chip-count">۰ عملیات</span>
+      </button>
       <button id="btn-defenses" type="button" class="hud-btn glass-panel rounded-xl px-3 py-2 text-xs font-semibold text-cyan-300" aria-haspopup="dialog" aria-controls="defense-modal" aria-expanded="false" title="مدیریت دفاع سیاره‌ای">
         <span>دفاع: <b id="defense-status">بدون ماهواره</b></span>
       </button>
@@ -682,6 +801,58 @@
         <h3 class="font-bold text-sm text-cyan-200">انتخاب قاره از زمین</h3>
         <p class="text-[11px] text-slate-400 my-2">قاره را انتخاب کنید، سپس کشور مبدأ و مقصد را روی نقشه زمین تعیین کنید.</p>
         <div id="continent-options" class="continent-grid" role="group" aria-label="قاره‌های زمین"></div>
+      </div>
+    </section>
+  </div>
+
+
+  <!-- Planet completion mission debrief and persistent personal records. -->
+  <div id="score-modal" class="score-overlay" hidden>
+    <section class="score-sheet" role="dialog" aria-modal="true" tabindex="-1"
+      aria-labelledby="score-title" aria-describedby="score-subtitle" dir="rtl">
+      <div class="score-topline">
+        <span class="score-eyebrow">GODSMASH / MISSION DEBRIEF</span>
+        <button id="score-close" type="button" class="hud-btn rounded-lg border border-slate-600 text-slate-300 px-3 py-1.5 min-w-[40px] min-h-[40px]"
+          aria-label="بستن گزارش عملیات">✕</button>
+      </div>
+      <div class="score-hero">
+        <div>
+          <p id="score-kicker" class="score-kicker">گزارش عملیات تخریب</p>
+          <h2 id="score-title">سیاره نابود شد</h2>
+          <p id="score-subtitle" class="score-subtitle">خلاصهٔ عملیات و آمار حمله‌ها</p>
+        </div>
+        <div class="score-grade" aria-label="رتبه عملیات">
+          <span id="score-grade" dir="ltr">—</span>
+          <small>RANK</small>
+        </div>
+      </div>
+      <div class="score-points">
+        <div>
+          <div class="score-hint">امتیاز این عملیات</div>
+          <strong id="score-earned" class="score-points-value">۰</strong>
+        </div>
+        <div class="text-left">
+          <div id="score-new-record" class="text-amber-300 text-[11px] font-bold" hidden>✦ رکورد جدید این سیاره</div>
+          <div class="score-hint">مجموع امتیازها</div>
+          <strong id="score-lifetime" class="num-mono text-lg font-bold text-white" dir="ltr">0</strong>
+          <div id="score-intercepted" class="score-hint">۰ رهگیری دفاعی</div>
+        </div>
+      </div>
+      <div class="score-stats">
+        <div class="score-stat"><strong id="score-duration" dir="ltr">00:00</strong><span>زمان عملیات</span></div>
+        <div class="score-stat"><strong id="score-launches">۰</strong><span>حمله / پرتاب</span></div>
+        <div class="score-stat"><strong id="score-hits">۰</strong><span>اصابت / برداشت</span></div>
+        <div class="score-stat"><strong id="score-breaches">۰</strong><span>شکاف پوسته</span></div>
+      </div>
+      <div class="score-section-head"><h3>تسلیحات استفاده‌شده</h3><span>پرتاب · اصابت</span></div>
+      <div id="score-weapons" class="score-weapon-list" aria-label="فهرست سلاح‌های عملیات"></div>
+      <div class="score-section-head"><h3>جزئیات محاسبه امتیاز</h3><span>سرعت و کارایی بیشتر، امتیاز بالاتر</span></div>
+      <div id="score-parts" class="score-breakdown" aria-label="سهم هر بخش از امتیاز"></div>
+      <div class="score-section-head"><h3>بهترین رکورد هر سیاره</h3><span>ذخیره‌شده در همین مرورگر</span></div>
+      <div id="score-bests" class="score-best-list"></div>
+      <div class="score-actions">
+        <button id="score-retry" type="button" class="hud-btn score-retry">↺ بازسازی و شروع دوباره</button>
+        <button id="score-planets" type="button" class="hud-btn score-planets">◉ انتخاب سیاره دیگر</button>
       </div>
     </section>
   </div>
@@ -901,6 +1072,7 @@
       let generation = 0;
       const EARTH_RADIUS = 10;
       const INITIAL_POPULATION = 8000000000;
+      const scores = window.GodSmashScores.createSystem();
 
       const state = {
         population: INITIAL_POPULATION,
@@ -928,6 +1100,16 @@
       const statusDotEl = document.getElementById('planet-status-dot');
       const toastEl = document.getElementById('impact-toast');
       const toastTextEl = document.getElementById('impact-toast-text');
+      const scoreModal = document.getElementById('score-modal');
+      const scoreButton = document.getElementById('btn-scores');
+      const scoreClose = document.getElementById('score-close');
+      const scoreRetry = document.getElementById('score-retry');
+      const scorePlanets = document.getElementById('score-planets');
+      const scoreEarned = document.getElementById('score-earned');
+      const scoreLifetime = document.getElementById('score-lifetime');
+      const scoreWeapons = document.getElementById('score-weapons');
+      const scoreParts = document.getElementById('score-parts');
+      const scoreBests = document.getElementById('score-bests');
       const btnAutoRotate = document.getElementById('btn-autorotate');
       const autoRotateLabel = document.getElementById('autorotate-label');
       const btnAudio = document.getElementById('btn-audio');
@@ -958,6 +1140,128 @@
           toastEl.classList.remove('flex');
         }, 2800);
       }
+
+
+      // Results are rendered exclusively with textContent so stored score data
+      // can never inject markup into the player's HUD.
+      const scoreNum = n => Math.round(n).toLocaleString('fa-IR');
+      function scoreTime(seconds) {
+        const whole = Math.max(0,Math.floor(seconds || 0));
+        return String(Math.floor(whole/60)).padStart(2,'0')+':' +
+          String(whole%60).padStart(2,'0');
+      }
+      function updateScoreHUD() {
+        const record = scores.snapshot();
+        document.getElementById('score-total').textContent =
+          record.totalScore.toLocaleString('en-US');
+        document.getElementById('score-completions').textContent =
+          scoreNum(record.completions)+' عملیات';
+      }
+      function scoreRow(tag, className, value) {
+        const el = document.createElement(tag);
+        el.className = className;
+        if(value !== undefined)el.textContent = value;
+        return el;
+      }
+      function fillScoreModal(report, isFreshResult) {
+        const all = scores.snapshot();
+        document.getElementById('score-kicker').textContent = isFreshResult
+          ? 'عملیات با موفقیت به پایان رسید'
+          : 'بایگانی رکوردهای عملیات';
+        document.getElementById('score-title').textContent = report
+          ? 'سیاره ' + report.planetNameFa + ' متلاشی شد'
+          : 'گزارش عملیات GodSmash';
+        document.getElementById('score-subtitle').textContent = report
+          ? (isFreshResult ? 'هسته نابود شد؛ امتیاز عملیات ثبت شد.'
+            : 'آخرین نتیجهٔ ثبت‌شده در این مرورگر')
+          : 'هنوز سیاره‌ای به‌طور کامل نابود نشده است.';
+        document.getElementById('score-grade').textContent = report ? report.grade : '—';
+        scoreEarned.textContent = report ? report.score.toLocaleString('en-US') : '0';
+        scoreLifetime.textContent = all.totalScore.toLocaleString('en-US');
+        document.getElementById('score-new-record').hidden =
+          !isFreshResult || !report?.isNewBest;
+        document.getElementById('score-duration').textContent =
+          report ? scoreTime(report.durationSeconds) : '00:00';
+        document.getElementById('score-launches').textContent = scoreNum(report?.launches || 0);
+        document.getElementById('score-hits').textContent = scoreNum(report?.impacts || 0);
+        document.getElementById('score-breaches').textContent = scoreNum(report?.breaches || 0);
+        document.getElementById('score-intercepted').textContent =
+          scoreNum(report?.interceptions || 0)+' رهگیری دفاعی';
+
+        const weaponItems = (report?.weapons || []).map(w => {
+          const el = scoreRow('div','score-weapon');
+          const icon = scoreRow('span','score-weapon-icon',w.icon || '●');
+          icon.setAttribute('aria-hidden','true');
+          const copy = scoreRow('div','min-w-0 flex-1');
+          copy.append(scoreRow('div','score-weapon-name',w.nameFa),
+            scoreRow('div','score-weapon-meta',
+              'پرتاب: '+scoreNum(w.launched)+' · اصابت: '+scoreNum(w.hit)));
+          el.append(icon,copy);
+          return el;
+        });
+        if (!weaponItems.length) weaponItems.push(
+          scoreRow('p','text-[11px] text-slate-500 col-span-2',
+            'پس از اولین حمله، سلاح‌های استفاده‌شده اینجا نمایش داده می‌شوند.'));
+        scoreWeapons.replaceChildren(...weaponItems);
+        const segments = [
+          ['امتیاز پایه',report?.basePoints || 0],
+          ['پاداش سرعت',report?.timeBonus || 0],
+          ['کارایی حملات',report?.efficiencyBonus || 0],
+          ['تنوع سلاح',report?.varietyBonus || 0]
+        ];
+        scoreParts.replaceChildren(...segments.map(([label,points])=>{
+          const el=scoreRow('div','score-part');
+          el.append(scoreRow('small','',label),
+            scoreRow('b','num-mono',scoreNum(points)));
+          return el;
+        }));
+        scoreBests.replaceChildren(...catalog.listPlanets().map(p=>{
+          const best=all.bestByPlanet[p.id];
+          const row=scoreRow('div','score-best-item'+(p.id===planet.id?' is-current':''));
+          row.append(scoreRow('span','',p.nameFa),
+            scoreRow('strong','num-mono',best?best.score.toLocaleString('en-US'):'—'),
+            scoreRow('small','',best?scoreTime(best.durationSeconds):'بدون رکورد'));
+          return row;
+        }));
+      }
+      function closeScoreModal() {
+        if (scoreModal.hidden) return;
+        scoreModal.hidden = true;
+        scoreButton.setAttribute('aria-expanded','false');
+        document.getElementById('game-shell').style.touchAction = 'none';
+        scoreButton.focus();
+      }
+      function openScoreModal(report = null) {
+        fillScoreModal(report || scores.snapshot().history[0] || null,!!report);
+        scoreModal.hidden = false;
+        scoreButton.setAttribute('aria-expanded','true');
+        document.getElementById('game-shell').style.touchAction = 'auto';
+        scoreClose.focus();
+      }
+      scoreButton.addEventListener('click',()=>openScoreModal());
+      scoreClose.addEventListener('click',closeScoreModal);
+      scoreRetry.addEventListener('click',()=>{
+        closeScoreModal();
+        resetEarth();
+      });
+      scorePlanets.addEventListener('click',()=>{
+        closeScoreModal();
+        document.getElementById('btn-planet-picker').click();
+      });
+      scoreModal.addEventListener('click',e=>{
+        if(e.target===scoreModal)closeScoreModal();
+      });
+      scoreModal.addEventListener('keydown',e=>{
+        if(e.key==='Escape'){
+          e.preventDefault();closeScoreModal();
+        }else if(e.key==='Tab'){
+          const buttons=[...scoreModal.querySelectorAll('button:not(:disabled)')];
+          const first=buttons[0],last=buttons[buttons.length-1];
+          if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+          else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+        }
+      });
+      updateScoreHUD();
 
       function updateHUD() {
         popEl.textContent = Math.max(0, Math.round(state.population)).toLocaleString('en-US');
