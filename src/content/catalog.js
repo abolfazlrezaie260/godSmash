@@ -180,7 +180,7 @@
     shortLabel: 'شفق', kind: 'missile', icon: '🚀', visualProfile: 'aurora',
     blastRadius: 1.85, damage: 3.95, damageVariance: 0.9,
     casualties: 105000000, casualtiesVariance: 124000000,
-    flightPace: 0.24, interceptHealth: 3.15,
+    flightPace: 0.21, interceptHealth: 3.15,
     speed: 1.12, launchSpeed: 0.28, acceleration: 1.4,
     maxSpeed: 1.9, fuelDuration: 0.70, drag: 0.055,
     shake: 0.44, debrisCount: 21,
