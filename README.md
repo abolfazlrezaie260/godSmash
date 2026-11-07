@@ -43,6 +43,21 @@ The normal Earth-globe surface now retains the full **4K** bundled daytime textu
 
 NASA's imagery is used only for visualization; attribution: NASA Earth Observatory / Blue Marble Next Generation (see [NASA GIBS documentation](https://nasa-gibs.github.io/gibs-api-docs/)). The animated missiles are original fictional GodSmash assets; no third-party missile models or external 3D assets are loaded.
 
+## Mobile web build (Capacitor preparation)
+
+The game remains playable on GitHub Pages from the repository root. For the upcoming Android/iOS wrapper, Node.js **22+** provides a reproducible static web payload:
+
+```sh
+npm ci
+npm test
+npm run build
+npm run build:verify
+```
+
+The generated **`dist/`** folder contains `index.html`, `manifest.webmanifest`, `src/` and `assets/` while excluding tests, scripts and repository metadata. The build fails if a static local script, stylesheet or image reference in `index.html` is unresolved. It does not modify the website at the repository root.
+
+**Not yet a standalone offline app:** The current source HTML still pulls Tailwind, Three.js and fonts from external CDNs; [Issue #43](https://github.com/abolfazlrezaie260/godSmash/issues/43) will vendor these. Native Capacitor projects and device tests are tracked in #44 and later issues. See [mobile MVP and measurement plan](docs/mobile/README.md); no real-device performance numbers have been verified yet.
+
 ## Run locally
 
 No build step is required. From the repository root:
