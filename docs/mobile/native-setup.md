@@ -17,7 +17,8 @@ Application ID: `io.github.abolfazlrezaie260.godsmash`. Confirm this identifier 
 npm ci
 npm test
 npm run build
-npx cap sync
+npx cap sync android    # Linux, Windows or macOS
+# On macOS, also: npx cap sync ios
 ```
 
 The root GitHub Pages entrypoint remains untouched; native apps use `dist/`.
