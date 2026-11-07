@@ -110,9 +110,10 @@
       seeds[k+1]=0.62+((i*29)%43)/55;
     }
     const geometry=new THREE.BufferGeometry();
-    geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
-    geometry.setAttribute('aMotion',new THREE.BufferAttribute(motion,4));
-    geometry.setAttribute('aSeed',new THREE.BufferAttribute(seeds,2));
+    const Attribute=THREE.BufferAttribute||THREE.Float32BufferAttribute;
+    geometry.setAttribute('position',new Attribute(positions,3));
+    geometry.setAttribute('aMotion',new Attribute(motion,4));
+    geometry.setAttribute('aSeed',new Attribute(seeds,2));
     const pointScale=typeof window!=='undefined'
       ?clamp(window.innerHeight*(window.devicePixelRatio||1)*1.1,480,1200):700;
     const color=kind===0?'#313134':kind===1?style.dust:'#ff9a42';
