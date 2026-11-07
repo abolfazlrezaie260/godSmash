@@ -199,12 +199,12 @@
   });
 
   registerWeapon({
-    id: 'drone-swarm', nameFa: 'ازدحام پهپادها', subtitle: 'SWARM · 192–312 DRONES',
+    id: 'drone-swarm', nameFa: 'ازدحام پهپادها', subtitle: 'SWARM · 24–36 RETURNING DRONES',
     shortLabel: 'ازدحام', kind: 'swarm', icon: '◈', blastRadius: 0.54,
     damage: 1.35, damageVariance: 0.16,
     casualties: 6800000, casualtiesVariance: 2500000,
     speed: 0.9, flightPace: 0.32, interceptHealth: 2.5,
-    shake: 0, debrisCount: 1, swarmCount: 312,
+    shake: 0, debrisCount: 1, swarmCount: 36,
     fireColor: '#e0f2fe', plasmaColor: '#95a9be', waveColor: '#a1a1aa'
   });
 

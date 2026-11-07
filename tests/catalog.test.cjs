@@ -93,7 +93,7 @@ test('drone swarm is a distinct registered weapon with bounded clustered damage'
   const weapon=catalog.getWeapon('drone-swarm');
   assert.ok(weapon);
   assert.equal(weapon.kind,'swarm');
-  assert.equal(weapon.swarmCount,312);
+  assert.equal(weapon.swarmCount,36);
   assert.ok(weapon.blastRadius<1);
   assert.ok(weapon.damage>0 && weapon.damage<2);
 });

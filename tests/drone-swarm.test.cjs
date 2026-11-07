@@ -2,83 +2,129 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {createSwarm}=require('../src/simulation/drone-swarm.js');
 
-function run(count=192,scale=1){
-  const swarm=createSwarm({count,planetRadius:10,batchSize:12});
-  assert.equal(swarm.attack({x:1,y:0,z:0}),true);
+const mag=v=>Math.hypot(v.x,v.y,v.z);
+const dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
+function run(count=36,scale=1,target={x:1,y:0,z:0}){
+  const swarm=createSwarm({count,planetRadius:10,batchSize:6});
+  assert.equal(swarm.attack(target),true);
   const events=[];
   let wall=0;
-  while(swarm.getState().mode!=='spent' && wall<60){
-    swarm.step((1/60)*scale,e=>events.push({time:wall, ...e}));
+  let highestActive=0,lowestRadius=Infinity;
+  while(swarm.getState().mode==='attack'&&wall<30){
+    swarm.step((1/60)*scale,e=>events.push({time:wall,...e}));
+    for(const d of swarm.getDrones())if(d.visible){
+      highestActive=Math.max(highestActive,swarm.getState().active);
+      lowestRadius=Math.min(lowestRadius,mag(d.position));
+    }
     wall+=1/60;
   }
-  return {swarm,events,wall};
+  return {swarm,events,wall,highestActive,lowestRadius};
 }
 
-test('hundreds of drones visibly orbit without attacking until tapped',()=>{
-  const swarm=createSwarm({count:192,planetRadius:10,batchSize:12});
+test('selecting drone swarm does not scatter hundreds of drone silhouettes around the planet',()=>{
+  const swarm=createSwarm({count:36,planetRadius:10,batchSize:6});
   const drones=swarm.getDrones();
-  assert.equal(drones.length,192);
-  assert.ok(drones.every(d=>d.visible&&!d.done));
-  assert.equal(swarm.getState().mode,'orbit');
-  const original={...drones[25].position};
-  assert.ok(Math.hypot(...Object.values(original))>10);
-  assert.deepEqual(swarm.step(.1),[]);
-  assert.notDeepEqual(drones[25].position,original);
+  assert.equal(swarm.getState().mode,'ready');
+  assert.equal(drones.length,36);
+  assert.ok(drones.every(d=>!d.visible));
+  assert.equal(swarm.getState().active,0);
+  assert.deepEqual(swarm.step(1),[]);
   assert.equal(swarm.getState().impacts,0);
-  assert.ok(swarm.getDrones().every(d=>Math.hypot(...Object.values(d.position))>10));
   swarm.dispose();
-  assert.equal(swarm.getDrones().length,0);
   assert.equal(swarm.getState().mode,'spent');
+  assert.equal(swarm.getDrones().length,0);
 });
 
-test('each 192/312-unit attack converges into continuous staggered impacts',()=>{
-  for(const count of [192,312]){
-    const {swarm,events,wall}=run(count);
-    assert.equal(swarm.getState().alive,0);
-    assert.equal(events.length,count/12);
-    assert.equal(swarm.getState().impacts,count/12);
+test('each attack arrives in compact waves, attacks the selected point, then returns and hides',()=>{
+  for(const count of [24,36]){
+    const {swarm,events,wall,highestActive,lowestRadius}=run(count);
+    const state=swarm.getState();
+    assert.equal(state.mode,'ready','fleet is reusable after returning');
+    assert.equal(state.active,0,'no drones idle in orbit after a sortie');
+    assert.ok(swarm.getDrones().every(d=>d.done&&!d.visible&&d.struck));
+    assert.equal(events.length,count/6);
+    assert.equal(state.impacts,count/6);
     assert.equal(events.reduce((n,e)=>n+e.count,0),count);
-    assert.ok(events[0].time>2.5,'first impact should be visible only after an approach');
-    assert.ok(events.at(-1).time-events[0].time>3,
-      'cascading damage should unfold over many seconds');
-    assert.ok(wall>6&&wall<13,'swarm finishes in bounded game time');
-    assert.ok(events.every(e=>e.count===12&&Math.abs(Math.hypot(...Object.values(e.normal))-1)<1e-7));
-    assert.ok(events.every(e=>Math.hypot(...Object.values(e.position))>9.99));
-    assert.equal(swarm.attack({x:0,y:1,z:0}),false,'spent swarm must be replaced');
+    assert.ok(events[0].time>2,'arrival must be visible before impact');
+    assert.ok(events.at(-1).time-events[0].time>=1.3,
+      'attack waves should cascade rather than all explode simultaneously');
+    assert.ok(wall>6&&wall<11,'attack and return finish in bounded game time');
+    assert.ok(highestActive>0&&highestActive<=count);
+    assert.ok(lowestRadius>10,'drones fly above the surface and do not crash');
+    assert.ok(events.every(e=>e.count===6&&Math.abs(mag(e.normal)-1)<1e-7));
+    assert.ok(events.every(e=>e.normal.x>.999&&Math.abs(mag(e.position)-10)<1e-7));
     swarm.dispose();
   }
 });
 
-test('second click redirects every surviving drone while mid-flight',()=>{
-  const swarm=createSwarm({count:192,planetRadius:10});
-  swarm.attack({x:1,y:0,z:0});
-  for(let i=0;i<47;i++)swarm.step(.05);
-  const before={...swarm.getDrones()[70].position};
-  assert.equal(swarm.attack({x:-1,y:0,z:0}),true);
-  assert.deepEqual(swarm.getState().target,{x:-1,y:0,z:0});
-  for(let i=0;i<12;i++)swarm.step(.05);
-  assert.notDeepEqual(swarm.getDrones()[70].position,before);
-  const hits=[];
-  for(let i=0;i<260&&swarm.getState().mode!=='spent';i++)swarm.step(.05,e=>hits.push(e));
-  assert.ok(hits.length>0);
-  assert.ok(hits.every(e=>e.normal.x<-.99),'remaining swarm moved toward changed target');
-  assert.equal(swarm.getState().alive,0);
+test('drone strike actually flies back toward the launch corridor after contact',()=>{
+  const swarm=createSwarm({count:24,planetRadius:10,batchSize:6});
+  swarm.attack({x:0,y:0,z:1});
+  const first=swarm.getDrones()[0];
+  const start={...first.start};
+  for(let i=0;i<75;i++)swarm.step(.04);
+  assert.equal(first.struck,true);
+  assert.ok(first.visible,'returning drones remain visible after their attack');
+  assert.ok(mag(first.position)>10.1,'drone has begun to climb away');
+  assert.ok(mag(first.position)-mag(first.strike)>.05);
+  assert.ok(dot(first.position,start)/mag(first.position)/mag(start)>0.90,
+    'drone is returning toward its local orbital corridor');
+  for(let i=0;i<220&&swarm.getState().mode==='attack';i++)swarm.step(.05);
+  assert.equal(swarm.getState().mode,'ready');
+  assert.equal(swarm.getState().active,0);
+  assert.ok(mag(first.position)>12,'returned drone ends away from the surface');
 });
 
-test('0.5x and 2x speed settings drive the same deterministic simulation',()=>{
-  const slow=run(192,.5),normal=run(192,1),fast=run(192,2);
+test('retargeting an active sortie cancels the old target and attacks the new point',()=>{
+  const swarm=createSwarm({count:36,planetRadius:10,batchSize:6});
+  swarm.attack({x:1,y:0,z:0});
+  for(let i=0;i<40;i++)swarm.step(.05);
+  assert.equal(swarm.getState().impacts,0);
+  assert.equal(swarm.attack({x:-1,y:0,z:0}),true);
+  assert.deepEqual(swarm.getState().target,{x:-1,y:0,z:0});
+  const hits=[];
+  for(let i=0;i<240&&swarm.getState().mode==='attack';i++){
+    swarm.step(.05,e=>hits.push(e));
+    for(const d of swarm.getDrones())if(d.visible){
+      assert.ok(dot(d.position,{x:-1,y:0,z:0})>9,
+        'retarget must not send drones through the planet');
+    }
+  }
+  assert.equal(swarm.getState().mode,'ready');
+  assert.equal(hits.length,6);
+  assert.ok(hits.every(e=>e.normal.x<-.999));
+});
+
+test('returned drones can launch another complete sortie and damage again',()=>{
+  const {swarm,events}=run(24);
+  assert.equal(events.length,4);
+  assert.equal(swarm.attack({x:0,y:1,z:0}),true);
+  const second=[];
+  for(let i=0;i<240&&swarm.getState().mode==='attack';i++)
+    swarm.step(.05,e=>second.push(e));
+  assert.equal(second.length,4,'wave completion flags reset between sorties');
+  assert.ok(second.every(e=>e.normal.y>.999));
+  assert.equal(swarm.getState().impacts,8);
+  assert.equal(swarm.getState().sorties,2);
+  assert.equal(swarm.getState().active,0);
+});
+
+test('0.5x and 2x game speed preserve deterministic attack and return timing',()=>{
+  const slow=run(24,.5),normal=run(24,1),fast=run(24,2);
   assert.ok(Math.abs(slow.wall/normal.wall-2)<.04);
   assert.ok(Math.abs(fast.wall/normal.wall-.5)<.04);
-  for(const r of [slow,normal,fast])
-    assert.equal(r.events.reduce((n,e)=>n+e.count,0),192);
+  for(const result of [slow,normal,fast])
+    assert.equal(result.events.reduce((n,e)=>n+e.count,0),24);
 });
 
 test('invalid counts, deltas and target directions are rejected',()=>{
   assert.throws(()=>createSwarm({count:361}),RangeError);
   assert.throws(()=>createSwarm({count:0}),RangeError);
-  assert.throws(()=>createSwarm({count:192,batchSize:300}),RangeError);
-  const swarm=createSwarm({count:192});
+  assert.throws(()=>createSwarm({count:24,batchSize:30}),RangeError);
+  const swarm=createSwarm({count:24});
   assert.throws(()=>swarm.attack({x:0,y:0,z:0}),RangeError);
   assert.throws(()=>swarm.attack({x:Infinity,y:0,z:0}),TypeError);
   assert.throws(()=>swarm.step(-.1),TypeError);
+  swarm.dispose();
+  assert.equal(swarm.attack({x:1,y:0,z:0}),false);
 });
