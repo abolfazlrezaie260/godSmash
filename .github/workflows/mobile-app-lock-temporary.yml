@@ -1,0 +1,18 @@
+name: Temporary app plugin lockfile
+on:
+  push:
+    branches: [mobile/49-app-lifecycle]
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regenerate lockfile after adding official app plugin
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          echo 'GODSMASH_APP_LOCK_BEGIN'
+          base64 -w 120 package-lock.json
+          echo 'GODSMASH_APP_LOCK_END'
