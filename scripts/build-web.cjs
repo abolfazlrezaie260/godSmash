@@ -118,7 +118,7 @@ function verifyWeb(webDir, options = {}) {
     }
     const fontsCss = fs.readFileSync(path.join(root,'vendor/fonts.css'),'utf8');
     let fontCount = 0;
-    const fontSources = /url\(["']?\.\/fonts\/([^"')]+)\)/g;
+    const fontSources = /url\(["']?\.\/fonts\/([^"')]+)["']?\)/g;
     for (const found of fontsCss.matchAll(fontSources)) {
       const file = path.resolve(root,'vendor','fonts',found[1]);
       if (!file.startsWith(path.join(root,'vendor','fonts') + path.sep) ||
