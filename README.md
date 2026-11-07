@@ -28,6 +28,12 @@ The map uses approximate country markers and simplified boundaries, not targetin
 
 Country polygon data in `assets/data/countries-110m.json` is derived from [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/) (public domain). It is intentionally bundled locally to avoid dependence on a map API. Natural Earth displays its chosen de facto boundaries and may differ from other political maps.
 
+## Photorealistic Moon
+
+The Moon uses the **original NASA LRO 2025 color mosaic (4096×2048)** instead of generated cartoon crater spots. Its `moon_4096.jpg` albedo map and `moon_height_1024.jpg` LOLA relief preview are committed locally in `assets/textures/moon/` and served with the game; no image CDN is needed for ordinary play. The height image supplies subtle surface bump detail and lunar illumination is matte and neutral rather than blue. Craters and scorch damage are still painted into the same mutable surface canvas, so impacts continue to leave visible scars. Local images are loaded first; optional online sources and a procedural fallback are available in incomplete/offline copies.
+
+Source and reproduction details: [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/) and [lunar asset credits](assets/textures/moon/SOURCES.md). The original 4K JPEG is made in the repository using `scripts/vendor_nasa_moon.py`.
+
 ## Visual quality
 
 In the aerial map, the missile renderer shares the SVG's **top-left screen coordinate system** (including the inverted WebGL Y axis). Rocket models are **scaled to both screen size and the full selected country-to-country route** (with a small per-weapon-size adjustment), and their native +Z nose axis aligns with the actual movement direction. Roll is applied only around the model's own long axis, so the rocket remains pointed toward its destination. Explosion rings use **pixel-bounded radii and non-scaling outlines**, preventing large white discs when zooming into a country.
