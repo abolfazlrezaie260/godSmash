@@ -1,0 +1,11 @@
+# Generated web assets and local dependencies
+dist/
+.godsmash-dist-stage-*/
+node_modules/
+.DS_Store
+# Native build outputs (platform projects will be tracked in #44)
+android/.gradle/
+android/local.properties
+android/**/build/
+ios/Pods/
+ios/DerivedData/
