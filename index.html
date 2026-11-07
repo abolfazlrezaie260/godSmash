@@ -1188,7 +1188,7 @@
         document.getElementById('score-intercepted').textContent =
           scoreNum(report?.interceptions || 0)+' رهگیری دفاعی';
 
-        const weaponItems = (report?.weapons || []).map(w => {
+        const weaponItems = (Array.isArray(report?.weapons) ? report.weapons : []).map(w => {
           const el = scoreRow('div','score-weapon');
           const icon = scoreRow('span','score-weapon-icon',w.icon || '●');
           icon.setAttribute('aria-hidden','true');
