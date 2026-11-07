@@ -173,3 +173,16 @@ test('Mars terrain material, thin atmosphere and relief are wired without affect
   assert.match(html, /uniform float rimStrength/);
   assert.match(match[1], /window\.GodSmashRealEarth\.configure/);
 });
+
+
+test('shatter cancels in-flight salvos and blocks further impacts in the same frame', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script);
+  assert.match(script, /function triggerNuclearDetonation\([\s\S]*?if \(state\.shattered\) return;/);
+  assert.match(script, /function triggerPlanetaryShatter\(\)\s*\{[\s\S]*?generation\+\+;/);
+  assert.match(script, /for \(const missile of activeMissiles\.splice\(0\)\) removeMissile\(missile\);/);
+  assert.match(script, /for \(const effect of activeExplosions\.splice\(0\)\)/);
+  assert.match(script, /if\(state\.shattered\)break;/);
+  assert.match(script, /btnFireCenter\.disabled = state\.shattered/);
+});
