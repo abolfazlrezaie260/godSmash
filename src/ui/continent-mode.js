@@ -242,7 +242,13 @@
         '&width='+resolution+'&height='+resolution;
     }
     function updateImageryTiles() {
-      if (!imageryEnabled || !imageryLayer || !continentId) return;
+      if (!imageryLayer || !continentId) return;
+      if (!imageryEnabled || root.navigator?.onLine === false) {
+        // The committed 4K Earth atlas remains underneath this optional layer.
+        for (const tile of imageryTiles.values()) tile.remove();
+        imageryTiles.clear();
+        return;
+      }
       const spans=[12,20,30,45,60,90];
       const span=spans.find(n => Math.ceil(view.w/n+2)*Math.ceil(view.h/n+2)<=32) || 90;
       const active=new Set();
@@ -267,7 +273,7 @@
               'data-imagery-source':'NASA-GIBS-BlueMarble'
             });
             // Do not cover the fallback if the service is unavailable.
-            tile.addEventListener('error',()=>tile.remove());
+            tile.addEventListener('error',()=>{tile.remove();imageryTiles.delete(key);});
             imageryTiles.set(key,tile);
           }
           if(!tile.parentNode)imageryLayer.appendChild(tile);
