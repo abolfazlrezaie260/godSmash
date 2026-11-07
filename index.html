@@ -2403,7 +2403,10 @@
         // getBoundingClientRect() is transformed in CSS-rotated portrait mode.
         // offsetHeight always measures the actual logical landscape footer.
         const height = Math.ceil(footerControls.offsetHeight);
-        document.documentElement.style.setProperty('--footer-clearance', (height + 24) + 'px');
+        const bottom = Math.max(0, Math.ceil(
+          parseFloat(window.getComputedStyle(footerControls).bottom) || 0
+        ));
+        document.documentElement.style.setProperty('--footer-clearance', (height + bottom + 12) + 'px');
       }
       if (typeof ResizeObserver !== 'undefined') {
         new ResizeObserver(positionWeaponDock).observe(footerControls);
