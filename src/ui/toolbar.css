@@ -221,3 +221,32 @@
   #game-shell .game-control-bar button { min-height: 44px; }
   .utility-trigger { min-height: 44px; }
 }
+
+
+/* In-app exit sheet used only after closing gameplay overlays. */
+#app-exit-dialog[hidden] { display: none !important; }
+.app-exit-backdrop {
+  position: fixed; inset: 0; z-index: 110;
+  display: grid; place-items: center;
+  background: rgba(2, 6, 23, .88); backdrop-filter: blur(8px);
+  padding: max(14px, env(safe-area-inset-top, 0px))
+    max(14px, env(safe-area-inset-right, 0px))
+    max(14px, env(safe-area-inset-bottom, 0px))
+    max(14px, env(safe-area-inset-left, 0px));
+}
+.app-exit-card {
+  width: min(340px, 100%); padding: 23px;
+  border: 1px solid rgba(251, 146, 60, .38); border-radius: 18px;
+  background: #101b2f; box-shadow: 0 24px 70px #000c;
+  text-align: right;
+}
+.app-exit-card h2 { color: #ffedd5; font-size: 17px; font-weight: 800; }
+.app-exit-card p { color: #94a3b8; font-size: 12px; line-height: 1.75; margin-top: 9px; }
+.app-exit-actions { display: flex; gap: 9px; margin-top: 18px; }
+.app-exit-actions button {
+  flex: 1; min-height: 44px; padding: 8px;
+  font-size: 12px; font-weight: 800; border-radius: 10px;
+}
+#app-exit-cancel { background: #1e293b; border: 1px solid #475569; color: #e2e8f0; }
+#app-exit-confirm { background: #c2410c; border: 1px solid #fb923c; color: #fff7ed; }
+.app-exit-actions button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
