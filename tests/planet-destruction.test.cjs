@@ -67,6 +67,7 @@ function globe(radius=10,longitude=48,latitude=24) {
 const THREE = {
   Vector3, Color, Group:Node, Mesh:Node,
   SphereGeometry:class extends Geometry {},
+  Points:Node, BufferAttribute:BufferAttribute, NormalBlending:2,
   BufferGeometry:Geometry, Float32BufferAttribute:BufferAttribute,
   MeshStandardMaterial:Material, MeshBasicMaterial:Material,
   DoubleSide:2, AdditiveBlending:1,
@@ -143,8 +144,9 @@ test('blast factory animates and safely disposes of all unique resources',()=>{
   assert.ok(shaderFire.uniforms.uTime);
   assert.ok(shaderFire.fragmentShader.includes('fbm'), 'fireball uses a turbulent procedural shader');
   assert.doesNotThrow(()=>eff.update(0.5));
-  assert.ok(eff.group.children[2].material.uniforms.uOpacity.value > 0,
-    'later frames retain an ash cloud after the initial flash');
+  const clouds=eff.group.children.find(child=>child.name==='Cinematic impact GPU particle layers');
+  assert.ok(clouds && clouds.children.some(layer=>layer.material.uniforms.uOpacity.value>0),
+    'later frames retain a GPU ash cloud after the initial flash');
   assert.ok(shaderFire.uniforms.uTime.value > 0);
   assert.doesNotThrow(()=>eff.update(1));
   const mats=new Set(),geos=new Set();
