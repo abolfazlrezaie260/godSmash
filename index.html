@@ -2058,6 +2058,12 @@
         window.GodSmashRealEarth.configure(
           THREE, earthMat, cloudMat, fallbackCloudTexture, p.id === "earth"
         );
+        // The Moon has no blue atmospheric scattering. Restore neutral,
+        // restrained fill and rim light for the airless grey lunar terrain.
+        ambientLight.color.set(p.id==='moon' ? 0xbcc4ce : 0x28385e);
+        ambientLight.intensity=p.id==='moon' ? 0.42 : 0.9;
+        rimLight.color.set(p.id==='moon' ? 0xb0bccb : 0x38bdf8);
+        rimLight.intensity=p.id==='moon' ? 0.17 : 0.75;
         if(p.id === 'moon'){
           // Lunar regolith is matte and airless; the optional LOLA-based
           // height image adds small-scale crater shadows without neon gloss.
