@@ -33,6 +33,7 @@
   <script src="./src/ui/continent-mode.js"></script>
   <script src="./src/ui/landscape.js"></script>
   <script src="./src/ui/globe-gestures.js"></script>
+  <script src="./src/ui/app-lifecycle.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -971,6 +972,19 @@
     </div>
   </footer>
 
+  <!-- Native exit confirmation. Android Back closes panels first. -->
+  <div id="app-exit-dialog" class="app-exit-backdrop" role="presentation" hidden>
+    <section class="app-exit-card" role="dialog" aria-modal="true"
+      aria-labelledby="app-exit-title" dir="rtl">
+      <h2 id="app-exit-title">خروج از GodSmash؟</h2>
+      <p>می‌توانید به بازی برگردید یا برنامه را ببندید.</p>
+      <div class="app-exit-actions">
+        <button id="app-exit-cancel" type="button">ادامه بازی</button>
+        <button id="app-exit-confirm" type="button">خروج از برنامه</button>
+      </div>
+    </section>
+  </div>
+
   </main>
   <script src="./src/defense/catalog.js"></script>
   <script src="./src/defense/orbital-defense.js"></script>
@@ -985,8 +999,22 @@
       const SoundEngine = {
         ctx: null,
         muted: false,
+        paused: false,
 
+        pause() {
+          this.paused = true;
+          if (this.ctx) {
+            const oldContext = this.ctx;
+            this.ctx = null;
+            // Closing the context also releases any still-scheduled samples.
+            if (oldContext.state !== 'closed') {
+              Promise.resolve(oldContext.close()).catch(() => {});
+            }
+          }
+        },
+        activate() { this.paused = false; },
         init() {
+          if (this.paused) return;
           if (!this.ctx) {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (AudioCtx) {
@@ -999,7 +1027,7 @@
         },
 
         playLaunch() {
-          if (this.muted) return;
+          if (this.muted || this.paused) return;
           this.init();
           if (!this.ctx) return;
 
@@ -1047,7 +1075,7 @@
         },
 
         playExplosion(intensity = 1.0) {
-          if (this.muted) return;
+          if (this.muted || this.paused) return;
           this.init();
           if (!this.ctx) return;
 
@@ -2705,7 +2733,8 @@
       window.addEventListener('keydown', (e) => {
         if (e.target && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) return;
         if(!scoreModal.hidden || !defenceModal.hidden ||
-          !document.getElementById('planet-modal').hidden) return;
+          !document.getElementById('planet-modal').hidden ||
+          !document.getElementById('app-exit-dialog').hidden) return;
         if (e.ctrlKey || e.altKey || e.metaKey) return;
         const digit = /^Digit([1-9])$/.exec(e.code);
         if (digit && weaponDock.selectAt(Number(digit[1]) - 1)) {
@@ -2728,6 +2757,60 @@
       // ==========================================
       let lastTime = performance.now();
       let gameTime = 0;
+      let appActive = !document.hidden;
+      const appPlugin = window.Capacitor?.Plugins?.App;
+      const exitDialog = document.getElementById('app-exit-dialog');
+      const exitCancel = document.getElementById('app-exit-cancel');
+      const exitConfirm = document.getElementById('app-exit-confirm');
+      function closeExitDialog() {
+        exitDialog.hidden = true;
+        exitConfirm.setAttribute('aria-expanded','false');
+      }
+      function openExitDialog() {
+        exitDialog.hidden = false;
+        exitCancel.focus();
+      }
+      function handleNativeBack() {
+        if (!exitDialog.hidden) { closeExitDialog(); return; }
+        if (!scoreModal.hidden) { closeScoreModal(); return; }
+        if (!defenceModal.hidden) { closeDefenseModal(); return; }
+        if (!document.getElementById('planet-modal').hidden) { planetPicker.close(); return; }
+        const toolButton = document.getElementById('btn-tools');
+        if (toolButton.getAttribute('aria-expanded') === 'true') {
+          toolButton.click(); return;
+        }
+        if (awaitingDefensePlacement) { cancelDefensePlacement(); return; }
+        if (continentMode?.isActive()) { selectPlanet('earth'); return; }
+        openExitDialog();
+      }
+      exitCancel.addEventListener('click',closeExitDialog);
+      exitConfirm.addEventListener('click',()=>{
+        if (appPlugin && typeof appPlugin.exitApp === 'function') {
+          Promise.resolve(appPlugin.exitApp()).catch(error=>console.warn('Exit failed',error));
+        } else closeExitDialog();
+      });
+      exitDialog.addEventListener('click',event=>{
+        if(event.target === exitDialog) closeExitDialog();
+      });
+      document.addEventListener('keydown',event=>{
+        if(event.key === 'Escape' && !exitDialog.hidden){
+          event.preventDefault();closeExitDialog();
+        }
+      });
+      window.GodSmashAppLifecycle.mount({
+        view:window,document,app:appPlugin,
+        onActive:active=>{
+          appActive=active;
+          if (active) {
+            SoundEngine.activate();
+            lastTime=performance.now();
+            landscape.sync();
+          } else {
+            SoundEngine.pause();
+          }
+        },
+        onBack:handleNativeBack
+      });
       // Reuse frame-local vectors instead of allocating new ones for every missile.
       const frameTarget = new THREE.Vector3();
       const frameRouteStart = new THREE.Vector3();
@@ -2742,8 +2825,8 @@
         const realFrameDt = Math.max(0, (now - lastTime) / 1000);
         const frameDt = Math.min(0.05, realFrameDt);
         lastTime = now;
-        qualityController.sample(realFrameDt, !document.hidden && !webglContextUnavailable);
-        if (webglContextUnavailable) return;
+        qualityController.sample(realFrameDt, appActive && !document.hidden && !webglContextUnavailable);
+        if (!appActive || document.hidden || webglContextUnavailable) return;
         const dt = frameDt * state.timeScale;
         gameTime += dt;
         // Count visible, unscaled elapsed play-time (not 2× or 0.5× simulation time).
