@@ -36,6 +36,6 @@ test('impact scene does not double-emit the legacy canvas smoke over GPU clouds'
 
 test('surface crater lip is restrained, without a bright brown raised ring',()=>{
   const damage=source('src/render/planet-damage.js');
-  assert.match(damage,/altitude: 0\.065 \+ power \* 0\.008/);
+  assert.match(damage,/altitude: 0\.028 \+ power \* 0\.004/);
   assert.doesNotMatch(damage,/altitude: 0\.14 \+ power \* 0\.018/);
 });

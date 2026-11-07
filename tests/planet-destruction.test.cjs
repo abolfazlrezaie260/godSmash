@@ -156,6 +156,56 @@ test('blast factory animates and safely disposes of all unique resources',()=>{
   mats.forEach(m=>assert.equal(m.disposals,1));
 });
 
+test('large missile strikes and repeated hits never fold the satellite map into a deep funnel',()=>{
+  const geometry=globe(10,96,48),parent=new Node();
+  const system=damage.createSystem(THREE,{geometry,group:parent,radius:10,lowQuality:false});
+  const initial=Array.from(geometry.attributes.position.array);
+  const point=new Vector3(10,0,0);
+  const strike=()=>system.impact(point,4.8,{
+    planet:mars,weapon:{damage:16},incidence:1,breach:false
+  });
+  const first=strike();
+  assert.ok(first.depth<=0.54,'deepest single ordinary missile crater is capped');
+  for(let k=0;k<12;k++)strike();
+  const current=geometry.attributes.position.array;
+  let changed=0;
+  for(let i=0;i<current.length;i+=3){
+    const r0=Math.hypot(initial[i],initial[i+1],initial[i+2]);
+    const r1=Math.hypot(current[i],current[i+1],current[i+2]);
+    const diff=r1-r0;
+    assert.ok(diff>=-0.681,'cumulative inward displacement is capped per vertex');
+    assert.ok(diff<=0.091,'repeated impacts must not build a giant raised ring');
+    if(Math.abs(diff)>0.001){
+      changed++;
+      const theta=Math.acos(Math.max(-1,Math.min(1,initial[i]/r0)));
+      assert.ok(theta*10<=1.95,'deformation stays local even if the weapon damage radius is huge');
+    }
+  }
+  assert.ok(changed>0,'the crater is still actual 3D geometry');
+  assert.equal(parent.children.length,1,'non-breaching hits add no permanent rock meshes');
+  system.reset();
+  assert.deepEqual(Array.from(current),initial);
+});
+
+test('a penetrating strike opens a compact rocky crater without premature magma glow',()=>{
+  const geometry=globe(10,96,48),parent=new Node();
+  const system=damage.createSystem(THREE,{geometry,group:parent,radius:10});
+  system.setPlanet(mars);
+  const result=system.impact(new Vector3(0,0,10),4.4,{
+    planet:mars,weapon:asteroid,incidence:1,breach:true
+  });
+  assert.equal(result.breached,true);
+  assert.ok(result.aperture<=0.22,'breach may not remove continent-scale spherical caps');
+  assert.equal(parent.children[1].name,'Exposed fractured crust');
+  assert.ok(parent.children[1].geometry.attributes.color,
+    'rocky walls must have their own vertex colors instead of satellite UVs');
+  const glow=parent.children[0].children.find(x=>x.name==='Molten core glow halo');
+  assert.equal(glow.visible,false,'a fresh crust opening is not automatically a glowing core');
+  assert.ok(parent.children[0].material.emissiveIntensity<=0.06);
+  system.reset();
+  assert.equal(parent.children.length,1);
+});
+
 test('grazing impacts create wider, shallower craters than direct impacts', () => {
   const directGeometry = globe(), directParent = new Node();
   const direct = damage.createSystem(THREE, {
@@ -201,13 +251,23 @@ test('repeated impacts cumulatively expose a glowing molten core and reset clear
   assert.equal(second.coreExposed, false, 'core remains covered before the penetration threshold');
   const third = impact();
   assert.equal(third.siteHits, 3);
-  assert.ok(third.cumulativeDepth >= 10 - 10 * 0.805);
-  assert.equal(third.coreExposed, true);
-  assert.equal(parent.children[0].visible, true, 'deep crater reveals the inner sphere without requiring a breach');
-  assert.equal(engine.getCoreExposureCount(), 1);
-  assert.equal(engine.isCoreExposed(), true);
+  assert.equal(third.coreExposed, false, 'ordinary strikes must not expose the core after only three hits');
+  let deep = third;
+  for(let i=0;i<10&&!deep.coreExposed;i++) deep=impact();
+  assert.ok(deep.cumulativeDepth >= 10 - 10 * 0.805);
+  assert.equal(deep.coreExposed,true);
+  assert.equal(parent.children[0].visible,false,
+    'cumulative subsurface damage cannot show the inner sphere through intact satellite terrain');
+  assert.equal(engine.getCoreExposureCount(),1);
+  assert.equal(engine.isCoreExposed(),true);
+  const pierce=engine.impact(point,1.9,{
+    planet:mars,weapon:{damage:4.2},breach:true
+  });
+  assert.equal(pierce.breached,true);
+  assert.equal(parent.children[0].visible,true, 'real crust opening reveals geological interior');
   const glow = parent.children[0].children.find(child => child.name === 'Molten core glow halo');
   assert.ok(glow, 'core has a dedicated glow halo');
+  assert.equal(glow.visible,true, 'molten glow is reserved for accumulated deep damage');
   assert.equal(glow.material.blending, THREE.AdditiveBlending);
   assert.ok(glow.material.opacity > 0);
 

@@ -1270,12 +1270,16 @@
         const vCoord = 0.5 - Math.asin(Math.max(-1, Math.min(1, normal.y))) / Math.PI;
         const cx = u * TEX_W;
         const cy = vCoord * TEX_H;
-        const elongation = 1 + (1 - incidence) * 0.45;
-        const rPx = Math.max(6, blastRadiusWorld / EARTH_RADIUS *
-          TEX_W / (2 * Math.PI) * 0.72);
+        const elongation = 1 + (1 - incidence) * 0.26;
+        // The visual scar is local even for weapons with a much wider
+        // gameplay damage radius. Preserve recognizable coastlines and cities.
+        const scarRadius = Math.min(blastRadiusWorld,
+          EARTH_RADIUS * (impactOptions.breach ? 0.22 : 0.16));
+        const rPx = Math.max(6, scarRadius / EARTH_RADIUS *
+          TEX_W / (2 * Math.PI) * 0.64);
         const markAngle = impactDirection
           ? Math.atan2(impactDirection.z, impactDirection.x) : 0;
-        const outerRadius = rPx * 1.24 * elongation;
+        const outerRadius = rPx * 0.92 * elongation;
         const crackCount = impactOptions.weapon.damage > 4 ? 5 : 3;
         const cracks = Array.from({length:crackCount},(_,i)=>({
           angle:markAngle + i * Math.PI * 2 / crackCount + (Math.random()-0.5)*0.18,
@@ -1291,14 +1295,14 @@
           surfaceCtx.translate(x,cy);
           surfaceCtx.rotate(markAngle);
           surfaceCtx.scale(elongation,1);
-          const ash = surfaceCtx.createRadialGradient(0,0,rPx*0.06,0,0,rPx*1.24);
-          ash.addColorStop(0,martianDust ? 'rgba(60,39,34,0.82)' : 'rgba(16,17,20,0.89)');
-          ash.addColorStop(0.33,martianDust ? 'rgba(93,56,41,0.63)' : 'rgba(34,33,33,0.78)');
-          ash.addColorStop(0.70,martianDust ? 'rgba(159,104,74,0.27)' : 'rgba(46,42,39,0.36)');
+          const ash = surfaceCtx.createRadialGradient(0,0,rPx*0.04,0,0,rPx*0.92);
+          ash.addColorStop(0,martianDust ? 'rgba(60,39,34,0.60)' : 'rgba(16,17,20,0.64)');
+          ash.addColorStop(0.33,martianDust ? 'rgba(93,56,41,0.40)' : 'rgba(34,33,33,0.44)');
+          ash.addColorStop(0.70,martianDust ? 'rgba(159,104,74,0.15)' : 'rgba(46,42,39,0.19)');
           ash.addColorStop(1,martianDust ? 'rgba(143,93,65,0)' : 'rgba(43,42,39,0)');
           surfaceCtx.fillStyle = ash;
           surfaceCtx.beginPath();
-          surfaceCtx.arc(0,0,rPx*1.24,0,Math.PI*2);
+          surfaceCtx.arc(0,0,rPx*0.92,0,Math.PI*2);
           surfaceCtx.fill();
           surfaceCtx.restore();
 
@@ -1318,8 +1322,8 @@
             const irregular=1+0.09*Math.sin(theta*5+cx*.013)
               +0.055*Math.sin(theta*9+cy*.019);
             edge.push({
-              x:Math.cos(theta)*rPx*.47*irregular,
-              y:Math.sin(theta)*rPx*.47*irregular
+              x:Math.cos(theta)*rPx*.31*irregular,
+              y:Math.sin(theta)*rPx*.31*irregular
             });
           }
           surfaceCtx.beginPath();
@@ -1327,7 +1331,7 @@
             ? surfaceCtx.moveTo(p.x,p.y) : surfaceCtx.lineTo(p.x,p.y));
           surfaceCtx.closePath();
           const basin = surfaceCtx.createRadialGradient(
-            -rPx*.1,rPx*.1,0,0,0,rPx*.56);
+            -rPx*.06,rPx*.06,0,0,0,rPx*.36);
           basin.addColorStop(0,lunarDust ? 'rgba(59,61,65,0.63)'
             : martianDust ? 'rgba(57,34,28,0.66)'
             : venusAsh ? 'rgba(74,51,39,0.63)' : 'rgba(18,19,22,0.68)');
@@ -1346,7 +1350,7 @@
 
           // Hairline dark fractures, not incandescent orange radial strokes.
           surfaceCtx.strokeStyle = martianDust
-            ? 'rgba(69,44,36,0.26)' : 'rgba(24,23,23,0.34)';
+            ? 'rgba(69,44,36,0.18)' : 'rgba(24,23,23,0.22)';
           surfaceCtx.lineWidth = Math.max(0.7,TEX_W/2048);
           cracks.forEach(({angle,length})=>{
             surfaceCtx.beginPath();

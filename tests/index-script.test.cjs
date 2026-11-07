@@ -142,10 +142,10 @@ test('impact scorch is dark and non-emissive rather than giant red magma discs',
   const end = html.indexOf('function createTargetReticle(', begin);
   assert.ok(begin > 0 && end > begin);
   const body = html.slice(begin, end);
-  assert.match(body, /rgba\(16,17,20,0\.89\)/);
+  assert.match(body, /rgba\(16,17,20,0\.64\)/);
   assert.match(body, /surfaceCtx\.strokeStyle = martianDust/);
-  assert.match(body, /rgba\(69,44,36,0\.26\)/);
-  assert.match(body, /rgba\(24,23,23,0\.34\)/);
+  assert.match(body, /rgba\(69,44,36,0\.18\)/);
+  assert.match(body, /rgba\(24,23,23,0\.22\)/);
   assert.doesNotMatch(body, /lavaGrad|emissiveCtx\.fill|emissiveCtx\.stroke/);
   assert.doesNotMatch(body, /#dc2626|#f97316|#fb923c/);
 });
