@@ -276,6 +276,14 @@
     }
 
     function impact(localPoint, blastRadius, config) {
+      // Prevent late missiles in a salvo from creating a fresh standalone rim
+      // after the planet surface and its existing scars have been hidden.
+      if (shattered) return {
+        ignored: true, breached: false, depth: 0, aperture: 0, power: 0,
+        incidence: 0, effectiveRadius: 0, damagePercent,
+        impactSiteCount: impactSites.length, siteHits: 0,
+        cumulativeDepth: 0, coreExposed: false
+      };
       const normal = localPoint.clone().normalize();
       const p = config.planet;
       const weapon = config.weapon;
