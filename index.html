@@ -1609,7 +1609,7 @@
           dustColor: planet.id==='mars' ? 0xb37b5c :
             planet.id==='moon' ? 0x96969a :
               planet.id==='venus' ? 0xbca17a : 0x77716b,
-          atmosphericDust: planet.id!=='moon'
+          atmosphericDust: planet.id!=='moon' && !blast.gpuDust
         });
 
         // Impact ejecta, rising soot, and scattering embers are now entirely
@@ -1617,7 +1617,9 @@
         // eject large dodecahedron 'rocks' during ordinary missile impacts.
         // Keep only a restrained handful of short-lived glowing sparks.
         if (planet.id !== 'moon') {
-          rocketFx.burst(blastWorldPosition, worldImpactNormal,
+          // GPU plumes already draw embers/dust; the old canvas puff system
+          // generated bright rectangular overlaps around impact sites.
+          if (!blast.gpuDust) rocketFx.burst(blastWorldPosition, worldImpactNormal,
             lowImpactQuality ? 3 : 6,
             planet.id === 'mars' ? 0xc39071 :
               planet.id === 'venus' ? 0xdcb68b : 0xffa46b);
