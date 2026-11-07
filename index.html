@@ -1393,7 +1393,7 @@
       const projectileQuality = (Math.min(window.innerWidth, window.innerHeight) < 750 ||
         (navigator.connection && navigator.connection.saveData)) ? 'low' : 'high';
       const activeMissiles = [];
-      // One active 192/312-instance fleet maximum; no per-drone Three.js meshes.
+      // One compact squadron (24 mobile / 36 desktop), drawn with one InstancedMesh.
       const droneSimulation = window.GodSmashDroneSwarm;
       const droneRenderer = window.GodSmashDroneSwarmRenderer;
       let droneSwarm = null;
@@ -1407,8 +1407,8 @@
         if(state.shattered)return null;
         if(droneSwarm?.sim.getState().mode==='spent')clearDroneSwarm();
         if(droneSwarm)return droneSwarm;
-        const count=lowImpactQuality?192:312;
-        const sim=droneSimulation.createSwarm({count,planetRadius:EARTH_RADIUS,batchSize:12});
+        const count=lowImpactQuality?24:36;
+        const sim=droneSimulation.createSwarm({count,planetRadius:EARTH_RADIUS,batchSize:6});
         const visual=droneRenderer.createRenderer(THREE,earthGroup,{count});
         droneSwarm={sim,renderer:visual};
         visual.sync(sim.getDrones());
@@ -2136,7 +2136,7 @@
             const target=earthGroup.worldToLocal(point.clone()).normalize();
             if(fleet.sim.attack({x:target.x,y:target.y,z:target.z})){
               SoundEngine.playLaunch();
-              showImpactToast('پهپادها به سمت هدف تغییر مسیر دادند.');
+              showImpactToast('پهپادها به هدف نزدیک می‌شوند، حمله می‌کنند و بازمی‌گردند.');
             }
           },delay/state.timeScale);
           return;
@@ -2493,9 +2493,9 @@
           if(radarClock>=.28){radarClock=0;updateDefenseRadar();}
         }
 
-        // Flock/strike progression runs on the same 0.5x/1x/2x game clock.
-        // Each group of twelve drone contacts produces one small cascading hit;
-        // one InstancedMesh draws the entire fleet.
+        // Compact drone waves approach the selected surface point, make a
+        // low-altitude attack pass and climb back to their launch corridor.
+        // The single InstancedMesh is hidden outside the active sortie.
         if(droneSwarm && !state.shattered){
           const current=droneSwarm;
           current.sim.step(dt,impact=>{
@@ -2607,8 +2607,8 @@
               'Draw calls: ' + renderer.info.render.calls + ' | triangles: ' + renderer.info.render.triangles,
               'GPU geometries: ' + gpu.geometries + ' | textures: ' + gpu.textures,
               'Active missiles: ' + activeMissiles.length + '/' + maxActiveMissiles,
-              'Instanced drones: ' + (droneSwarm ? droneSwarm.sim.getState().alive : 0) +
-                ' | extra draw calls: ' + (droneSwarm ? 1 : 0),
+              'Active attack drones: ' + (droneSwarm ? droneSwarm.sim.getState().active : 0) +
+                ' | extra draw calls: ' + (droneSwarm?.renderer.mesh.visible ? 1 : 0),
               'Harvesters: ' + (harvestFleet ? harvestFleet.sim.getState().active : 0) +
                 ' | beams: ' + (harvestFleet ? harvestFleet.renderer.getStats().activeBeams : 0),
               'Particles: ' + rocketFx.getParticleCount() + '/' + rocketFx.getBudget() +
