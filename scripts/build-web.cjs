@@ -116,6 +116,18 @@ function verifyWeb(webDir, options = {}) {
     for (const name of ['vendor/three.min.js', 'vendor/tailwind.css', 'vendor/fonts.css']) {
       if (!existsFile(path.join(root, name))) throw new Error('Offline vendor asset missing: ' + name);
     }
+    const fontsCss = fs.readFileSync(path.join(root,'vendor/fonts.css'),'utf8');
+    let fontCount = 0;
+    const fontSources = /url\(["']?\.\/fonts\/([^"')]+)\)/g;
+    for (const found of fontsCss.matchAll(fontSources)) {
+      const file = path.resolve(root,'vendor','fonts',found[1]);
+      if (!file.startsWith(path.join(root,'vendor','fonts') + path.sep) ||
+          !existsFile(file) || fs.statSync(file).size < 1) {
+        throw new Error('Required local font missing: ' + found[1]);
+      }
+      fontCount++;
+    }
+    if (fontCount < 2) throw new Error('Offline font CSS missing local font declarations');
   }
   if (!/<head[\s>]/i.test(html) || !/<\/head>/i.test(html)) {
     throw new Error('Built index.html must include a <head> for Capacitor');
