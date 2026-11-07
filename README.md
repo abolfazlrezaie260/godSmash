@@ -56,7 +56,7 @@ npm run build:verify
 
 The generated **`dist/`** folder contains `index.html`, `manifest.webmanifest`, `src/` and `assets/` while excluding tests, scripts and repository metadata. The build fails if a static local script, stylesheet or image reference in `index.html` is unresolved. It does not modify the website at the repository root.
 
-**Not yet a standalone offline app:** The current source HTML still pulls Tailwind, Three.js and fonts from external CDNs; [Issue #43](https://github.com/abolfazlrezaie260/godSmash/issues/43) will vendor these. Native Capacitor projects and device tests are tracked in #44 and later issues. See [mobile MVP and measurement plan](docs/mobile/README.md); no real-device performance numbers have been verified yet.
+**Offline runtime in mobile `dist/`:** The build now compiles Tailwind CSS, copies pinned Three.js and packages local Vazirmatn/Inter WOFF2 files; `dist/index.html` points at those files rather than CDN links. The root `index.html` continues to use CDNs for the existing GitHub Pages release. Optional NASA imagery can still be requested while connected; the local textures and map data are bundled. Actual offline operation inside Android WebView and iOS WKWebView still needs physical-device validation in #44/#48. Pinned dependencies and third-party licenses are included by the build under `dist/vendor/licenses/`. See [mobile MVP and measurement plan](docs/mobile/README.md); no real-device performance numbers have been verified yet.
 
 ## Run locally
 
