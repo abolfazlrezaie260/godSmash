@@ -10,8 +10,8 @@
     "test": "node --test",
     "test:build": "node --test tests/mobile-build.test.cjs",
     "mobile:sync": "npm run build && cap sync",
-    "mobile:android": "npm run mobile:sync && cap open android",
-    "mobile:ios": "npm run mobile:sync && cap open ios",
+    "mobile:android": "npm run build && cap sync android && cap open android",
+    "mobile:ios": "npm run build && cap sync ios && cap open ios",
     "mobile:doctor": "cap doctor"
   },
   "engines": {
