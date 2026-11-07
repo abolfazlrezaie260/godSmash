@@ -33,7 +33,12 @@
     const touch=options.touch!==undefined ? !!options.touch :
       Boolean(view.navigator?.maxTouchPoints>0 ||
         (typeof view.matchMedia==='function' && view.matchMedia('(pointer: coarse)').matches));
+    // Capacitor handles orientation at the OS level. Avoid CSS 90-degree
+    // transforms and browser fullscreen requests in native WebViews.
+    const native = options.native !== undefined ? !!options.native :
+      Boolean(view.Capacitor?.isNativePlatform?.());
     let rotated=false,disposed=false,lockRequested=false,direction=1;
+    shell.classList.toggle('is-native-app',native);
     function viewport() {
       return {
         width:shell.clientWidth|| (rotated?view.innerHeight:view.innerWidth),
@@ -42,7 +47,7 @@
     }
     function sync(){
       if(disposed)return;
-      rotated=wantsRotation(view.innerWidth,view.innerHeight,touch);
+      rotated=!native && wantsRotation(view.innerWidth,view.innerHeight,touch);
       direction=view.screen?.orientation?.type==='portrait-secondary' ? -1 : 1;
       shell.classList.toggle('is-rotated',rotated);
       shell.classList.toggle('is-counterclockwise',rotated&&direction<0);
@@ -50,7 +55,7 @@
       onResize(viewport());
     }
     function tryNativeLock(){
-      if(disposed||!touch||lockRequested)return;
+      if(disposed||native||!touch||lockRequested)return;
       const orientation=view.screen&&view.screen.orientation;
       if(!orientation||typeof orientation.lock!=='function')return;
       lockRequested=true;
@@ -74,12 +79,13 @@
     if(view.screen?.orientation?.addEventListener)
       view.screen.orientation.addEventListener('change',sync);
     // Attempt native lock on a genuine user gesture; never force fullscreen.
-    view.addEventListener('pointerdown',tryNativeLock,{once:true,passive:true});
+    if(!native) view.addEventListener('pointerdown',tryNativeLock,{once:true,passive:true});
     sync();
     return Object.freeze({
       sync,tryNativeLock,
       getViewport:viewport,
       isRotated:()=>rotated,
+      isNative:()=>native,
       point:(x,y,rect)=>toLocalPoint(x,y,rect,rotated,direction),
       delta:(dx,dy)=>toLocalDelta(dx,dy,rotated,direction),
       dispose(){

@@ -166,3 +166,42 @@
 @media (prefers-reduced-motion: reduce) {
   .dock-collapse-glyph,.utility-trigger .utility-chevron { transition: none; }
 }
+
+
+/* On Capacitor, the OS owns orientation and status bars. Keep interactive
+   controls inside actual display cutouts, including landscape notches. */
+#game-shell.is-native-app #game-header {
+  top: max(10px, env(safe-area-inset-top, 0px));
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+}
+#game-shell.is-native-app #game-controls {
+  bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+}
+#game-shell.is-native-app #weapon-dock {
+  left: max(12px, env(safe-area-inset-left, 0px));
+}
+#game-shell.is-native-app #geo-route-panel {
+  top: max(78px, calc(env(safe-area-inset-top, 0px) + 68px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+}
+#game-shell.is-native-app #geo-map-title {
+  top: max(78px, calc(env(safe-area-inset-top, 0px) + 68px));
+  left: max(12px, env(safe-area-inset-left, 0px));
+}
+#game-shell.is-native-app .score-overlay,
+#game-shell.is-native-app .defense-backdrop,
+#game-shell.is-native-app .planet-modal {
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+}
+@media (max-width: 1024px) {
+  #game-shell.is-native-app #weapon-dock {
+    right: max(12px, env(safe-area-inset-right, 0px));
+    width: auto;
+  }
+}

@@ -55,3 +55,11 @@ If platform projects have not yet been checked in, initialize with `npx cap add 
 Detailed platform behavior is handled by #45 through #51. Release signing and store metadata belong to #54/#55. No developer signing keys are expected in this repository.
 
 Official guidance: https://capacitorjs.com/docs/getting-started
+
+## Native orientation and safe areas (#45)
+
+Android uses `sensorLandscape` and an immersive window with transient system bars on swipe.
+iOS advertises landscape-only orientations and fullscreen presentation for iPhone/iPad.
+The native WebView does **not** use CSS rotation or browser fullscreen requests; the standalone web game preserves its existing rotated portrait fallback. Notched-device spacing uses CSS `env(safe-area-inset-*)` for the main HUD, weapon dock, map panel and modal content.
+
+These settings compile in CI but **must be visually checked** on notched iPhone and Android devices before closing #45. Verify both landscape directions, HUD spacing, country-map target coordinates, transient Android gesture navigation and keyboard/back behavior.

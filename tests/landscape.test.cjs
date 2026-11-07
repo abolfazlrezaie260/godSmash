@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const landscape=require('../src/ui/landscape.js');
 
-function harness({width=390,height=844,touch=true,lock=true}={}) {
+function harness({width=390,height=844,touch=true,lock=true,native=false}={}) {
   const classes=new Set();
   const listeners=new Map();
   const orientationEvents=new Map();
@@ -28,7 +28,7 @@ function harness({width=390,height=844,touch=true,lock=true}={}) {
   };
   const sizes=[];
   const controller=landscape.mount({
-    view,document:{},shell,
+    view,document:{},shell,native,
     onResize:size=>sizes.push({...size})
   });
   return {
@@ -138,4 +138,28 @@ test('native orientation lock can enter fullscreen after user interaction',async
   await new Promise(resolve=>setImmediate(resolve));
   assert.deepEqual(calls,['fullscreen','landscape']);
   controller.dispose();
+});
+
+test('Capacitor native view uses OS landscape and never CSS-rotates or requests fullscreen', () => {
+  const h = harness({width:390,height:844,native:true});
+  assert.equal(h.controller.isNative(),true);
+  assert.equal(h.controller.isRotated(),false);
+  assert.equal(h.classes.has('is-rotated'),false);
+  assert.equal(h.classes.has('is-native-app'),true);
+  assert.equal(h.shell['data-landscape-mode'],'native');
+  assert.equal(h.listeners.has('pointerdown'),false);
+  assert.deepEqual(h.controller.getViewport(),{width:390,height:844});
+  h.controller.tryNativeLock();
+  assert.deepEqual(h.calls,[]);
+  h.resize(844,390);
+  assert.deepEqual(h.sizes.at(-1),{width:844,height:390});
+});
+
+test('desktop and web portrait preserve existing fallback behavior', () => {
+  const native = harness({width:844,height:390,native:true});
+  native.controller.dispose();
+  const web = harness({width:390,height:844,native:false});
+  assert.equal(web.controller.isNative(),false);
+  assert.equal(web.controller.isRotated(),true);
+  assert.equal(web.classes.has('is-native-app'),false);
 });

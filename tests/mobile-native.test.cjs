@@ -34,3 +34,20 @@ test('no signing or generated web assets are checked into the native project', (
     assert.ok(ignore.includes(rule), 'missing ignore rule ' + rule);
   }
 });
+
+test('native orientation and full-screen safe areas are configured', () => {
+  const android = fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
+  const ios = fs.readFileSync(path.join(root, 'ios/App/App/Info.plist'), 'utf8');
+  const activity = fs.readFileSync(path.join(root, 'android/app/src/main/java/io/github/abolfazlrezaie260/godsmash/MainActivity.java'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'src/ui/toolbar.css'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.match(android, /android:screenOrientation="sensorLandscape"/);
+  assert.match(ios, /UIInterfaceOrientationLandscapeLeft/);
+  assert.match(ios, /UIInterfaceOrientationLandscapeRight/);
+  assert.doesNotMatch(ios, /UIInterfaceOrientationPortrait/);
+  assert.match(ios, /UIRequiresFullScreen/);
+  assert.match(activity, /WindowInsetsControllerCompat/);
+  assert.match(css, /is-native-app #game-header/);
+  assert.match(css, /safe-area-inset-bottom/);
+  assert.match(html, /getComputedStyle\(footerControls\)\.bottom/);
+});
