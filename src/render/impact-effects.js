@@ -7,6 +7,9 @@
   const timing = root.GodSmashImpactTiming ||
     (typeof module !== 'undefined' && module.exports
       ? require('./impact-timing.js') : null);
+  const gpuClouds = root.GodSmashImpactClouds ||
+    (typeof module !== 'undefined' && module.exports
+      ? require('./impact-gpu-clouds.js') : null);
   const clamp=(n,a,b)=>Math.min(b,Math.max(a,n));
   const mix=(a,b,t)=>a+(b-a)*t;
   const smooth=(a,b,t)=>{
@@ -134,7 +137,7 @@
       blending:THREE.AdditiveBlending
     });
     const fire=new THREE.Mesh(
-      new THREE.IcosahedronGeometry(1,lowQuality?1:2),fireMat
+      new THREE.SphereGeometry(1,lowQuality?14:28,lowQuality?9:18),fireMat
     );
     fire.position.z=span*.11;
     group.add(fire);
@@ -145,7 +148,7 @@
       depthWrite:false,side:THREE.DoubleSide
     });
     const shell=new THREE.Mesh(
-      new THREE.IcosahedronGeometry(1,lowQuality?1:2),shellMat
+      new THREE.SphereGeometry(1,lowQuality?12:24,lowQuality?8:16),shellMat
     );
     shell.position.z=span*.14;
     group.add(shell);
@@ -168,25 +171,13 @@
       rings.push(mesh);
     }
 
-    // Irregular individually drifting charcoal clouds. On the Moon there
-    // is no atmospheric smoke; lunar debris is supplied by the main game.
-    const smoke=[];
-    const count=style.smoke===0?0:Math.round((lowQuality?6:13)*style.smoke);
-    const cloudGeometry=new THREE.IcosahedronGeometry(1,lowQuality?0:1);
-    for(let i=0;i<count;i++){
-      const angle=i*2.399963229728653;
-      const band=.28+.72*Math.sqrt((i+.6)/Math.max(1,count));
-      const mat=new THREE.MeshBasicMaterial({
-        color:style.dust,transparent:true,opacity:0,
-        depthWrite:false,side:THREE.DoubleSide
-      });
-      const puff=new THREE.Mesh(cloudGeometry,mat);
-      puff.visible=false;
-      group.add(puff);
-      smoke.push({mesh:puff,angle,band,phase:(i%5)*.037,
-        turn:((i*17)%7-3)*.23,
-        shape:.7+(i%4)*.23});
-    }
+    // Three draw calls per impact instead of dozens of low-poly smoke rocks.
+    // Procedural sprites are shaded and moved on the GPU, with the dust layer
+    // following the actual curvature of the planet.
+    const clouds=gpuClouds?gpuClouds.createSystem(
+      THREE,style,span,sphereRadius,lowQuality):null;
+    if(clouds)group.add(clouds.group);
+    const count=clouds?clouds.smokeCount:0;
 
     const flash=lowQuality?null:new THREE.PointLight(
       new THREE.Color(style.heat),0,span*3.2
@@ -208,10 +199,11 @@
       fire.scale.setScalar(radius);
       fire.position.z=span*(.10+.19*early);
       fireMat.uniforms.uTime.value=t*6.7;
-      fireMat.uniforms.uAlpha.value=phase.flame*.78*style.fire;
+      fireMat.uniforms.uAlpha.value=Math.min(1,
+        (phase.flame*.82+phase.flash*.52)*style.fire);
       shell.scale.setScalar(radius*1.24);
       shell.position.z=span*(.08+.19*early);
-      shellMat.opacity=phase.plasma*.13*cooling;
+      shellMat.opacity=phase.plasma*.075*cooling;
 
       const expanding=smooth(.04,.47,t);
       const r=Math.max(.08,maxWave*(.15+.85*expanding));
@@ -222,23 +214,8 @@
         ring.material.opacity=phase.shock*style.wave*(index===0?.34:.15);
       });
 
-      for(const p of smoke){
-        const mesh=p.mesh;
-        const visible=smooth(.13+p.phase,.32+p.phase,t)*
-          (1-smooth(.76,1,t));
-        mesh.visible=visible>.008;
-        const age=clamp((t-.13-p.phase)/.8,0,1);
-        const spread=span*style.plume*(.12+.59*age)*p.band;
-        const direction=p.angle+p.turn*age;
-        mesh.position.set(
-          Math.cos(direction)*spread,Math.sin(direction)*spread,
-          span*(.035+.82*age)*style.plume
-        );
-        const puffSize=span*(.12+.27*age)*p.shape;
-        mesh.scale.set(puffSize,puffSize*(.8+age*.3),puffSize*.65);
-        mesh.material.opacity=visible*(lowQuality?.13:.17);
-      }
-      if(flash)flash.intensity=2.4*phase.flash*style.fire;
+      if(clouds)clouds.update(t,phase);
+      if(flash)flash.intensity=3.8*phase.flash*style.fire;
     }
     function dispose(){
       if(disposed)return;
