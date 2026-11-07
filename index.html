@@ -987,6 +987,12 @@
           statusDotEl.className = 'relative w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]';
           integrityValEl.className = 'num-mono font-bold text-emerald-400';
         }
+        // A destroyed planet is no longer a valid weapon target.
+        btnFireCenter.disabled = state.shattered;
+        btnFireCenter.title = state.shattered
+          ? 'سیاره متلاشی شده است؛ ابتدا آن را بازسازی کنید'
+          : 'شلیک به سیاره';
+        btnFireCenter.classList.toggle('opacity-40', state.shattered);
       }
 
       // ==========================================
@@ -1564,6 +1570,9 @@
 
 
       function triggerNuclearDetonation(localTarget, localNormal, selected = weapon, impactData = {}) {
+        // Pending salvos can land after an earlier missile has shattered the planet.
+        // Never carve a new free-floating crater or count damage against empty space.
+        if (state.shattered) return;
         const blastWorldPosition = earthGroup.localToWorld(localTarget.clone());
         const worldImpactNormal = localNormal.clone()
           .applyQuaternion(earthGroup.quaternion).normalize();
@@ -1653,9 +1662,19 @@
       }
 
       function triggerPlanetaryShatter() {
+        if (state.shattered) return;
+        state.shattered = true;
+        // Invalidate queued salvos and remove missiles already in flight.
+        generation++;
         clearDroneSwarm();
         clearHarvesterFleet();
-        state.shattered = true;
+        for (const missile of activeMissiles.splice(0)) removeMissile(missile);
+        // Surface-bound effects must not linger as isolated rings after the crust vanishes.
+        for (const effect of activeExplosions.splice(0)) {
+          earthGroup.remove(effect.group);
+          effect.dispose();
+        }
+        rocketFx.clear();
         state.population = 0;
         SoundEngine.playExplosion(1.6);
         updateHUD();
@@ -2114,6 +2133,7 @@
 
 
       function fireWeaponAtWorldPoint(point, delay = 0) {
+        if (state.shattered) return;
         const selected = weapon;
         if(selected.kind==='harvester'){
           const issued=generation;
@@ -2475,6 +2495,8 @@
         // Surviving targets reaching the surface now complete their impact.
         // Destroyed projectiles were removed above, so damage is not applied.
         for(let i=activeMissiles.length-1;i>=0;i--){
+          // A detonation earlier in this same frame may have cleared the volley.
+          if(state.shattered)break;
           const m=activeMissiles[i];
           if(m.progress<1 || !missilePhysics.hasPlanetContact(
             m.mesh.position, earthGroup.position, EARTH_RADIUS, m.collisionRadius
