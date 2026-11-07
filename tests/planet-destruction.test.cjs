@@ -351,3 +351,41 @@ test('Martian relief survives crater reset and switches back to Earth sphere',()
     'Earth and other planets restore original spherical geometry');
   assert.throws(()=>engine.setTerrain(()=>Infinity),/finite/);
 });
+
+
+test('late missile impacts cannot resurrect a shattered Moon crust', () => {
+  const geometry = globe(), parent = new Node();
+  const engine = damage.createSystem(THREE, {
+    geometry, group: parent, radius: 10, lowQuality: true
+  });
+  engine.setPlanet(moon);
+  const first = engine.impact(new Vector3(0, 0, 10), 3.5, {
+    planet: moon, weapon: asteroid, breach: true
+  });
+  assert.equal(first.breached, true);
+  engine.setShattered(true);
+  const beforePositions = Array.from(geometry.attributes.position.array);
+  const beforeIndices = Array.from(geometry.index.array);
+  const beforeDamage = engine.getDamagePercent();
+  const beforeChildren = parent.children.length;
+
+  const late = engine.impact(new Vector3(0, 0, -10), 4.5, {
+    planet: moon, weapon: asteroid, breach: true
+  });
+  assert.equal(late.ignored, true);
+  assert.equal(late.breached, false);
+  assert.equal(engine.getBreachCount(), 1);
+  assert.equal(engine.getImpactSiteCount(), 1);
+  assert.equal(engine.getDamagePercent(), beforeDamage);
+  assert.deepEqual(Array.from(geometry.attributes.position.array), beforePositions);
+  assert.deepEqual(Array.from(geometry.index.array), beforeIndices);
+  assert.equal(parent.children.length, beforeChildren);
+  assert.ok(parent.children.every(child => !child.visible),
+    'all existing crust and interior meshes must stay hidden');
+
+  engine.reset();
+  const rebuilt = engine.impact(new Vector3(0, 0, -10), 3.5, {
+    planet: moon, weapon: asteroid, breach: true
+  });
+  assert.equal(rebuilt.breached, true, 'restoring the planet re-enables collisions');
+});
