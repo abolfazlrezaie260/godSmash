@@ -35,6 +35,7 @@
 }
 .utility-panel .hud-btn:hover { background: rgba(51, 65, 85, .9); }
 .utility-panel #btn-reset { color: #fdba74; border-color: rgba(249, 115, 22, .24); }
+.utility-panel #btn-reset span:last-child { display: inline !important; }
 .utility-trigger:focus-visible, .weapon-filter-button:focus-visible,
 .weapon-dock-collapse:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 #game-shell.is-continent-mode .utility-panel #btn-defenses,
@@ -103,7 +104,7 @@
 #btn-zoom-in, #btn-zoom-out { flex: 0 0 36px; min-width: 36px; min-height: 38px; }
 @media (max-width: 1024px) {
   #weapon-dock {
-    max-height: 134px; gap: 5px; padding: 7px 8px;
+    max-height: min(134px, calc(100% - var(--footer-clearance, 110px) - 85px)); gap: 5px; padding: 7px 8px;
   }
   #weapon-dock .weapon-dock-top { gap: 5px; }
   #weapon-dock .weapon-dock-heading { display: flex; }
@@ -150,7 +151,7 @@
   .weapon-dock-filters { width: min(190px, 52%); }
   .weapon-filter-button { font-size: 9px; }
 }
-#game-shell.is-rotated #weapon-dock { max-height: 134px; }
+#game-shell.is-rotated #weapon-dock { max-height: min(134px, calc(100% - var(--footer-clearance, 110px) - 85px)); }
 #game-shell.is-rotated .game-control-bar { grid-template-columns: minmax(0,1fr) auto auto; }
 #game-shell.is-rotated .battle-setup { grid-column: auto; }
 #game-shell.is-rotated .battle-primary { grid-column: auto; }
